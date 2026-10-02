@@ -40,7 +40,6 @@ export function playerControlSystem(world: World): void {
  * prediction (controlPlayer + physics `integrate` on the local player only).
  */
 export function controlPlayer(world: World, p: PlayerState, e: Entity, input: PlayerInput): void {
-
   if (input.select >= 0 && input.select < HOTBAR_SIZE) p.selected = input.select;
 
   if (p.downed || p.out) {

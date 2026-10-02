@@ -15,7 +15,11 @@
     "check": "bun run typecheck && bun run test"
   },
   "dependencies": {
-    "pixi.js": "^8.22.0"
+    "pixi-filters": "^6.1.5",
+    "pixi.js": "^8.22.0",
+    "simplex-noise": "^4.0.3",
+    "trystero": "^0.25.4",
+    "zzfx": "^1.4.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
