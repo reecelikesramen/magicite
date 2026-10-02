@@ -1,4 +1,6 @@
 import { Container, Text } from 'pixi.js';
+import type { InputManager } from '../engine/input';
+import type { GameEvent } from '../sim/types';
 import type { World } from '../sim/world';
 
 /** PLACEHOLDER HUD (scaffold). The UI workstream replaces this with the pixel-font HUD. */
@@ -11,7 +13,14 @@ export class Hud {
     this.text.position.set(8, 8);
   }
 
-  update(world: World, playerIndex: number): void {
+  /** Called on resize / scale change. The UI draws at native pixel scale like the world. */
+  layout(_screenW: number, _screenH: number, scale: number): void {
+    this.root.scale.set(Math.max(1, scale / 2));
+  }
+
+  handleEvents(_events: readonly GameEvent[], _world: World, _playerIndex: number): void {}
+
+  update(world: World, playerIndex: number, _input: InputManager): void {
     const p = world.players[playerIndex];
     const e = world.playerEntity(playerIndex);
     if (!p || !e) return;

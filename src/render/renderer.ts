@@ -4,7 +4,7 @@ import { hash01 } from '../engine/rng';
 import { lerp } from '../engine/math';
 import { TILE } from '../sim/constants';
 import { CHUNK, Tile, tileProps } from '../sim/tiles';
-import type { Entity } from '../sim/types';
+import type { Entity, GameEvent } from '../sim/types';
 import type { World } from '../sim/world';
 
 /** Target native view; the scale is the largest integer that still shows at least this much. */
@@ -186,6 +186,9 @@ export class Renderer {
     }
     return s;
   }
+
+  /** React to presentation events (particles, shake, damage numbers…). */
+  handleEvents(_events: readonly GameEvent[], _world: World): void {}
 
   draw(world: World, alpha: number, focus: Entity | undefined): void {
     if (this.levelRef !== world.level) this.rebuildLevel(world);
