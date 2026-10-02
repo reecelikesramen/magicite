@@ -9,7 +9,10 @@ export interface LevelRequest {
   /** 1-based district depth. */
   district: number;
   biome: string;
-  kind: 'normal' | 'town' | 'boss';
+  /** normal district · town before a district · boss district (arena at the end) · final lair (no exits). */
+  kind: 'normal' | 'town' | 'boss' | 'lair';
+  /** Destination biome per exit portal (normal/boss: up to 3 options; town: [] = single gate). */
+  nextBiomes: string[];
 }
 
 /**
@@ -49,7 +52,10 @@ export function generateLevel(req: LevelRequest): Level {
     else if (rng.chance(0.5)) spawns.push({ kind: 'enemy', def: 'green_slime', x: x * TILE + 4, y: top });
   }
   const sx = 5;
-  const ex = w - 8;
+  const exits = (req.kind === 'town' ? [''] : req.nextBiomes).map((biome, i) => {
+    const ex = w - 8 - i * 6;
+    return { x: ex * TILE - 8, y: heights[ex]! * TILE - 20, w: 24, h: 20, biome };
+  });
   return {
     info: {
       district: req.district,
@@ -61,7 +67,8 @@ export function generateLevel(req: LevelRequest): Level {
     },
     grid: g,
     spawn: { x: sx * TILE + 4, y: heights[sx]! * TILE },
-    exit: { x: ex * TILE - 8, y: heights[ex]! * TILE - 20, w: 24, h: 20 },
+    exits: req.kind === 'lair' ? [] : exits,
+    locked: req.kind === 'boss',
     spawns,
     lights: [],
   };

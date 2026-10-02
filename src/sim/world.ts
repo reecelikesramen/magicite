@@ -34,13 +34,25 @@ export interface StaticLight {
   intensity: number;
 }
 
+/** A portal out of the level. `biome` = destination biome ('' for a town gate → its district). */
+export interface ExitPortal extends Rect {
+  biome: string;
+}
+
 export interface Level {
   info: LevelInfo;
   grid: TileGrid;
   /** Player spawn, bottom-centre px. */
   spawn: { x: number; y: number };
-  /** Exit portal rect in px (players press interact inside it). */
-  exit: Rect;
+  /**
+   * Exit portals in px (players press interact inside one). Normal districts have 3 (one per next-biome
+   * option, colour-coded), towns have 1 gate, the final lair has none.
+   */
+  exits: ExitPortal[];
+  /** Exits are sealed until the level's boss dies (boss districts). */
+  locked: boolean;
+  /** Boss arena bounds in px (boss districts), used for arena lock-in and camera framing. */
+  arena?: Rect;
   spawns: SpawnSpec[];
   lights: StaticLight[];
 }

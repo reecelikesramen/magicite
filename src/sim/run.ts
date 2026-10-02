@@ -10,8 +10,9 @@ export function biomeForDistrict(world: World, district: number): string {
   return (options.length ? world.rng.pick(options) : [...Content.biomes.values()][0]!).id;
 }
 
-export function requestFor(world: World, district: number): LevelRequest {
-  return { seed: world.seed, district, biome: biomeForDistrict(world, district), kind: 'normal' };
+export function requestFor(world: World, district: number, biome = biomeForDistrict(world, district)): LevelRequest {
+  const next = [biomeForDistrict(world, district + 1)];
+  return { seed: world.seed, district, biome, kind: 'normal', nextBiomes: next };
 }
 
 export function enterLevel(world: World, req: LevelRequest): void {
@@ -22,7 +23,8 @@ export function enterLevel(world: World, req: LevelRequest): void {
 /** Exit portal: when every non-out player stands in the exit and one presses interact, advance. */
 export function exitSystem(world: World): void {
   if (world.run.over) return;
-  const exit = world.level.exit;
+  const exit = world.level.exits[0];
+  if (!exit || world.level.locked) return;
   let anyPressed = false;
   let allIn = true;
   for (const p of world.players) {
@@ -35,7 +37,7 @@ export function exitSystem(world: World): void {
   }
   if (anyPressed && allIn) {
     for (const p of world.players) p.runStats.districtsCleared++;
-    enterLevel(world, requestFor(world, world.level.info.district + 1));
+    enterLevel(world, requestFor(world, world.level.info.district + 1, exit.biome || undefined));
   } else if (anyPressed) {
     world.emit({ type: 'message', text: 'Wait for your party at the portal!' });
   }

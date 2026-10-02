@@ -70,8 +70,8 @@ export class Renderer {
     for (const s of this.entSprites.values()) s.destroy();
     this.entSprites.clear();
     this.levelRef = world.level;
-    const ex = world.level.exit;
-    this.portal.clear().rect(ex.x, ex.y, ex.w, ex.h).fill({ color: 0x7ac040, alpha: 0.35 }).stroke({ color: 0x8a8a8a, width: 2 });
+    this.portal.clear();
+    for (const ex of world.level.exits) this.portal.rect(ex.x, ex.y, ex.w, ex.h).fill({ color: 0x7ac040, alpha: 0.35 }).stroke({ color: 0x8a8a8a, width: 2 });
   }
 
   private drawChunk(world: World, cx: number, cy: number, canvas: HTMLCanvasElement): void {
