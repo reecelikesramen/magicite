@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-single/
+desktop/build/
+*.log
+.DS_Store
+/screenshots/
+/test-results/
