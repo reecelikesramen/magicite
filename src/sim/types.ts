@@ -157,6 +157,15 @@ export interface Entity {
   owner?: number;
 }
 
+/** Rolled at character creation (15 points; HP 4–6, others 2–4) and raised by level-ups. */
+export interface BaseStats {
+  hp: number;
+  atk: number;
+  dex: number;
+  mag: number;
+  lck: number;
+}
+
 export interface CoreStats {
   maxHp: number;
   maxMana: number;
@@ -165,6 +174,7 @@ export interface CoreStats {
   atk: number;
   dex: number;
   mag: number;
+  lck: number;
   def: number;
 }
 
@@ -195,6 +205,9 @@ export interface PlayerState {
   race: string;
   hat: string;
   companion: string;
+  traits: string[];
+  /** Creation roll + level-up gains (before race/trait/gear mods). */
+  base: BaseStats;
   /** Final stats after race + level + skills + equipment (recomputed by recalcStats). */
   stats: CoreStats;
   /** Aggregated StatMods from everything (multipliers, resistances, specials). */
@@ -206,9 +219,16 @@ export interface PlayerState {
   level: number;
   xp: number;
   xpToNext: number;
-  /** Pending skill-path choices (one per level-up). */
+  /** Pending skill choices (granted at levels 5/10/15/20/25). */
   skillPicks: number;
+  /** The 3 skill ids currently offered (one per path), empty when none pending. */
+  skillOffer: string[];
+  /** Owned skills → rank (1..3). */
   skills: Record<string, number>;
+  /** Up to 3 owned skill ids bound to Z/X/C. */
+  skillSlots: string[];
+  /** Ticks until each slotted skill is ready (parallel to skillSlots). */
+  skillCooldowns: number[];
   gold: number;
   /** INVENTORY_SIZE slots; [0, HOTBAR_SIZE) is the hotbar. */
   inventory: (ItemStack | null)[];
@@ -264,11 +284,13 @@ export interface PlayerInput {
   aimY: number;
   /** Hotbar slot to select this tick, -1 = no change. */
   select: number;
+  /** Skill slot (0..2 = Z/X/C) to activate this tick, -1 = none. */
+  skill: number;
   commands: PlayerCommand[];
 }
 
 export function emptyInput(): PlayerInput {
-  return { moveX: 0, moveY: 0, jump: false, attack: false, alt: false, interact: false, aimX: 0, aimY: 0, select: -1, commands: [] };
+  return { moveX: 0, moveY: 0, jump: false, attack: false, alt: false, interact: false, aimX: 0, aimY: 0, select: -1, skill: -1, commands: [] };
 }
 
 /**

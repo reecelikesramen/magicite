@@ -6,3 +6,4 @@ desktop/build/
 .DS_Store
 /screenshots/
 /test-results/
+.claude/worktrees/

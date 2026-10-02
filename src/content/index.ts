@@ -9,7 +9,8 @@ import { PROJECTILES } from './projectiles';
 import { RACES } from './races';
 import { RECIPES } from './recipes';
 import { RESOURCES } from './resources';
-import { SKILL_PATHS } from './skills';
+import { SKILL_PATHS, SKILLS } from './skills';
+import { TRAITS } from './traits';
 import type {
   BiomeDef,
   BossDef,
@@ -22,7 +23,9 @@ import type {
   RaceDef,
   RecipeDef,
   ResourceDef,
+  SkillDef,
   SkillPathDef,
+  TraitDef,
   UnlockDef,
 } from './types';
 import { UNLOCKS } from './unlocks';
@@ -66,7 +69,9 @@ export const Content = {
   races: indexById<RaceDef>(RACES, 'race'),
   hats: indexById<HatDef>(HATS, 'hat'),
   companions: indexById<CompanionDef>(COMPANIONS, 'companion'),
-  skills: indexById<SkillPathDef>(SKILL_PATHS, 'skill path'),
+  skillPaths: indexById<SkillPathDef>(SKILL_PATHS, 'skill path'),
+  skills: indexById<SkillDef>(SKILLS, 'skill'),
+  traits: indexById<TraitDef>(TRAITS, 'trait'),
   unlocks: indexById<UnlockDef>(UNLOCKS, 'unlock'),
   npcs: indexById<NpcDef>(NPCS, 'npc'),
 };
@@ -122,6 +127,7 @@ export function validateContent(): string[] {
   for (const b of Content.biomes.values()) {
     if (b.boss && !Content.bosses.has(b.boss)) errs.push(`biome ${b.id}: unknown boss "${b.boss}"`);
   }
+  for (const s of Content.skills.values()) if (!Content.skillPaths.has(s.path) && Content.skillPaths.size > 0) errs.push(`skill ${s.id}: unknown path "${s.path}"`);
   for (const r of Content.races.values()) for (const s of r.startItems) if (!hasItem(s.item)) errs.push(`race ${r.id}: unknown start item "${s.item}"`);
   for (const c of Content.companions.values()) for (const s of c.startItems ?? []) if (!hasItem(s.item)) errs.push(`companion ${c.id}: unknown start item "${s.item}"`);
   for (const n of Content.npcs.values()) for (const s of n.stock ?? []) if (!hasItem(s)) errs.push(`npc ${n.id}: unknown stock item "${s}"`);

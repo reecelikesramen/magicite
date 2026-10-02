@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validateContent } from '../src/content';
 import { createRun, emptyInput } from '../src/sim';
 
-const setup = { name: 'TEST', race: 'human', hat: '', companion: '' };
+const setup = { name: 'TEST', race: 'drifter', hat: '', companion: '' };
 
 describe('simulation smoke', () => {
   it('content cross-references are valid', () => {

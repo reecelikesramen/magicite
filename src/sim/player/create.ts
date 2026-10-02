@@ -1,7 +1,7 @@
 import { Content } from '../../content';
 import { INVENTORY_SIZE } from '../constants';
 import { addItem } from '../items/inventory';
-import { recalcStats } from '../items/stats';
+import { DEFAULT_BASE, recalcStats } from '../items/stats';
 import type { PlayerState, RunStats } from '../types';
 import type { PlayerSetup, World } from '../world';
 
@@ -29,7 +29,9 @@ export function addPlayer(world: World, setup: PlayerSetup): PlayerState {
     race: setup.race,
     hat: setup.hat,
     companion: setup.companion,
-    stats: { maxHp: 1, maxMana: 0, maxHunger: 1, maxStamina: 1, atk: 0, dex: 0, mag: 0, def: 0 },
+    traits: [...(setup.traits ?? [])],
+    base: { ...(setup.stats ?? DEFAULT_BASE) },
+    stats: { maxHp: 1, maxMana: 0, maxHunger: 1, maxStamina: 1, atk: 0, dex: 0, mag: 0, lck: 0, def: 0 },
     mods: {},
     specials: [],
     mana: 0,
@@ -39,7 +41,10 @@ export function addPlayer(world: World, setup: PlayerSetup): PlayerState {
     xp: 0,
     xpToNext: 8,
     skillPicks: 0,
+    skillOffer: [],
     skills: {},
+    skillSlots: [],
+    skillCooldowns: [],
     gold: 0,
     inventory: new Array(INVENTORY_SIZE).fill(null),
     equipment: { head: null, body: null, accessory1: null, accessory2: null, ammo: null, trinket: null },

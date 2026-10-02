@@ -16,16 +16,25 @@ export function addMods(a: StatMods, b: StatMods | undefined): StatMods {
   return a;
 }
 
+/** Default creation roll when a setup doesn't provide one (15 points). */
+export const DEFAULT_BASE = { hp: 5, atk: 3, dex: 3, mag: 2, lck: 2 } as const;
+
 /**
- * Recompute a player's final stats from race base + level + skills + equipment + hat + companion.
- * Call after anything that changes those inputs. Clamps current meters to the new maxima.
+ * Recompute a player's final stats from rolled base + race + traits + hat + companion + skills +
+ * equipment. Call after anything that changes those inputs. Clamps current meters to the new maxima.
+ * Derived maxima (GDD §5): maxMana = 2 + MAG, maxStamina = 2 + floor(DEX/2), maxHunger = 8.
  */
 export function recalcStats(p: PlayerState, e: Entity | undefined): void {
-  const race = Content.races.get(p.race);
-  const base = race?.base ?? { maxHp: 5, maxMana: 3, maxHunger: 8, maxStamina: 5, atk: 1, dex: 1, mag: 1 };
   const mods: StatMods = {};
   const specials: string[] = [];
+  const race = Content.races.get(p.race);
   addMods(mods, race?.mods);
+  if (race?.special) specials.push(race.special);
+  for (const t of p.traits) {
+    const def = Content.traits.get(t);
+    addMods(mods, def?.mods);
+    if (def?.special) specials.push(def.special);
+  }
   const hat = Content.hats.get(p.hat);
   if (hat) {
     addMods(mods, hat.mods);
@@ -33,27 +42,28 @@ export function recalcStats(p: PlayerState, e: Entity | undefined): void {
   }
   const comp = Content.companions.get(p.companion);
   if (comp) addMods(mods, comp.mods);
-  for (const [path, rank] of Object.entries(p.skills)) {
-    const def = Content.skills.get(path);
-    if (!def) continue;
-    for (let i = 0; i < rank && i < def.ranks.length; i++) {
-      const node = def.ranks[i]!;
-      addMods(mods, node.mods);
-      if (node.special) specials.push(node.special);
-    }
+  for (const [id, rank] of Object.entries(p.skills)) {
+    const def = Content.skills.get(id);
+    if (!def?.mods) continue;
+    for (let i = 0; i < rank; i++) addMods(mods, def.mods);
   }
   for (const stack of Object.values(p.equipment)) addMods(mods, maybeItem(stack?.id)?.mods);
 
+  const b = p.base;
+  const atk = b.atk + (mods.atk ?? 0);
+  const dex = b.dex + (mods.dex ?? 0);
+  const mag = b.mag + (mods.mag ?? 0);
   p.mods = mods;
   p.specials = specials;
   p.stats = {
-    maxHp: Math.max(1, base.maxHp + (mods.maxHp ?? 0)),
-    maxMana: Math.max(0, base.maxMana + (mods.maxMana ?? 0)),
-    maxHunger: Math.max(1, base.maxHunger + (mods.maxHunger ?? 0)),
-    maxStamina: Math.max(1, base.maxStamina + (mods.maxStamina ?? 0)),
-    atk: base.atk + (mods.atk ?? 0),
-    dex: base.dex + (mods.dex ?? 0),
-    mag: base.mag + (mods.mag ?? 0),
+    maxHp: Math.max(1, b.hp + (mods.maxHp ?? 0)),
+    maxMana: Math.max(0, 2 + mag + (mods.maxMana ?? 0)),
+    maxHunger: Math.max(1, 8 + (mods.maxHunger ?? 0)),
+    maxStamina: Math.max(1, 2 + Math.floor(dex / 2) + (mods.maxStamina ?? 0)),
+    atk,
+    dex,
+    mag,
+    lck: b.lck + (mods.lck ?? 0),
     def: mods.def ?? 0,
   };
   p.mana = Math.min(p.mana, p.stats.maxMana);

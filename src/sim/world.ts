@@ -2,7 +2,7 @@ import { Rng, type RngState } from '../engine/rng';
 import type { Rect } from '../engine/math';
 import { MAX_PLAYERS } from './constants';
 import type { TileGrid } from './tiles';
-import type { Entity, EntityKind, GameEvent, PlayerInput, PlayerState, Team } from './types';
+import type { BaseStats, Entity, EntityKind, GameEvent, PlayerInput, PlayerState, Team } from './types';
 import { emptyInput } from './types';
 
 export interface LevelInfo {
@@ -62,6 +62,10 @@ export interface PlayerSetup {
   race: string;
   hat: string;
   companion: string;
+  traits?: string[];
+  /** Rolled creation stats; when omitted a balanced default is used. */
+  stats?: BaseStats;
+  difficulty?: 'normal' | 'madcap';
 }
 
 export type System = (world: World) => void;

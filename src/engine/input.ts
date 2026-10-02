@@ -3,7 +3,8 @@ import { emptyInput } from '../sim/types';
 
 export type Action =
   | 'left' | 'right' | 'up' | 'down' | 'jump' | 'attack' | 'alt' | 'interact'
-  | 'inventory' | 'pause' | 'craftMod' | 'slot1' | 'slot2' | 'slot3' | 'slot4' | 'slot5';
+  | 'inventory' | 'pause' | 'craftMod' | 'slot1' | 'slot2' | 'slot3' | 'slot4' | 'slot5'
+  | 'skill1' | 'skill2' | 'skill3';
 
 /** Default keyboard bindings (KeyboardEvent.code). Rebindable later via settings. */
 export const DEFAULT_KEYS: Record<Action, string[]> = {
@@ -14,7 +15,7 @@ export const DEFAULT_KEYS: Record<Action, string[]> = {
   jump: ['Space'],
   attack: ['KeyJ'],
   alt: ['KeyK'],
-  interact: ['KeyE'],
+  interact: ['KeyF'],
   inventory: ['Tab', 'KeyI'],
   pause: ['Escape'],
   craftMod: ['ShiftLeft', 'ShiftRight'],
@@ -23,6 +24,9 @@ export const DEFAULT_KEYS: Record<Action, string[]> = {
   slot3: ['Digit3'],
   slot4: ['Digit4'],
   slot5: ['Digit5'],
+  skill1: ['KeyZ'],
+  skill2: ['KeyX'],
+  skill3: ['KeyC'],
 };
 
 /**
@@ -141,6 +145,7 @@ export class InputManager {
       }
     }
     for (let i = 0; i < 5; i++) if (this.pressed(`slot${i + 1}` as Action)) inp.select = i;
+    for (let i = 0; i < 3; i++) if (this.pressed(`skill${i + 1}` as Action)) inp.skill = i;
     inp.commands = this.queuedCommands;
     this.queuedCommands = [];
     return inp;

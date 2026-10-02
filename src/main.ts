@@ -22,7 +22,7 @@ async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const seed = Number(params.get('seed') ?? Math.floor(Math.random() * 1e9));
   const input = new InputManager(app.canvas);
-  const session = new LocalSession(seed, [{ name: 'RALVAND', race: 'human', hat: '', companion: '' }]);
+  const session = new LocalSession(seed, [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }]);
   const game = new Game(app, input, session);
   game.start();
   // Debug handle for tests / console.

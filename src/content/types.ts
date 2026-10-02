@@ -63,6 +63,7 @@ export interface StatMods {
   atk?: number;
   dex?: number;
   mag?: number;
+  lck?: number;
   def?: number;
   /** Multiplier deltas (0.1 = +10%). */
   moveSpeed?: number;
@@ -144,6 +145,8 @@ export interface RecipeDef {
   count: number;
   /** Shown as a hint in the recipe book once discovered or hinted. */
   hint?: string;
+  /** Requires a placed campfire nearby, or being in a town (forge). */
+  station?: 'campfire' | 'forge';
 }
 
 export type AiBehavior =
@@ -326,9 +329,10 @@ export interface RaceDef {
   id: string;
   name: string;
   description: string;
-  /** Base stats before level/equipment. HP/Mana are small integers like the original. */
-  base: { maxHp: number; maxMana: number; maxHunger: number; maxStamina: number; atk: number; dex: number; mag: number };
+  /** Stat modifiers on top of the rolled creation stats (e.g. { maxHp: 1 }, { atk: 2, maxHp: -1 }). */
   mods?: StatMods;
+  /** Special behaviour flag handled in sim (e.g. 'burn_immune', 'eats_anything'). */
+  special?: string;
   startItems: { item: string; count: number }[];
   sprite: string;
   /** Unlocked from the start? Otherwise needs an unlock id. */
@@ -360,25 +364,42 @@ export interface CompanionDef {
   unlock: string;
 }
 
-export interface SkillNode {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  mods?: StatMods;
-  /** Special behaviour flag handled in sim (e.g. 'double_jump', 'craft_bonus'). */
-  special?: string;
-}
+export type SkillPath = 'warrior' | 'mage' | 'ranger';
 
 export interface SkillPathDef {
-  id: string;
+  id: SkillPath;
   name: string;
   /** UI colour (red / blue / green in the original). */
   color: number;
   icon: string;
   description: string;
-  /** Node granted at each rank (rank 1 = index 0). */
-  ranks: SkillNode[];
+}
+
+/** Active skills bound to Z/X/C. Offered 1-of-3 (one per path) at levels 5/10/15/20/25. */
+export interface SkillDef {
+  id: string;
+  name: string;
+  path: SkillPath;
+  description: string;
+  icon: string;
+  /** Seconds. Cooldowns reset on entering a new district. */
+  cooldown: number;
+  manaCost?: number;
+  staminaCost?: number;
+  /** Implementation id in src/sim/progression/skills (usually same as id). */
+  effect: string;
+  /** Power per rank (damage, duration, radius… meaning depends on effect). Length = max rank. */
+  power: number[];
+  /** Passive bonus while owned (per rank: multiplied by rank). */
+  mods?: StatMods;
+}
+
+export interface TraitDef {
+  id: string;
+  name: string;
+  description: string;
+  mods?: StatMods;
+  special?: string;
 }
 
 export interface UnlockDef {
