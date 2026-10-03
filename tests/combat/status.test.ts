@@ -50,6 +50,21 @@ describe('status effects', () => {
     expect(roll(3).filter(Boolean).length).toBeLessThan(16);
   });
 
+  it('a DoT re-applied faster than its interval keeps ticking (refresh keeps the phase)', () => {
+    const { world } = makeWorld();
+    const d = spawnEnemy(world, 't_dummy', 200);
+    // A fire weapon re-applying a 2 s burn every 24 ticks for 4 s, then stopping.
+    for (let i = 0; i < 10; i++) {
+      addStatus(world, d, 'burn', secs(2), 1);
+      step(world, 24);
+    }
+    expect(d.hp).toBe(96); // one tick per second, never starved by the refreshes
+    step(world, secs(3));
+    expect(d.status).toHaveLength(0);
+    expect(d.hp).toBeLessThanOrEqual(95);
+    expect(d.hp).toBeGreaterThanOrEqual(94); // ~2 s of burn left after the last refresh
+  });
+
   it('re-applying refreshes instead of stacking', () => {
     const { world } = makeWorld();
     const d = spawnEnemy(world, 't_dummy', 200);

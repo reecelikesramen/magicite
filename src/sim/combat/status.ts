@@ -88,8 +88,21 @@ export function applyStatuses(world: World, e: Entity, list: readonly StatusAppl
 }
 
 /**
+ * New remaining ticks when a periodic status (DoT/HoT, which fires when `ticks % every === 0`) is
+ * refreshed to `want`: the extension is rounded to whole intervals so the phase is kept. A plain
+ * `max(old, want)` would reset the phase on every refresh, and a status re-applied faster than its
+ * interval (a fire sword hitting every 0.4 s, standing in flames) would never tick at all.
+ */
+function refreshedTicks(cur: number, want: number, every: number): number {
+  if (want <= cur) return cur;
+  if (every <= 0) return want;
+  return cur + Math.round((want - cur) / every) * every;
+}
+
+/**
  * Add (or refresh) a status without a chance roll. Re-applying refreshes: duration and power take the
- * max of old and new (statuses never stack multiplicatively). Returns true if applied.
+ * max of old and new (statuses never stack multiplicatively; DoT/HoT keep their tick phase, see
+ * refreshedTicks). Returns true if applied.
  */
 export function addStatus(world: World, e: Entity, id: StatusId, ticks: number, power?: number, source = 0): boolean {
   if (e.dead || ticks <= 0 || statusImmune(world, e, id)) return false;
@@ -99,7 +112,7 @@ export function addStatus(world: World, e: Entity, id: StatusId, ticks: number, 
   let found = false;
   for (const st of e.status) {
     if (st.id !== id) continue;
-    if (ticks > st.ticks) st.ticks = ticks;
+    st.ticks = refreshedTicks(st.ticks, ticks, rule.every);
     if (pw > st.power) st.power = pw;
     if (source) st.source = source;
     found = true;
