@@ -254,6 +254,19 @@ describe('controller forgiveness', () => {
     expect(e.vy).toBeLessThan(-PHYS.jumpSpeed * 0.8);
   });
 
+  it('…but never holds the double jump when the landing spot is spiked', () => {
+    const w = flat();
+    const e = ent(w);
+    const p = pl(w);
+    w.level.grid.fill(28, 29, 32, 29, 6); // spikes on the floor
+    place(w, 0, 30 * TILE, 30 * TILE - 40);
+    runUntil(w, 120, () => e.y + e.h + (e.vy * 2) / 60 >= 30 * TILE - 0.5);
+    const s0 = p.stamina;
+    run(w, 1, { jump: true });
+    expect(p.stamina).toBe(s0 - 1);
+    expect(e.vy).toBeLessThan(0);
+  });
+
   it('corner correction: a jump that clips a ceiling corner by 2 px slides around it', () => {
     const g = boxGrid(80, 40, 30);
     // Ceiling block 3 tiles above the floor covering x ∈ [80, 88); player spans [86, 92).

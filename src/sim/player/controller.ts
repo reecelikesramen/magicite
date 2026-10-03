@@ -27,6 +27,16 @@ function standingOnPlatformOnly(world: World, e: Entity): boolean {
   return any;
 }
 
+/** Spike tiles in the row just above pixel row `feetY` across the entity's columns (unsafe landing). */
+function spikesAt(world: World, e: Entity, feetY: number): boolean {
+  const grid = world.level.grid;
+  const ty = Math.floor((feetY - 1) / TILE);
+  const t0 = Math.floor(e.x / TILE);
+  const t1 = Math.floor((e.x + e.w - 1e-4) / TILE);
+  for (let tx = t0; tx <= t1; tx++) if (grid.get(tx, ty) === Tile.SPIKES) return true;
+  return false;
+}
+
 /** Ground friction under the feet (ice < 1). Rimefrost's biome special block is slippery ice. */
 function surfaceFriction(world: World, e: Entity): number {
   const grid = world.level.grid;
@@ -164,7 +174,7 @@ export function controlPlayer(world: World, p: PlayerState, e: Entity, input: Pl
   } else {
     c.airT++;
     if (e.vy > c.fallPeak) c.fallPeak = e.vy;
-    if (c.jumping && e.vy > PHYS.apexSpeed) c.jumping = false;
+    if (c.jumping && (e.vy > PHYS.apexSpeed || e.hitCeiling)) c.jumping = false; // no apex hang under a ceiling
   }
 
   // --- Dash request / finalise ----------------------------------------------------------
@@ -315,7 +325,8 @@ export function controlPlayer(world: World, p: PlayerState, e: Entity, input: Pl
     } else if (jumpPressed && c.airJumpsUsed < PHYS.baseAirJumps + (mods.airJumps ?? 0)) {
       // Hold the press for a free ground jump if we're about to land anyway.
       const reach = e.vy > 0 ? (e.vy * PHYS.airJumpLandGrace) / 60 + 0.5 : 0;
-      const landingSoon = reach > 0 && dropDistance(grid, e, reach + 1) < reach;
+      const drop = reach > 0 ? dropDistance(grid, e, reach + 1) : reach + 1;
+      const landingSoon = drop < reach && !spikesAt(world, e, e.y + e.h + drop);
       if (!landingSoon) {
         if (spendStamina(p, 1)) {
           if (dashing) endDash(p, e, PHYS.walkSpeed * speedMul);
