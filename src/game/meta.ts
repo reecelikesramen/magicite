@@ -220,9 +220,22 @@ export function loadMeta(store: KeyValueStore | undefined = defaultStore()): Met
   }
 }
 
+/** Version of the save currently in `store` (0 = none / unreadable). */
+function storedVersion(store: KeyValueStore): number {
+  try {
+    const s = store.getItem(META_KEY);
+    const v = s ? (JSON.parse(s) as { version?: unknown } | null)?.version : 0;
+    return typeof v === 'number' ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Persist `meta`. Refuses (returns false) to overwrite a save written by a newer build. */
 export function saveMeta(meta: MetaSave, store: KeyValueStore | undefined = defaultStore()): boolean {
   try {
     if (!store) return false;
+    if (storedVersion(store) > META_VERSION) return false;
     store.setItem(META_KEY, JSON.stringify({ ...meta, version: META_VERSION }));
     return true;
   } catch {

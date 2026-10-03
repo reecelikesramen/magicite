@@ -157,6 +157,17 @@ describe('applyRun / persistence', () => {
     });
   });
 
+  it('never overwrites a save written by a newer build', () => {
+    const store = memStore();
+    const future = JSON.stringify({ version: META_VERSION + 1, unlocked: ['unlock_highborn'], runs: 40 });
+    store.data.set(META_KEY, future);
+    expect(loadMeta(store)).toEqual(emptyMeta());
+    expect(saveMeta(applyRun(emptyMeta(), stats({ kills: 3 }), LOSS, 1).meta, store)).toBe(false);
+    const w = createRun(5, [{ name: 'A', race: 'drifter', hat: '', companion: '' }]);
+    finishRun(w, 0, { store });
+    expect(store.data.get(META_KEY)).toBe(future);
+  });
+
   it('finishRun records a real world run end-to-end', () => {
     const store = memStore();
     const w = createRun(5, [{ name: 'A', race: 'drifter', hat: '', companion: '' }]);
