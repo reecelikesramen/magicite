@@ -6,7 +6,7 @@ Reads the sim, never writes it. Entry point: `Renderer` (`renderer.ts`), driven 
 ## Frame pipeline
 
 Every world layer is rendered at **native resolution** (view ≈ 320×180 + 1 px margin) into its own
-render texture, then `compositor.ts` combines them in one full-screen pass (GLSL, WebGL renderer):
+render texture, then `compositor.ts` combines them in one full-screen pass (GLSL for WebGL, which `main.ts` prefers; a WGSL twin for WebGPU — keep the two in sync):
 
 | Layer | Contents | Sampling |
 |---|---|---|

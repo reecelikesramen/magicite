@@ -1,4 +1,4 @@
-import { BlurFilter, Container, Geometry, Mesh, RenderTexture, Shader, Sprite, UniformGroup, type Renderer as PixiRenderer } from 'pixi.js';
+import { BlurFilter, Container, Geometry, GlProgram, GpuProgram, Mesh, RenderTexture, Shader, Sprite, UniformGroup, type Renderer as PixiRenderer } from 'pixi.js';
 import { blue, green, red } from './color';
 
 /**
@@ -55,6 +55,67 @@ void main() {
   lit += texture(uBloom, vUV).rgb * uBloomK;
   lit = mix(lit, uFlashColor, uFlash);
   finalColor = vec4(lit, 1.0);
+}`;
+
+/** The same composite for the WebGPU renderer (Pixi's mesh bind-group conventions: 0 global, 1 local). */
+export const COMPOSITE_WGSL = `
+struct GlobalUniforms {
+  uProjectionMatrix: mat3x3<f32>,
+  uWorldTransformMatrix: mat3x3<f32>,
+  uWorldColorAlpha: vec4<f32>,
+  uResolution: vec2<f32>,
+}
+struct LocalUniforms {
+  uTransformMatrix: mat3x3<f32>,
+  uColor: vec4<f32>,
+  uRound: f32,
+}
+struct CompositeUniforms {
+  uFloor: f32,
+  uBloomK: f32,
+  uFlash: f32,
+  uFlashColor: vec3<f32>,
+}
+@group(0) @binding(0) var<uniform> globalUniforms: GlobalUniforms;
+@group(1) @binding(0) var<uniform> localUniforms: LocalUniforms;
+@group(2) @binding(0) var<uniform> compositeUniforms: CompositeUniforms;
+@group(2) @binding(1) var uTerrain: texture_2d<f32>;
+@group(2) @binding(2) var uTerrainSampler: sampler;
+@group(2) @binding(3) var uEntity: texture_2d<f32>;
+@group(2) @binding(4) var uEntitySampler: sampler;
+@group(2) @binding(5) var uLight: texture_2d<f32>;
+@group(2) @binding(6) var uLightSampler: sampler;
+@group(2) @binding(7) var uEmissive: texture_2d<f32>;
+@group(2) @binding(8) var uEmissiveSampler: sampler;
+@group(2) @binding(9) var uBloom: texture_2d<f32>;
+@group(2) @binding(10) var uBloomSampler: sampler;
+
+struct VSOutput {
+  @builtin(position) position: vec4<f32>,
+  @location(0) vUV: vec2<f32>,
+}
+
+@vertex
+fn mainVertex(@location(0) aPosition: vec2<f32>, @location(1) aUV: vec2<f32>) -> VSOutput {
+  let mvp = globalUniforms.uProjectionMatrix * globalUniforms.uWorldTransformMatrix * localUniforms.uTransformMatrix;
+  var out: VSOutput;
+  out.position = vec4<f32>((mvp * vec3<f32>(aPosition, 1.0)).xy, 0.0, 1.0);
+  out.vUV = aUV;
+  return out;
+}
+
+@fragment
+fn mainFragment(@location(0) vUV: vec2<f32>) -> @location(0) vec4<f32> {
+  let u = compositeUniforms;
+  let L = textureSample(uLight, uLightSampler, vUV).rgb * ${LIGHT_RANGE.toFixed(1)};
+  var lit = textureSample(uTerrain, uTerrainSampler, vUV).rgb * L;
+  let e = textureSample(uEntity, uEntitySampler, vUV);
+  lit = lit * (1.0 - e.a) + e.rgb * max(L, vec3<f32>(u.uFloor));
+  let m = textureSample(uEmissive, uEmissiveSampler, vUV);
+  lit = lit * (1.0 - m.a) + m.rgb;
+  lit = lit + textureSample(uBloom, uBloomSampler, vUV).rgb * u.uBloomK;
+  lit = mix(lit, u.uFlashColor, u.uFlash);
+  return vec4<f32>(lit, 1.0);
 }`;
 
 export interface LayerScene {
@@ -124,15 +185,26 @@ export class Compositor {
       },
       indexBuffer: [0, 1, 2, 0, 2, 3],
     });
-    const shader = Shader.from({
-      gl: { vertex: VERT, fragment: FRAG, name: 'shardfall-composite' },
+    // GLSL for WebGL (preferred by main.ts) and WGSL for WebGPU; samplers only matter to WebGPU.
+    const shader = new Shader({
+      glProgram: GlProgram.from({ vertex: VERT, fragment: FRAG, name: 'shardfall-composite' }),
+      gpuProgram: GpuProgram.from({
+        name: 'shardfall-composite',
+        vertex: { source: COMPOSITE_WGSL, entryPoint: 'mainVertex' },
+        fragment: { source: COMPOSITE_WGSL, entryPoint: 'mainFragment' },
+      }),
       resources: {
-        uTerrain: this.terrainRT.source,
-        uEntity: this.entityRT.source,
-        uLight: this.lightRT.source,
-        uEmissive: this.emissiveRT.source,
-        uBloom: this.bloomRT.source,
         compositeUniforms: this.uniforms,
+        uTerrain: this.terrainRT.source,
+        uTerrainSampler: this.terrainRT.source.style,
+        uEntity: this.entityRT.source,
+        uEntitySampler: this.entityRT.source.style,
+        uLight: this.lightRT.source,
+        uLightSampler: this.lightRT.source.style,
+        uEmissive: this.emissiveRT.source,
+        uEmissiveSampler: this.emissiveRT.source.style,
+        uBloom: this.bloomRT.source,
+        uBloomSampler: this.bloomRT.source.style,
       },
     });
     this.output = new Mesh({ geometry, shader });
