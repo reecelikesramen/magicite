@@ -66,7 +66,8 @@ export function feed(p: PlayerState, amount: number): number {
  * healed — they must be revived. Returns HP actually restored.
  */
 export function heal(world: World, e: Entity, amount: number): number {
-  if (e.dead || amount <= 0) return 0;
+  // Already at/above max (e.g. maxHp just dropped after unequipping): never heal *down*.
+  if (e.dead || amount <= 0 || e.hp >= e.maxHp) return 0;
   if (e.kind === 'player') {
     const p = world.players[e.playerIndex ?? -1];
     if (!p || p.downed || p.out) return 0;

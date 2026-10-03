@@ -1,6 +1,7 @@
 import { Content } from '../../content';
 import { secs, TILE } from '../constants';
 import { liquidAt, pushOutOfSolids, rectFree } from '../physics';
+import { resetMotion } from '../player/create';
 import { Tile, tileProps, type TileGrid } from '../tiles';
 import type { Entity, PlayerState } from '../types';
 import type { World } from '../world';
@@ -81,8 +82,7 @@ export function recoverPlayer(world: World, p: PlayerState, e: Entity, damage: n
   e.py = e.y;
   e.vx = 0;
   e.vy = 0;
-  p.ctl.dashT = 0;
-  p.ctl.climbing = false;
+  resetMotion(p, e); // cancel dash/dive/climb/drop-through (no slam or air-dash carried to the spot)
   world.emit({ type: 'particles', preset: 'poof', x: e.x + e.w / 2, y: e.y + e.h / 2, count: 8 });
   if (damage > 0) applyDamage(world, e, damage, { knockback: 0 });
 }
@@ -128,12 +128,14 @@ function playerHazards(world: World, p: PlayerState, e: Entity): void {
 }
 
 function enemyHazards(world: World, e: Entity): void {
+  // Non-colliding enemies (wall-phasing wraith, ghosts) are steered by their AI and may brush the
+  // level edge; only things that physically fell out of the world are culled.
+  if (!e.collides) return;
   const grid = world.level.grid;
   if (outOfBounds(grid, e)) {
     world.kill(e); // fell out of the world: no drops
     return;
   }
-  if (!e.collides) return;
   if (!rectFree(grid, e.x, e.y, e.w, e.h)) pushOutOfSolids(grid, e, HAZARD.pushOut);
   if (!HAZARD.hurtEnemies || e.kind !== 'enemy' || e.gravityScale === 0 || e.invuln > 0) return;
   const def = Content.enemies.get(e.def);

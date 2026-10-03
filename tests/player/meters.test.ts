@@ -186,6 +186,14 @@ describe('helpers', () => {
     expect(restoreStamina(p, 1)).toBe(1);
   });
 
+  it('heal never lowers HP that is above max (e.g. after maxHp dropped)', () => {
+    const w = world();
+    const e = ent(w);
+    e.hp = e.maxHp + 2;
+    expect(heal(w, e, 1)).toBe(0);
+    expect(e.hp).toBe(e.maxHp + 2);
+  });
+
   it('heal does nothing to a downed player', () => {
     const w = makeWorld(boxGrid(), { players: 2 });
     settle(w, 5);

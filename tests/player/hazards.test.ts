@@ -114,6 +114,24 @@ describe('safety nets', () => {
     expect(e.hp).toBe(e.maxHp);
   });
 
+  it('recovery cancels in-flight movement state (no dive slam / air dash carried to the safe spot)', () => {
+    const w = makeWorld(boxGrid());
+    settle(w, 10);
+    const e = ent(w);
+    const c = pl(w).ctl;
+    c.diving = true;
+    c.dashT = 3;
+    c.dashDir = 1;
+    c.dashAir = true;
+    e.gravityScale = 0;
+    e.y = 9999;
+    run(w, 1);
+    expect([c.diving, c.dashT, c.dashDir, c.dashAir]).toEqual([false, 0, 0, false]);
+    run(w, 10);
+    expect(e.onGround).toBe(true);
+    expect(w.events.some((ev) => ev.type === 'sfx' && ev.id === 'slam')).toBe(false);
+  });
+
   it('players embedded in a new solid tile are pushed out', () => {
     const w = makeWorld(boxGrid());
     settle(w, 10);
@@ -165,10 +183,12 @@ describe('enemies share physics and hazards', () => {
     expect(flyer.hp).toBe(10);
   });
 
-  it('enemies that fall out of the world are removed', () => {
+  it('enemies that fall out of the world are removed (but not non-colliding wall-phasers)', () => {
     const w = makeWorld(boxGrid(40, 40, 30));
     const en = w.spawn('enemy', 'test_dummy', 20 * TILE, 99 * TILE, { w: 8, h: 6 });
+    const ghost = w.spawn('enemy', 'test_ghost', -4 * TILE, 10 * TILE, { w: 8, h: 6, collides: false, gravityScale: 0 });
     hazardSystem(w);
     expect(en.dead).toBe(true);
+    expect(ghost.dead).toBe(false);
   });
 });
