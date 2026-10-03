@@ -63,6 +63,8 @@ export class InputManager {
   private jumpPending = false;
   private lastDash: -1 | 0 | 1 = 0;
   private dashPending: -1 | 0 | 1 = 0;
+  /** Both dash buttons went down together (LB+RB hotbar chord): no dash until both are up again. */
+  private dashChord = false;
 
   constructor(target: HTMLElement) {
     window.addEventListener('keydown', (e) => {
@@ -146,7 +148,8 @@ export class InputManager {
     const tapR = this.tapped('dashRight');
     this.tapQ.clear();
     inp.jump = this.held('jump') || jumpTap;
-    inp.dash = dashDir(this.held('dashLeft') || tapL, this.held('dashRight') || tapR);
+    let dashL = this.held('dashLeft') || tapL;
+    let dashR = this.held('dashRight') || tapR;
     inp.attack = this.held('attack') || (this.mouseLeft && !this.pointerCaptured);
     inp.alt = this.held('alt') || (this.mouseRight && !this.pointerCaptured);
     inp.interact = this.held('interact');
@@ -161,8 +164,8 @@ export class InputManager {
       if (Math.abs(ay) > 0.5) inp.moveY = ay;
       const b = (i: number) => !!pad.buttons[i]?.pressed;
       inp.jump ||= b(0);
-      // LB / RB dash; both together = 0 (left free for the hotbar-cycle chord).
-      if (inp.dash === 0) inp.dash = dashDir(b(4), b(5));
+      dashL ||= b(4); // LB
+      dashR ||= b(5); // RB
       inp.attack ||= b(2) || b(7);
       inp.alt ||= b(6);
       inp.interact ||= b(3);
@@ -176,7 +179,12 @@ export class InputManager {
         inp.aimY = playerCenter.y + inp.moveY * 20;
       }
     }
-    this.keepEdges(inp, jumpTap, dashDir(tapL, tapR));
+    // Both dash buttons = no dash (LB+RB is the hotbar-cycle chord). Stay latched until both are
+    // released, or letting go of one would read as a fresh press of the other and dash.
+    if (dashL && dashR) this.dashChord = true;
+    else if (!dashL && !dashR) this.dashChord = false;
+    inp.dash = this.dashChord ? 0 : dashDir(dashL, dashR);
+    this.keepEdges(inp, jumpTap, this.dashChord ? 0 : dashDir(tapL, tapR));
     for (let i = 0; i < 5; i++) if (this.pressed(`slot${i + 1}` as Action)) inp.select = i;
     for (let i = 0; i < 3; i++) if (this.pressed(`skill${i + 1}` as Action)) inp.skill = i;
     inp.commands = this.queuedCommands;

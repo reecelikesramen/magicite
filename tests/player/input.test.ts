@@ -36,6 +36,20 @@ describe('InputManager movement edges', () => {
     expect(im.sample(at).dash).toBe(0);
   });
 
+  it('releasing one of two held dash keys does not fire a dash the other way (LB+RB chord)', () => {
+    const im = make();
+    key('keydown', 'KeyQ');
+    expect(im.sample(at).dash).toBe(-1);
+    key('keydown', 'KeyE');
+    expect(im.sample(at).dash).toBe(0);
+    key('keyup', 'KeyE');
+    expect(im.sample(at).dash).toBe(0); // still latched: Q alone again is not a new press
+    key('keyup', 'KeyQ');
+    expect(im.sample(at).dash).toBe(0);
+    key('keydown', 'KeyE');
+    expect(im.sample(at).dash).toBe(1); // a fresh press works again
+  });
+
   it('a tap shorter than a tick still produces one jump tick', () => {
     const im = make();
     key('keydown', 'Space');
