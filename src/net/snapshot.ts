@@ -79,6 +79,21 @@ function writePath(path: string): (e: Rec, v: unknown) => void {
   };
 }
 
+/** String → interned id with a one-entry cache (consecutive entities often share kind/def/anim). */
+function internCached(): (v: unknown, s: StringTable) => number {
+  let lastStr = '';
+  let lastId = 0;
+  let lastTable: StringTable | null = null;
+  return (v, s) => {
+    if (typeof v !== 'string' || v.length === 0) return 0;
+    if (v === lastStr && s === lastTable) return lastId;
+    lastId = s.intern(v);
+    lastStr = v;
+    lastTable = s;
+    return lastId;
+  };
+}
+
 function spec(key: string, kind: FieldKind, scale: number, opts: FieldOpts, get: FieldSpec['get'], set: FieldSpec['set']): FieldSpec {
   return { key, kind, scale, createOnly: !!opts.createOnly, lerp: !!opts.lerp, get, set };
 }
@@ -131,19 +146,15 @@ export const F = {
   str(path: string, opts: FieldOpts = {}): FieldSpec {
     const r = readPath(path);
     const w = writePath(path);
-    return spec(path, 'str', 1, opts, (e, s) => {
-      const v = r(e as unknown as Rec);
-      return typeof v === 'string' && v.length > 0 ? s.intern(v) : 0;
-    }, (e, v, s) => w(e as unknown as Rec, s.get(v)));
+    const intern = internCached();
+    return spec(path, 'str', 1, opts, (e, s) => intern(r(e as unknown as Rec), s), (e, v, s) => w(e as unknown as Rec, s.get(v)));
   },
   /** Optional interned string: 0 decodes as undefined. */
   optStr(path: string, opts: FieldOpts = {}): FieldSpec {
     const r = readPath(path);
     const w = writePath(path);
-    return spec(path, 'str', 1, opts, (e, s) => {
-      const v = r(e as unknown as Rec);
-      return typeof v === 'string' && v.length > 0 ? s.intern(v) : 0;
-    }, (e, v, s) => w(e as unknown as Rec, v === 0 ? undefined : s.get(v)));
+    const intern = internCached();
+    return spec(path, 'str', 1, opts, (e, s) => intern(r(e as unknown as Rec), s), (e, v, s) => w(e as unknown as Rec, v === 0 ? undefined : s.get(v)));
   },
   /** StatusEffect[] → bitmask of STATUS_IDS (remote clients only need which effects are active). */
   statusMask(path: string): FieldSpec {
@@ -245,6 +256,8 @@ export const NG = Math.ceil(NF / 8);
 const F_KIND = new Uint8Array(NF); // 0 = delta int, 1 = flip, 2 = raw uvar
 const F_STR = new Uint8Array(NF);
 const F_CREATE_ONLY = new Uint8Array(NF);
+/** Index of the field's component presence field (-1 = top-level): absent comp ⇒ sub-fields are 0. */
+const F_PARENT = new Int16Array(NF).fill(-1);
 const fieldIndex = new Map<string, number>();
 ENTITY_FIELDS.forEach((f, i) => {
   F_KIND[i] = f.kind === 'q' || f.kind === 'int' ? 0 : f.kind === 'bool' || f.kind === 'comp' ? 1 : 2;
@@ -257,6 +270,7 @@ ENTITY_FIELDS.forEach((f, i) => {
     const parent = f.key.slice(0, dot);
     const pi = fieldIndex.get(parent);
     if (pi !== undefined && ENTITY_FIELDS[pi]!.kind !== 'comp') throw new Error(`snapshot: ${parent} is not a comp`);
+    if (pi !== undefined) F_PARENT[i] = pi;
   }
   fieldIndex.set(f.key, i);
 });
@@ -374,7 +388,10 @@ export function captureFrame(world: World, f: EntityFrame, strings: StringTable)
     if (e.id <= last) sorted = false;
     last = e.id;
     const off = i * NF;
-    for (let k = 0; k < NF; k++) rows[off + k] = ENTITY_FIELDS[k]!.get(e, strings);
+    for (let k = 0; k < NF; k++) {
+      const p = F_PARENT[k]!;
+      rows[off + k] = p >= 0 && rows[off + p] === 0 ? 0 : ENTITY_FIELDS[k]!.get(e, strings);
+    }
     f.cx[i] = e.x + e.w / 2;
     f.cy[i] = e.y + e.h / 2;
     f.always[i] = e.kind === 'player' || e.kind === 'boss' ? 1 : 0;
