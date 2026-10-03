@@ -134,6 +134,8 @@ export interface ItemDef {
   places?: number;
   /** Prop id placed by use:'place'. */
   placesProp?: string;
+  /** Max durability (uses / hits) for tools, weapons and armour; new stacks start full. Undefined = unbreakable. */
+  durability?: number;
   tags?: string[];
 }
 
