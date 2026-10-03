@@ -96,10 +96,15 @@ export class GamepadNav {
     }
   }
 
+  /** Edge of button `b`; directions also fire from the left stick (menu navigation). */
   pressed(b: PadBtn): boolean {
+    return this.buttonPressed(b) || ((b === 'up' || b === 'down' || b === 'left' || b === 'right') && this.stickEdge === b);
+  }
+
+  /** Edge of the physical button only (the stick never counts): use where the stick also moves the player. */
+  buttonPressed(b: PadBtn): boolean {
     const i = PAD_INDEX[b];
-    if (this.now[i] && !this.prev[i]) return true;
-    return (b === 'up' || b === 'down' || b === 'left' || b === 'right') && this.stickEdge === b;
+    return this.now[i]! && !this.prev[i];
   }
 
   held(b: PadBtn): boolean {

@@ -255,7 +255,10 @@ export class Hud {
       const n = p.skillOffer.length;
       if (!this.inventoryOpen) {
         // Gamepad: d-pad ← ↑ → highlights offer 1/2/3, A confirms. Keyboard: Enter focuses/confirms.
-        const padDir = this.pad.pressed('left') ? 0 : this.pad.pressed('up') ? 1 : this.pad.pressed('right') ? 2 : -1;
+        // Only the d-pad *buttons* may grab focus: the left stick walks the player, and letting it
+        // focus the panel would freeze movement (uiFocus) and turn the next jump (A) into a pick.
+        const dir = (b: 'left' | 'up' | 'right') => (this.skillKeyboard ? this.pad.pressed(b) : this.pad.buttonPressed(b));
+        const padDir = dir('left') ? 0 : dir('up') ? 1 : dir('right') ? 2 : -1;
         if (padDir >= 0 && padDir < n) {
           this.skillKeyboard = true;
           this.skillFocus = padDir;
@@ -323,6 +326,10 @@ export class Hud {
     this.inventoryOpen = open;
     this.inv.visible = open;
     clearSelection(this.state);
+    // Keyboard/pad skill-pick focus is only driven while the inventory is closed; drop it so it
+    // can't linger (and keep input.uiFocus set) behind the open panel.
+    this.skillKeyboard = false;
+    this.skillFocus = -1;
     if (!open) {
       this.bookOpen = false;
       this.padMode = false;
