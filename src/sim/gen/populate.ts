@@ -313,7 +313,9 @@ function enemySpawns(ctx: GenCtx, reachSpots: Spot[]): void {
   if (pool.length === 0) return;
   const byKind = new Map<SpawnPointKind, EnemyDef[]>();
   for (const e of pool) {
-    const k = BEHAVIOR_POINT[e.behavior] ?? 'ground';
+    // Flying defs (spawned without gravity) hover at air points whatever their attack style;
+    // ceiling droppers and turrets keep their own anchors.
+    const k = e.flying && e.behavior !== 'dropper' && e.behavior !== 'turret' ? 'air' : (BEHAVIOR_POINT[e.behavior] ?? 'ground');
     const list = byKind.get(k) ?? [];
     list.push(e);
     byKind.set(k, list);
