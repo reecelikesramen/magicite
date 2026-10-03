@@ -122,9 +122,13 @@ export function buildTown(ctx: GenCtx): void {
   }
   // Chickens wander the street (an enemy def if the enemies workstream adds one, else an npc critter).
   const chickenKind = Content.enemies.has('chicken') ? 'enemy' : 'npc';
+  // Each on its own free street tile (not on a shopkeeper, stall, lamp post or another chicken).
   const chickens = rng.int(2, 3);
-  for (let i = 0; i < chickens; i++) {
+  for (let i = 0, tries = 0; i < chickens && tries < 40; tries++) {
     const cx = rng.int(16, gateX - 3);
+    if (flags[(floor - 1) * w + cx]! & F_CLAIM) continue;
     ctx.spawns.push({ kind: chickenKind, def: 'chicken', x: cx * TILE + 4, y: floor * TILE, data: { critter: 1 } });
+    flags[(floor - 1) * w + cx]! |= F_CLAIM;
+    i++;
   }
 }
