@@ -375,6 +375,7 @@ function decor(ctx: GenCtx, reachSpots: Spot[], spots: Spot[]): void {
   if (keys.length === 0) return;
   const floorKeys = keys.filter((k) => decorPlacement(k) === 'floor' && k !== 'decor_lantern');
   const ceilKeys = keys.filter((k) => decorPlacement(k) === 'ceiling' && k !== 'decor_lantern');
+  if (floorKeys.length === 0 && ceilKeys.length === 0) return;
   const count = Math.round((style.decor * w) / 100);
   let n = 0;
   const pool = rng.shuffle(spots.slice());
