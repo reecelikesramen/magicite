@@ -2,7 +2,7 @@ import type { Application } from 'pixi.js';
 import { Container } from 'pixi.js';
 import { GAME_TITLE, NET_CONFIG, VERSION } from '../config';
 import { hashSeed, Rng } from '../engine/rng';
-import { ClientSession, HostSession, joinTrysteroRoom, makeRoomCode, normalizeRoomCode, type Transport, withIceServers } from '../net';
+import { ClientSession, connectWebSocket, HostSession, joinTrysteroRoom, makeRoomCode, normalizeRoomCode, type Transport, withIceServers } from '../net';
 import { dailySeed, randomName } from '../sim/progression/creation';
 import { PixelText } from '../render/pixelfont';
 import { creationItems, cycleCreation, formatRoomCode, moveFocus, randomCreation, setupFromCreation, statLine, type CreationState, type MenuModel } from '../ui/menus/model';
@@ -12,7 +12,7 @@ import { availableCompanions, availableHats, availableRaces, loadMeta, type Meta
 import { LocalSession, type Session } from './session';
 
 type Screen = 'title' | 'main' | 'create' | 'join' | 'connecting' | 'playing' | 'pause' | 'controls';
-type Purpose = 'solo' | 'daily' | 'host' | 'join';
+type Purpose = 'solo' | 'daily' | 'host' | 'join' | 'server';
 
 const TOKEN_KEY = 'shardfall.token.';
 const CONNECT_TIMEOUT_MS = 25_000;
@@ -144,6 +144,9 @@ export class App implements GameOverlay {
             { id: 'solo', label: 'Play Solo', hint: 'Descend alone. Death is permanent.' },
             { id: 'host', label: 'Host Online', disabled: !online, hint: online ? 'Start a run; friends join with your room code' : offlineHint },
             { id: 'join', label: 'Join Online', disabled: !online, hint: online ? "Join a friend's run with their room code" : offlineHint },
+            ...(NET_CONFIG.dedicatedUrl
+              ? [{ id: 'server', label: 'Join Server', hint: `Always-on world at ${NET_CONFIG.dedicatedUrl.replace(/^wss?:\/\//, '')}` }]
+              : []),
             { id: 'daily', label: 'Daily Run', hint: `Same world for everyone today (${todayString()})` },
             { id: 'controls', label: 'Controls' },
           ],
@@ -170,7 +173,7 @@ export class App implements GameOverlay {
         break;
       case 'create': {
         const opts = this.unlocked();
-        const start = this.purpose === 'host' ? 'Host game' : this.purpose === 'join' ? `Join ${formatRoomCode(this.roomCode)}` : 'Descend';
+        const start = this.purpose === 'host' ? 'Host game' : this.purpose === 'join' ? `Join ${formatRoomCode(this.roomCode)}` : this.purpose === 'server' ? 'Join server' : 'Descend';
         const items = creationItems(this.creation, { ...opts, startLabel: start });
         // Keep focus while editing; arriving from another screen focuses the start button.
         const focus = this.model.title === 'New Delver' ? Math.min(this.model.focus, items.length - 1) : items.findIndex((i) => i.id === 'start');
@@ -393,8 +396,13 @@ export class App implements GameOverlay {
       return;
     }
     await this.connect(async (track) => {
-      const code = formatRoomCode(this.roomCode);
-      const transport = track(await joinTrysteroRoom({ roomCode: code, ...(await withIceServers(NET_CONFIG.trystero, NET_CONFIG.iceEndpoint)) }));
+      const server = this.purpose === 'server';
+      const code = server ? NET_CONFIG.dedicatedUrl : formatRoomCode(this.roomCode);
+      const transport = track(
+        server
+          ? await openServer(NET_CONFIG.dedicatedUrl)
+          : await joinTrysteroRoom({ roomCode: code, ...(await withIceServers(NET_CONFIG.trystero, NET_CONFIG.iceEndpoint)) }),
+      );
       const client = new ClientSession({ transport, setup, token: storageGet(TOKEN_KEY + normalizeRoomCode(code)) ?? undefined });
       if (this.transport !== transport) throw new Error('cancelled');
       // The client only processes packets when ticked: run it behind the "Connecting" menu.
@@ -425,7 +433,7 @@ export class App implements GameOverlay {
   private async connect(open: (track: (t: Transport) => Transport) => Promise<Session>): Promise<void> {
     const token = ++this.connectToken;
     this.show('connecting');
-    this.message = this.purpose === 'host' ? 'Opening room...' : 'Finding the host...';
+    this.message = this.purpose === 'host' ? 'Opening room...' : this.purpose === 'server' ? 'Connecting to server...' : 'Finding the host...';
     let timer: ReturnType<typeof setTimeout> | undefined;
     const track = (t: Transport) => {
       // A cancelled attempt that finishes late just closes its own transport.
@@ -503,6 +511,24 @@ export class App implements GameOverlay {
     for (const t of this.toasts.filter((x) => x.ttl <= 0)) t.text.destroy();
     this.toasts = this.toasts.filter((x) => x.ttl > 0);
   }
+}
+
+/** Open a WebSocket to a dedicated server; resolves once connected (rejects on error/close). */
+function openServer(url: string): Promise<Transport> {
+  return new Promise((resolve, reject) => {
+    const t = connectWebSocket(url);
+    const off: (() => void)[] = [];
+    const done = (ok: boolean, err?: string) => {
+      for (const f of off) f();
+      if (ok) resolve(t);
+      else {
+        t.close();
+        reject(new Error(err ?? 'server unreachable'));
+      }
+    };
+    off.push(t.onPeerJoin(() => done(true)), t.onPeerLeave(() => done(false, 'server closed the connection')));
+    if (t.peers().length) done(true);
+  });
 }
 
 function todayString(): string {

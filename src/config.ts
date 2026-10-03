@@ -47,5 +47,6 @@ function trysteroConfig(): Omit<TrysteroOptions, 'roomCode'> {
 export const NET_CONFIG = {
   trystero: trysteroConfig(),
   iceEndpoint: query.get('iceurl') ?? env.VITE_ICE_ENDPOINT ?? '',
-  dedicatedUrl: env.VITE_DEDICATED_URL ?? '',
+  /** Dedicated server (`bun server/dedicated.ts`): adds "Join Server" to the menu. `?server=` overrides. */
+  dedicatedUrl: query.get('server') ?? env.VITE_DEDICATED_URL ?? '',
 };

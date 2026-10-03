@@ -3,6 +3,7 @@
 # Optional repo variables (Settings -> Secrets and variables -> Actions -> Variables):
 #   NOSTR_RELAYS  e.g. wss://shardfall-signal.<you>.workers.dev  (default: public Nostr relays)
 #   ICE_ENDPOINT  e.g. https://shardfall-signal.<you>.workers.dev/ice  (TURN credentials)
+#   DEDICATED_URL e.g. wss://play.example.org  (adds "Join Server" to the menu)
 name: Deploy web build
 on:
   push:
@@ -30,6 +31,7 @@ jobs:
         env:
           VITE_NOSTR_RELAYS: ${{ vars.NOSTR_RELAYS }}
           VITE_ICE_ENDPOINT: ${{ vars.ICE_ENDPOINT }}
+          VITE_DEDICATED_URL: ${{ vars.DEDICATED_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

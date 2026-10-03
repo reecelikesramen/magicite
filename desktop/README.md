@@ -22,13 +22,14 @@ builds each platform on its own runner. Run it from the Actions tab, or push a t
 | macOS (Apple Silicon) | WKWebView (system) | yes (WebKit WebRTC) | **≈ 19 MB** |
 | Windows x64 | WebView2 (system Chromium) | yes | **≈ 33 MB** |
 | Linux x64 | bundled CEF (Chromium 147) | yes | **≈ 160 MB** |
-| Linux x64 Lite | WebKitGTK (system) | no (solo only) | **≈ 33 MB** |
+| Linux x64 Lite | WebKitGTK (system) | dedicated servers only (no P2P) | **≈ 33 MB** |
 
 (Each CI artifact zip holds the installer and the updater archive, so it is about twice these.)
 
 Linux bundles Chromium because distro WebKitGTK builds ship without WebRTC. We checked this:
 Ubuntu 24.04's WebKitGTK 2.52 has no `RTCPeerConnection`, even with `enable-webrtc` set. The Lite
-build is the small option. Its menus detect the missing WebRTC and disable Host/Join.
+build is the small option. Its menus detect the missing WebRTC and disable Host/Join, but **Join Server**
+(a dedicated server over WebSocket, see docs/HOSTING.md) still works.
 
 Most of each download is the bundled Bun runtime and ICU data (~30 MB). The game itself is
 about 1 MB.

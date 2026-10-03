@@ -97,6 +97,10 @@ always-on room, or for desktop/Linux webviews that lack WebRTC.
 docker run -d --restart=always -p 8787:8787 -e MODE=dedicated shardfall-server
 ```
 
+Players reach it from the main menu: **Join Server** appears when the build has
+`VITE_DEDICATED_URL=wss://your.host` (repo variable `DEDICATED_URL` for the Pages build), or with
+`?server=wss://your.host` on the page. This is also how the WebKitGTK "Lite" desktop build plays online.
+
 **Oracle Cloud Always Free** (4 ARM cores and 24 GB RAM, 10 TB egress/month) is the most generous free
 VM. Install Docker, open port 8787 (or 443 behind Caddy) in the VCN security list and in `iptables`,
 then run the command above. GCP's free e2-micro also works, but it has only 1 GB/month of free egress,
@@ -117,7 +121,8 @@ RELAY_URL=wss://shardfall-signal.<you>.workers.dev bun run e2e:mp http://localho
 
 The E2E opens two Chromium browsers. One hosts through the menus and the other joins with the room code;
 the script then checks that movement syncs both ways, prediction matches the host, and a backgrounded
-host keeps the world running.
+host keeps the world running. It then starts `server/dedicated.ts` and checks that two browsers can
+play together through **Join Server**.
 
 ## Costs at a glance
 

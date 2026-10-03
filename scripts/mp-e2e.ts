@@ -21,6 +21,8 @@ const url = `${pageUrl}?relay=${encodeURIComponent(relayUrl)}&ice=none`;
 
 type Status = { screen: string; purpose: string; roomCode: string; message: string };
 type Probe = {
+  /** This page's own player index. */
+  me: number;
   players: { name: string; x: number; y: number; hp: number }[];
   level: number;
   tick: number;
@@ -77,6 +79,7 @@ const probe = (p: Page) =>
     const g = (window as unknown as { game: { session: { world: any; stats?: any } } }).game;
     const w = g.session.world;
     return {
+      me: (g.session as unknown as { localPlayers: number[] }).localPlayers[0] ?? 0,
       players: w.players.map((pl: any, i: number) => {
         const e = w.playerEntity(i);
         return { name: pl.name, x: e?.x ?? NaN, y: e?.y ?? NaN, hp: e?.hp ?? NaN };
@@ -199,6 +202,60 @@ try {
   await host.waitForTimeout(1500);
   const hs2 = await status(host);
   check(hs2.screen === 'playing', 'host still playing after joiner left');
+  // Free the CPU for the next phase (software-rendered pages are heavy).
+  await host.context().close();
+  await join.context().close();
+
+  // ---- Dedicated server: two browsers join `bun server/dedicated.ts` over WebSocket ("Join Server").
+  const SERVER_PORT = Number(process.env.SERVER_PORT ?? 8799);
+  const server = spawn('bun', ['server/dedicated.ts'], { env: { ...process.env, PORT: String(SERVER_PORT), SEED: '99' }, stdio: ['ignore', 'pipe', 'inherit'] });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.stdout!.on('data', (d: Buffer) => (/listening|ws:\/\//i.test(d.toString()) ? resolve() : undefined));
+      server.on('exit', (c) => reject(new Error(`dedicated server exited ${c}`)));
+      setTimeout(resolve, 3000);
+    });
+    const serverUrl = `${pageUrl}?server=${encodeURIComponent(`ws://127.0.0.1:${SERVER_PORT}`)}`;
+    const joinServer = async (label: string) => {
+      const ctx = await browser.newContext({ viewport: { width: 960, height: 540 } });
+      const page = await ctx.newPage();
+      page.on('pageerror', (e) => console.log(`[${label} pageerror] ${e.message}`));
+      await page.goto(serverUrl);
+      await page.waitForFunction(() => !!(window as unknown as { app?: unknown }).app, null, { timeout: 15_000 });
+      await tap(page, 'Enter');
+      await waitScreen(page, 'main', 5_000);
+      await tap(page, 'ArrowDown', 3); // Play Solo, Host, Join, *Join Server*
+      await tap(page, 'Enter');
+      await waitScreen(page, 'create', 5_000);
+      await tap(page, 'Enter');
+      return { page, status: await waitScreen(page, 'playing', 20_000) };
+    };
+    const a = await joinServer('srvA');
+    check(a.status.screen === 'playing', `browser A joined the dedicated server (${a.status.screen} ${a.status.message})`);
+    const b2 = await joinServer('srvB');
+    check(b2.status.screen === 'playing', `browser B joined the dedicated server (${b2.status.screen} ${b2.status.message})`);
+    await a.page.waitForTimeout(1500);
+    const pa = await probe(a.page);
+    const pb = await probe(b2.page);
+    check(pa.players.length === 2 && pb.players.length === 2, `both see 2 players on the server (${pa.players.length}, ${pb.players.length})`);
+    // B walks (whichever way is open); A must see B where B is (indices come from the server).
+    await b2.page.bringToFront();
+    const bi = pb.me;
+    const selfBefore = pb.players[bi]?.x ?? 0;
+    for (const key of ['KeyD', 'KeyA']) {
+      await b2.page.keyboard.down(key);
+      await b2.page.waitForTimeout(1200);
+      await b2.page.keyboard.up(key);
+      if (Math.abs(((await probe(b2.page)).players[bi]?.x ?? 0) - selfBefore) > 16) break;
+    }
+    await a.page.waitForTimeout(800);
+    const selfAfter = (await probe(b2.page)).players[bi]?.x ?? 0;
+    const seenByA = (await probe(a.page)).players[bi]?.x ?? 0;
+    check(Math.abs(selfAfter - selfBefore) > 16, `B moved on the server (${(selfAfter - selfBefore).toFixed(1)}px)`);
+    check(Math.abs(seenByA - selfAfter) < 12, `A sees B where B is (${Math.abs(seenByA - selfAfter).toFixed(1)}px apart)`);
+  } finally {
+    server.kill();
+  }
 } catch (err) {
   failures.push(String(err));
   console.log(`FAIL  ${String(err)}`);
