@@ -161,6 +161,24 @@ try {
   check(agree0 < 12, `interpolated host position close to authoritative (${agree0.toFixed(1)}px)`);
   console.log(`      rtt ${j3.rtt?.toFixed(1)}ms, snapshots ${j3.snapshots}, corrections ${j3.corrections}`);
 
+  // ---- Host tab goes to the background (rAF stops): the world must keep running for the joiner.
+  await host.evaluate(() => {
+    window.requestAnimationFrame = () => 0;
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await host.waitForTimeout(300);
+  const hb0 = await probe(host);
+  await join.bringToFront();
+  await join.keyboard.down('KeyA');
+  await join.waitForTimeout(1000);
+  await join.keyboard.up('KeyA');
+  await join.waitForTimeout(600);
+  const hb1 = await probe(host);
+  const hiddenMove = Math.abs(hb1.players[1]!.x - hb0.players[1]!.x);
+  check(hiddenMove > 16, `hidden host keeps simulating (joiner moved ${hiddenMove.toFixed(1)}px on host)`);
+
   await host.screenshot({ path: `${out}/mp-host.png` });
   await join.screenshot({ path: `${out}/mp-join.png` });
 

@@ -6,7 +6,7 @@ import type { PlayerInput } from '../sim/types';
 import { Renderer } from '../render/renderer';
 import { Hud } from '../ui/hud';
 import { FixedLoop } from './loop';
-import type { Session } from './session';
+import { LocalSession, type Session } from './session';
 
 /**
  * Wires session + input + renderer + UI + audio together and runs the fixed-step loop.
@@ -77,6 +77,8 @@ export class Game {
     if (next !== this.session) this.session.dispose();
     this.session = next;
     this.paused = false;
+    // Online worlds must keep ticking when this tab is hidden (others depend on it).
+    this.loop.keepAliveWhenHidden = !(next instanceof LocalSession);
     const onRestart = this.ui.onRestart;
     const idx = this.app.stage.getChildIndex(this.ui.root);
     this.ui.root.destroy({ children: true });
