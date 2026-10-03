@@ -5,7 +5,7 @@ import type { PlayerState } from '../sim/types';
 import type { World } from '../sim/world';
 import { fitText } from './format';
 import { itemIcon } from './icons';
-import { ICON } from './layout';
+import { ICON, centerClear } from './layout';
 import { type ToastQueue, Timed, fadeAlpha } from './notify';
 import { UI } from './theme';
 import { Bar, frame, panel, solid } from './widgets';
@@ -187,15 +187,19 @@ export class DownedOverlay extends Container {
   private sub = new PixelText('', { color: UI.textDim });
   private bar = new Bar(UI.good);
   private notices: { text: PixelText; bar: Bar }[] = [];
-  private noticeLayer = new Container();
+  /** Teammate-down notices. The Hud layers this above the inventory panel so they stay readable. */
+  readonly noticeLayer = new Container();
 
   constructor() {
     super();
     this.addChild(this.veil, this.title, this.sub, this.bar, this.noticeLayer);
   }
 
-  /** `noticeTop` = y of the first teammate-down notice (below the co-op party list). */
-  update(world: World, me: number, dt: number, t: number, viewW: number, viewH: number, noticeTop = 40): void {
+  /**
+   * `noticeTop` = y of the first teammate-down notice (below the co-op party list); notices are
+   * centred but never start left of `noticeLeft` (the open inventory panel's right edge).
+   */
+  update(world: World, me: number, dt: number, t: number, viewW: number, viewH: number, noticeTop = 40, noticeLeft = 0): void {
     const p = world.players[me];
     const down = !!p && (p.downed || p.out) && !world.run.over;
     this.veil.visible = this.title.visible = this.sub.visible = this.bar.visible = down;
@@ -214,10 +218,10 @@ export class DownedOverlay extends Container {
       this.bar.set(cx - 30, y + 29, 60, 5, Math.round(58 * frac), frac);
       this.bar.tick(dt);
     }
-    this.updateNotices(world, me, dt, viewW, noticeTop);
+    this.updateNotices(world, me, dt, viewW, noticeTop, noticeLeft);
   }
 
-  private updateNotices(world: World, me: number, dt: number, viewW: number, top: number): void {
+  private updateNotices(world: World, me: number, dt: number, viewW: number, top: number, left: number): void {
     const downed: PlayerState[] = world.players.filter((q) => q.index !== me && q.downed && !q.out);
     while (this.notices.length < downed.length) {
       const n = { text: new PixelText('', { color: UI.bad }), bar: new Bar(UI.good) };
@@ -231,10 +235,12 @@ export class DownedOverlay extends Container {
       if (!q) return;
       const y = top + i * 16;
       n.text.text = `${fitText(q.name, 60)} is down! Hold F to revive`;
-      n.text.position.set(cx - Math.floor(n.text.textWidth / 2), y);
+      const x = centerClear(cx, n.text.textWidth, left, viewW);
+      n.text.position.set(x, y);
+      const bx = x + Math.floor(n.text.textWidth / 2) - 25;
       const frac = reviveFraction(q.reviveProgress);
       n.bar.visible = frac > 0;
-      n.bar.set(cx - 25, y + 9, 50, 4, Math.round(48 * frac), frac);
+      n.bar.set(bx, y + 9, 50, 4, Math.round(48 * frac), frac);
       n.bar.tick(dt);
     });
   }

@@ -240,6 +240,8 @@ export class TopBar extends Container {
     }
 
     this.updateParty(world, p.index, dt);
+    // The open inventory panel covers the list (and is translucent): don't let it bleed through.
+    if (inventoryOpen) this.party.visible = false;
   }
 
   private updateParty(world: World, me: number, dt: number): void {

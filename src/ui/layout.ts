@@ -321,6 +321,15 @@ export function placeTooltip(ax: number, ay: number, w: number, h: number, viewW
   return { x: Math.round(x), y: Math.round(y) };
 }
 
+/**
+ * Left x of a `w`-wide line centred on `cx`, pushed right so it starts at or after `minX` (e.g.
+ * clear of the open inventory panel) and pulled back inside the view when it can.
+ */
+export function centerClear(cx: number, w: number, minX: number, viewW: number): number {
+  const x = Math.max(minX, cx - Math.floor(w / 2));
+  return Math.max(minX, Math.min(x, viewW - 1 - w));
+}
+
 /** Place a w×h box right-aligned to `right`, just below `top` (skill-panel tooltips), clamped to the view. */
 export function placeBelow(right: number, top: number, w: number, h: number, viewW: number, viewH: number): { x: number; y: number } {
   const x = Math.max(1, Math.min(viewW - w - 1, right - w));

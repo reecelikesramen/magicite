@@ -177,6 +177,12 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${out}/10a-coop.png` });
+// Same with the inventory open: the party list hides, the down notice moves clear of the panel.
+await page.keyboard.press('Tab');
+await page.waitForTimeout(250);
+await page.screenshot({ path: `${out}/10b-coop-inventory.png` });
+await page.keyboard.press('Tab');
+await page.waitForTimeout(150);
 await page.evaluate(() => {
   const w = (window as any).game.session.world;
   w.players.length = 1;

@@ -105,6 +105,8 @@ export class Hud {
       this.pickupView,
       this.downed,
       this.inv,
+      // Re-parented above the inventory: "X is down!" must stay readable while it is open.
+      this.downed.noticeLayer,
       this.skills,
       this.tooltip,
       this.runOver,
@@ -324,12 +326,22 @@ export class Hud {
     this.toastView.update(this.toasts, Math.floor(this.viewW / 2), this.inventoryOpen ? L.toastBottom - 10 : L.toastBottom);
     this.pickupView.update(this.pickups, L.pickups.right, L.pickups.bottom);
     this.banner.update(dt, this.viewW, this.viewH);
+    // The big level banner sits behind the translucent inventory panel; hide it like the caption.
+    if (this.inventoryOpen) this.banner.visible = false;
     this.levelUp.update(dt, this.viewW, this.viewH);
     // Being downed supersedes celebratory banners.
     if (p.downed || p.out) this.levelUp.hide();
     this.flash.update(dt, this.viewW, this.viewH);
-    const noticeTop = L.party.y + Math.max(0, world.players.length - 1) * 9 + 4;
-    this.downed.update(world, playerIndex, dt, this.t, this.viewW, this.viewH, noticeTop);
+    // Teammate-down notices: under the party list, or right of the open inventory panel (below the
+    // skill panel when that is showing).
+    const invRight = this.inv.L.panel.x + this.inv.L.panel.w + 3;
+    const sp = this.skills.L.panel;
+    const noticeTop = !this.inventoryOpen
+      ? L.party.y + Math.max(0, world.players.length - 1) * 9 + 4
+      : skillVisible
+        ? sp.y + sp.h + 3
+        : L.party.y + 4;
+    this.downed.update(world, playerIndex, dt, this.t, this.viewW, this.viewH, noticeTop, this.inventoryOpen ? invRight : 0);
     this.runOver.update(this.t, this.viewW, this.viewH);
 
     // A consumed press stays captured until released: otherwise dropping an item outside the panel
@@ -364,6 +376,13 @@ export class Hud {
     clearSelection(this.state);
     this.toasts.clear();
     this.pickups.clear();
+    // Nothing from the previous run may linger (the new world's levelEnter re-shows the banner).
+    this.banner.hide();
+    this.levelUp.hide();
+    this.skillKeyboard = false;
+    this.skillFocus = -1;
+    this.pendingSkill = '';
+    this.pendingSkillT = 0;
     this.recipesKey = -1;
     this.lastGold = world.players[me]?.gold ?? -1;
   }

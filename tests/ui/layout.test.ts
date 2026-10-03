@@ -13,6 +13,7 @@ import {
   SLOT,
   SLOT_GAP,
   XP_BAR_H,
+  centerClear,
   fillPx,
   hitTestButtons,
   hitTestInventory,
@@ -212,6 +213,19 @@ describe('tooltip placement', () => {
     const big = placeTooltip(5, 5, 400, 300, 320, 180);
     expect(big.x).toBeGreaterThanOrEqual(1);
     expect(big.y).toBeGreaterThanOrEqual(1);
+  });
+
+  it('centerClear centres a line but keeps it right of the open inventory panel', () => {
+    // Inventory closed: plain centring.
+    expect(centerClear(160, 100, 0, 320)).toBe(110);
+    // Inventory open (panel ends at x 129): pushed right, still inside the view.
+    const L = inventoryLayout(320, 180);
+    const left = L.panel.x + L.panel.w + 3;
+    const x = centerClear(160, 150, left, 320);
+    expect(x).toBeGreaterThanOrEqual(left);
+    expect(x + 150).toBeLessThanOrEqual(319);
+    // Wider than the free space: never back under the panel.
+    expect(centerClear(160, 260, left, 320)).toBe(left);
   });
 
   it('placeBelow right-aligns under an anchor and clamps', () => {
