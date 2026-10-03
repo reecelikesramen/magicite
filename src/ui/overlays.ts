@@ -237,6 +237,19 @@ export class DownedOverlay extends Container {
   }
 }
 
+/** Run-over panel chrome: title + subtitle above the rows, prompt below (px). */
+const RUN_ROW_H = 9;
+const RUN_PANEL_EXTRA = 30 + 18;
+
+/**
+ * Rows per column for the two-column run summary: balanced, but never taller than the view
+ * (rows past 2 × perCol are left out rather than drawn off-screen).
+ */
+export function runSummaryRowsPerCol(rows: number, viewH: number): number {
+  const fit = Math.max(1, Math.floor((viewH - 4 - RUN_PANEL_EXTRA) / RUN_ROW_H));
+  return Math.max(1, Math.min(Math.ceil(rows / 2), fit));
+}
+
 /** End-of-run summary panel ("Press R to restart" — the game wires the restart). */
 export class RunOverScreen extends Container {
   private dim = solid(0x000000, 0, 0, 1, 1, 0.62);
@@ -286,11 +299,11 @@ export class RunOverScreen extends Container {
     if (!this.visible) return;
     this.dim.width = viewW;
     this.dim.height = viewH;
-    const perCol = Math.ceil(this.rows.length / 2);
+    const perCol = runSummaryRowsPerCol(this.rows.length, viewH);
     const gap = 13;
     const w = Math.min(viewW - 6, 236);
     const cw = Math.floor((w - 10 - gap) / 2);
-    const h = 30 + perCol * 9 + 18;
+    const h = RUN_PANEL_EXTRA + perCol * RUN_ROW_H;
     const x = Math.floor((viewW - w) / 2);
     const y = Math.max(2, Math.floor((viewH - h) / 2));
     const key = `${viewW}x${viewH}|${this.data.length}|${this.victory}`;
@@ -301,12 +314,13 @@ export class RunOverScreen extends Container {
       panel(g, { x, y, w, h }, 0.95);
       frame(g, x - 1, y - 1, w + 2, h + 2, this.victory ? UI.gold : UI.downed, 0.8);
       // Column divider.
-      g.rect(x + 5 + cw + Math.floor(gap / 2), y + 31, 1, perCol * 9 - 2).fill({ color: UI.panelBorder });
+      g.rect(x + 5 + cw + Math.floor(gap / 2), y + 31, 1, perCol * RUN_ROW_H - 2).fill({ color: UI.panelBorder });
       this.title.position.set(x + Math.floor((w - this.title.textWidth) / 2), y + 4);
       this.subtitle.position.set(x + Math.floor((w - this.subtitle.textWidth) / 2), y + 20);
       this.rows.forEach((r, i) => {
         const col = Math.floor(i / perCol);
-        const ry = y + 31 + (i % perCol) * 9;
+        r.label.visible = r.value.visible = col < 2;
+        const ry = y + 31 + (i % perCol) * RUN_ROW_H;
         const rx = x + 5 + col * (cw + gap);
         r.label.position.set(rx, ry);
         r.value.position.set(rx + cw - r.value.textWidth, ry);

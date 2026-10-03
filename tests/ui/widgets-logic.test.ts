@@ -3,7 +3,7 @@ import { TICK_RATE } from '../../src/sim/constants';
 import type { Entity, PlayerState } from '../../src/sim/types';
 import { countLabel, measureMini } from '../../src/ui/minifont';
 import { Timed, ToastQueue, fadeAlpha } from '../../src/ui/notify';
-import { REVIVE_TICKS, reviveFraction } from '../../src/ui/overlays';
+import { REVIVE_TICKS, reviveFraction, runSummaryRowsPerCol } from '../../src/ui/overlays';
 import { clampPage, pageCount } from '../../src/ui/recipebook';
 import { chooseSkillCommand, moveFocus, skillPanelVisible, skillTooltip } from '../../src/ui/skillpanel';
 import { cooldownFrac, meterValues } from '../../src/ui/topbar';
@@ -110,6 +110,16 @@ describe('HUD values', () => {
     expect(reviveFraction(0.5)).toBe(0.5);
     expect(reviveFraction(REVIVE_TICKS / 2)).toBe(0.5);
     expect(reviveFraction(REVIVE_TICKS * 3)).toBe(1);
+  });
+
+  it('run summary columns are balanced but never taller than the view', () => {
+    expect(runSummaryRowsPerCol(17, 180)).toBe(9);
+    expect(runSummaryRowsPerCol(22, 180)).toBe(11);
+    // 40 rows can't fit in 180 px: cap the column height (panel = 48 px chrome + 9 px per row).
+    const per = runSummaryRowsPerCol(40, 180);
+    expect(48 + per * 9).toBeLessThanOrEqual(180 - 4);
+    expect(runSummaryRowsPerCol(40, 720)).toBe(20);
+    expect(runSummaryRowsPerCol(3, 20)).toBe(1);
   });
 
   it('recipe book paging', () => {

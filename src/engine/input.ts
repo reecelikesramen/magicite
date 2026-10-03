@@ -156,6 +156,8 @@ export class InputManager {
       inp.moveX = inp.moveY = 0;
       inp.jump = inp.attack = inp.alt = inp.interact = false;
       inp.select = inp.skill = -1;
+      // Dash (LB/RB, Q/E) lands with the player workstream; LB/RB also page the recipe book.
+      if ('dash' in inp) (inp as { dash: number }).dash = 0;
     }
     inp.commands = this.queuedCommands;
     this.queuedCommands = [];

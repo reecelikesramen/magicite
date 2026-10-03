@@ -393,17 +393,35 @@ const RUN_LABELS: Record<string, string> = {
   districtsCleared: 'Districts cleared',
 };
 
-/** Ordered [label, value] rows for the run-over screen (unknown extra stats included). */
+/** Nicer labels for extra stats other workstreams record (listed only when present). */
+const EXTRA_LABELS: Record<string, string> = {
+  xpEarned: 'XP earned',
+  skillsLearned: 'Skills learned',
+  warriorSkills: 'Warrior skills',
+  mageSkills: 'Mage skills',
+  rangerSkills: 'Ranger skills',
+};
+
+/** Extra stats already shown in the header rows (progression records them as `level` / `district`). */
+const HEADER_STATS = new Set(['ticksPlayed', 'level', 'district']);
+
+/**
+ * Ordered [label, value] rows for the run-over screen (unknown extra stats included). The
+ * deepest district / highest level recorded in `stats` win over the current level's values (the
+ * run may end in a town whose district number is the one ahead).
+ */
 export function runSummary(stats: RunStats, extra: { level: number; district: number }): [string, string][] {
+  const district = (stats.district ?? 0) > 0 ? stats.district! : extra.district;
+  const level = Math.max(extra.level, stats.level ?? 0);
   const rows: [string, string][] = [
-    ['Reached', `District ${extra.district}`],
-    ['Level', String(extra.level)],
+    ['Reached', `District ${district}`],
+    ['Level', String(level)],
     ['Time', formatTime(stats.ticksPlayed ?? 0)],
   ];
   for (const [k, label] of Object.entries(RUN_LABELS)) rows.push([label, String(Math.round(stats[k] ?? 0))]);
   for (const k of Object.keys(stats)) {
-    if (k in RUN_LABELS || k === 'ticksPlayed') continue;
-    rows.push([humanize(k), String(Math.round(stats[k] ?? 0))]);
+    if (k in RUN_LABELS || HEADER_STATS.has(k)) continue;
+    rows.push([EXTRA_LABELS[k] ?? humanize(k), String(Math.round(stats[k] ?? 0))]);
   }
   return rows;
 }

@@ -210,4 +210,19 @@ describe('run summary', () => {
     expect(rows).toContainEqual(['Wraith Escapes', '2']);
     expect(rows.some(([l]) => l === 'Ticks Played')).toBe(false);
   });
+
+  it('does not repeat level/district recorded in run stats, and prefers the deepest district reached', () => {
+    // Progression records runStats.level / .district / .xpEarned; the run may end in the town ahead.
+    const stats = { kills: 1, ticksPlayed: 60, level: 7, district: 5, xpEarned: 120, skillsLearned: 1, mageSkills: 1 } as unknown as RunStats;
+    const rows = runSummary(stats, { level: 6, district: 6 });
+    expect(rows[0]).toEqual(['Reached', 'District 5']);
+    expect(rows[1]).toEqual(['Level', '7']);
+    expect(rows.filter(([l]) => l === 'Level')).toHaveLength(1);
+    expect(rows.some(([l]) => l === 'District')).toBe(false);
+    expect(rows).toContainEqual(['XP earned', '120']);
+    expect(rows).toContainEqual(['Skills learned', '1']);
+    expect(rows).toContainEqual(['Mage skills', '1']);
+    // Without recorded values the current level's numbers are used.
+    expect(runSummary({ kills: 0 } as RunStats, { level: 2, district: 3 }).slice(0, 2)).toEqual([['Reached', 'District 3'], ['Level', '2']]);
+  });
 });
