@@ -79,6 +79,11 @@ export function mapGameEvent(ev: GameEvent, st: AudioEventState, sink: CueSink):
         st.hasHit = true;
       }
       sink.sfx(ev.id, ev.x, ev.y, preset.spatial !== false, ev.volume ?? 1, ev.pitch ?? 1);
+      // The Blight Wraith has arrived: panic music until the party leaves the district.
+      if (ev.id === 'wraith_spawn' && st.levelTrack !== 'invasion') {
+        st.levelTrack = 'invasion';
+        sink.music('invasion');
+      }
       return;
     }
     case 'damage':

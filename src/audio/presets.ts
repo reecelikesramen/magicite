@@ -71,13 +71,22 @@ export const SFX: Readonly<Record<string, SfxPreset>> = {
   sizzle: { z: [0.3, 0, 800, 0.02, 0.08, 0.2, 4, 1, -5, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 2000], gain: 0.35, vary: 0.1, gap: 0.15 },
   poison: { z: [0.3, 0, 200, 0, 0.05, 0.1, 0, 1, 20, 0, 0, 0, 0.04], gain: 0.35, gap: 0.15 },
   teleport: { z: [0.4, 0, 300, 0.02, 0.15, 0.3, 0, 1, 30, 0, 0, 0, 0.05, 0, 0, 0, 0, 1, 0, 0.4], gain: 0.6 },
+  zap: { z: [0.35, 0, 900, 0, 0.03, 0.1, 4, 1, -30, 0, 0, 0, 0, 3, 0, 0.3], gain: 0.45, vary: 0.1 },
+  buff: { z: [0.4, 0, 260, 0.03, 0.12, 0.3, 1, 1, 6, 0, 130, 0.08, 0, 0, 20, 0, 0, 1, 0, 0.3], gain: 0.55 },
+  war_cry: { z: [0.6, 0, 160, 0.03, 0.25, 0.3, 2, 1.5, 3, 0, 0, 0, 0, 0.3, 8, 0, 0, 1, 0, 0.4], gain: 0.85, voices: 1 },
+  smoke: { z: [0.45, 0, 200, 0.02, 0.15, 0.4, 4, 1, -2, 0, 0, 0, 0, 1, 0, 0, 0, 0.7, 0, 0, -900], gain: 0.6 },
+  hawk: { z: [0.4, 0, 1700, 0.02, 0.1, 0.25, 2, 0.8, -25, 0, 0, 0, 0, 0, 30, 0, 0, 1, 0, 0.3], gain: 0.55 },
+  meteor: { z: [0.6, 0, 500, 0.05, 0.3, 0.3, 4, 1, -12, 0, 0, 0, 0, 1.5, 0, 0.3, 0, 1, 0, 0, -2500], gain: 0.8, voices: 2 },
+  trap_snap: { z: [0.5, 0, 700, 0, 0.01, 0.08, 2, 1, -60, 0, 0, 0, 0, 0.3, 0, 0.2], gain: 0.7 },
+  skill: { z: [0.4, 0, 400, 0.01, 0.08, 0.25, 5, 0.5, 20, 0, 0, 0, 0.05], gain: 0.6, vary: 0.04 },
 
   // ── creatures ────────────────────────────────────────────────────────────
   death_enemy: { z: [0.45, 0, 300, 0, 0.05, 0.3, 2, 1, -12, 0, 0, 0, 0, 0.5, 0, 0.3], gain: 0.7, vary: 0.1, voices: 3 },
   death_small: { z: [0.3, 0, 600, 0, 0.02, 0.12, 4, 1, -20], gain: 0.4, vary: 0.15 },
-  boss_roar: { z: [0.8, 0.1, 70, 0.05, 0.3, 0.5, 2, 2, -2, 0, 0, 0, 0, 0.6, 10], gain: 1.3, vary: 0.05, voices: 1, gap: 0.6, spatial: false },
+  boss_roar: { z: [0.8, 0, 70, 0.05, 0.3, 0.5, 2, 2, -2, 0, 0, 0, 0, 0.6, 10], gain: 1.3, vary: 0.05, voices: 1, gap: 0.6, spatial: false },
   boss_death: { z: [1, 0, 90, 0.02, 0.5, 1.2, 2, 1, -3, 0, 0, 0, 0, 0.8, 0, 0.5, 0.1, 0.6], gain: 1.4, voices: 1, gap: 1, spatial: false },
   wraith_warn: { z: [0.6, 0, 300, 0.3, 0.6, 0.6, 5, 0.5, 4, 0, 0, 0, 0.2, 0, 0, 0, 0, 1, 0, 0.5], gain: 0.8, voices: 1, gap: 2, spatial: false },
+  wraith_spawn: { z: [0.8, 0, 110, 0.2, 0.5, 0.8, 2, 2, -1, 0, 0, 0, 0.15, 0.4, 6, 0.2, 0, 1, 0, 0.6], gain: 1.2, voices: 1, gap: 2, spatial: false },
 
   // ── gathering / world ────────────────────────────────────────────────────
   chop: { z: [0.5, 0, 180, 0, 0, 0.06, 1, 1, 0, 0, 0, 0, 0, 0.6], gain: 0.7, vary: 0.08 },
@@ -92,7 +101,8 @@ export const SFX: Readonly<Record<string, SfxPreset>> = {
   chest_open: { z: [0.4, 0, 300, 0.01, 0.08, 0.25, 5, 0.5, 0, 0, 300, 0.08], gain: 0.6 },
   place: { z: [0.3, 0, 220, 0, 0.01, 0.05, 1, 1, -10, 0, 0, 0, 0, 0.3], gain: 0.45, vary: 0.08 },
   portal: { z: [0.5, 0, 200, 0.05, 0.2, 0.4, 0, 1, 30, 0, 0, 0, 0, 0, 5], gain: 0.75, voices: 1, gap: 0.3, spatial: false },
-  portal_open: { z: [0.4, 0, 400, 0.05, 0.2, 0.5, 0, 1, 10, 0, 0, 0, 0.1, 0, 0, 0, 0, 1, 0, 0.3], gain: 0.7, voices: 1, spatial: false },
+  portal_open: { z: [0.4, 0, 400, 0.05, 0.2, 0.5, 0, 1, 10, 0, 0, 0, 0.1, 0, 0, 0, 0, 1, 0, 0.3], gain: 0.7, voices: 1, gap: 0.3, spatial: false },
+  locked: { z: [0.35, 0, 140, 0, 0.06, 0.08, 2, 1, 0, 0, -30, 0.05, 0, 0.1, 0, 0.2], gain: 0.45, vary: 0, gap: 0.2 },
 
   // ── items / meters ───────────────────────────────────────────────────────
   coin: { z: [0.35, 0, 1200, 0, 0.03, 0.12, 5, 0.5, 0, 0, 600, 0.04], gain: 0.4, vary: 0.03, voices: 4, gap: 0.04 },
@@ -103,12 +113,11 @@ export const SFX: Readonly<Record<string, SfxPreset>> = {
   craft: { z: [0.4, 0, 660, 0, 0.05, 0.2, 5, 0.5, 0, 0, 330, 0.05, 0.05], gain: 0.55, vary: 0.02, spatial: false, eventDriven: true },
   craft_fail: { z: [0.35, 0, 120, 0, 0.08, 0.1, 2, 1, -3, 0, 0, 0, 0, 0, 0, 0.2], gain: 0.45, vary: 0, spatial: false, eventDriven: true },
   discover: { z: [0.4, 0, 880, 0, 0.05, 0.25, 0, 1, 0, 0, 440, 0.05, 0.05, 0, 0, 0, 0, 1, 0, 0.2], gain: 0.6, vary: 0, voices: 1, spatial: false },
-  levelup: { z: [0.5, 0, 523, 0, 0.1, 0.4, 5, 0.5, 0, 0, 262, 0.08, 0.08], gain: 0.75, vary: 0, voices: 1, gap: 0.3, spatial: false },
-  skill: { z: [0.4, 0, 400, 0.01, 0.08, 0.25, 5, 0.5, 20, 0, 0, 0, 0.05], gain: 0.6, vary: 0.04 },
+  levelup: { z: [0.5, 0, 523, 0, 0.1, 0.4, 5, 0.5, 0, 0, 262, 0.08, 0.08], gain: 0.75, vary: 0, voices: 1, gap: 0.3, spatial: false, eventDriven: true },
   revive: { z: [0.5, 0, 330, 0, 0.1, 0.3, 5, 0.5, 15], gain: 0.7, vary: 0, voices: 1, gap: 0.3, spatial: false },
   downed: { z: [0.5, 0, 440, 0, 0.1, 0.3, 5, 0.5, -15], gain: 0.8, vary: 0, voices: 1, gap: 0.3, spatial: false },
-  run_win: { z: [0.5, 0, 392, 0, 0.15, 0.6, 5, 0.5, 0, 0, 196, 0.1, 0.1], gain: 0.8, vary: 0, voices: 1, spatial: false },
-  run_lose: { z: [0.5, 0, 330, 0, 0.2, 0.6, 5, 0.5, -6, 0, -55, 0.15, 0.15], gain: 0.8, vary: 0, voices: 1, spatial: false },
+  run_win: { z: [0.5, 0, 392, 0, 0.15, 0.6, 5, 0.5, 0, 0, 196, 0.1, 0.1], gain: 0.8, vary: 0, voices: 1, gap: 1, spatial: false },
+  run_lose: { z: [0.5, 0, 330, 0, 0.2, 0.6, 5, 0.5, -6, 0, -55, 0.15, 0.15], gain: 0.8, vary: 0, voices: 1, gap: 1, spatial: false },
 
   // ── UI (non-positional) ──────────────────────────────────────────────────
   ui_click: { z: [0.2, 0, 1800, 0, 0, 0.02, 5, 0.5], gain: 0.3, vary: 0.02, spatial: false, gap: 0.02 },
@@ -142,22 +151,70 @@ export const SFX_ALIASES: Readonly<Record<string, string>> = {
   purchase: 'buy',
   gather: 'harvest',
   crafted: 'craft',
+  // run / progression workstream
+  portal_enter: 'portal',
+  portal_unlock: 'portal_open',
+  portal_locked: 'locked',
+  victory: 'run_win',
+  defeat: 'run_lose',
+  wraith_warning: 'wraith_warn',
+  skill_learn: 'discover',
+  skill_not_ready: 'ui_error',
+  skill_fail: 'fizzle',
+  companion_heal: 'heal',
+  companion_shield: 'buff',
+  companion_zap: 'zap',
+  // skills: `skill_<id>` (GDD §10); anything else under the prefix falls back to 'skill'
+  skill_whirlwind: 'swing_heavy',
+  skill_ground_slam: 'slam',
+  skill_war_cry: 'war_cry',
+  skill_charge: 'dash',
+  skill_iron_skin: 'buff',
+  skill_cleave: 'swing_heavy',
+  skill_fire_burst: 'fireball',
+  skill_frost_nova: 'freeze',
+  skill_chain_lightning: 'lightning',
+  skill_blink: 'teleport',
+  skill_arcane_ward: 'buff',
+  skill_meteor: 'meteor',
+  skill_multishot: 'bow',
+  skill_arrow_rain: 'bow',
+  skill_bear_trap: 'place',
+  skill_smoke_bomb: 'smoke',
+  skill_hawk: 'hawk',
+  skill_volley_step: 'dash',
 };
+
+/** Id prefixes (for ids built at runtime, e.g. `skill_${def.id}`) → preset. Checked after aliases. */
+export const SFX_PREFIXES: readonly (readonly [string, string])[] = [
+  ['skill_', 'skill'],
+  ['companion_', 'pickup'],
+  ['ui_', 'ui_click'],
+  ['boss_', 'boss_roar'],
+  ['portal_', 'portal'],
+];
 
 /** Played for ids missing from the table (never silent, never throws). */
 export const FALLBACK_SFX = 'pickup';
 
-/** Canonical preset id for any sfx id (aliases resolved; unknown → FALLBACK_SFX). */
+const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+/** Canonical preset id for any sfx id: exact → alias → prefix rule → FALLBACK_SFX. */
 export function resolveSfxId(id: string): string {
-  if (Object.prototype.hasOwnProperty.call(SFX, id)) return id;
-  const alias = SFX_ALIASES[id];
-  if (alias !== undefined && Object.prototype.hasOwnProperty.call(SFX, alias)) return alias;
+  if (own(SFX, id)) return id;
+  if (own(SFX_ALIASES, id)) return SFX_ALIASES[id]!;
+  for (const [prefix, target] of SFX_PREFIXES) if (id.startsWith(prefix)) return target;
   return FALLBACK_SFX;
 }
 
-/** True when `id` (or its alias) has a dedicated preset. */
+/** True when `id` has a preset of its own or via an alias (not just a prefix rule or the fallback). */
 export function hasSfx(id: string): boolean {
-  return Object.prototype.hasOwnProperty.call(SFX, id) || Object.prototype.hasOwnProperty.call(SFX_ALIASES, id);
+  return own(SFX, id) || own(SFX_ALIASES, id);
+}
+
+/** True when `id` resolves to something other than the generic fallback. */
+export function resolvesSfx(id: string): boolean {
+  return hasSfx(id) || SFX_PREFIXES.some(([prefix]) => id.startsWith(prefix));
 }
 
 export const DEFAULT_VOICES = 3;
