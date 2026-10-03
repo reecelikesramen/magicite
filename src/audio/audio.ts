@@ -57,6 +57,7 @@ export class AudioManager {
   private wantTrack = '';
   private batchMusic: string | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private ready: Promise<boolean> = Promise.resolve(false);
   private readonly onVisibility = (): void => this.handleVisibility();
   private readonly sink: CueSink = {
     sfx: (id, x, y, spatial, volume, pitch) => {
@@ -145,6 +146,16 @@ export class AudioManager {
     return this.playSfxAt(id, x ?? 0, y ?? 0, positional, volume, pitch);
   }
 
+  /** Resolves once the SFX synth is loaded (true) or known unavailable (false). */
+  whenReady(): Promise<boolean> {
+    return this.ready;
+  }
+
+  /** Debug/test view of the music engine. */
+  musicDebug(): { playing: string | null; players: number } {
+    return { playing: this.music?.currentId ?? null, players: this.music?.playerCount ?? 0 };
+  }
+
   /** Release the context and timers (e.g. leaving the game). */
   dispose(): void {
     if (this.timer !== null) clearInterval(this.timer);
@@ -197,9 +208,10 @@ export class AudioManager {
       if (this.wantTrack !== '') this.music.play(this.wantTrack, 0.4);
       if (this.opts.timer !== false) this.timer = setInterval(() => this.music?.tick(), TIMER_MS);
       if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
-      void loadZzfx(ctx).then((b) => {
+      this.ready = loadZzfx(ctx).then((b) => {
         this.builder = b;
         if (b) this.prewarm();
+        return b !== null;
       });
       return true;
     } catch {
