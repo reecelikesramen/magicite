@@ -27,11 +27,17 @@ Presentation only — nothing here is read by the sim, so `Math.random` (pitch v
 ## Adding a sound
 Emit `{ type: 'sfx', id, x, y }` from the sim and add `id` to `SFX` (or alias it to an existing preset).
 `tests/audio/presets.test.ts` scans `src/` and fails on ids without a preset. Runtime-built ids
-(`skill_${id}`) fall back via `SFX_PREFIXES`. Presets marked `eventDriven` (craft, level-up) are played
-from their semantic event (which knows the player) and their raw `sfx` events are ignored.
+(`skill_${id}`) fall back via `SFX_PREFIXES`.
+
+Positioning: the sim's `x = y = 0` means "no position". `spatial: false` presets are UI sounds / global alerts
+and never attenuate — except `personal` ones (one player's shop, equip, craft, menu feedback), which are
+spatialised when the sim *does* give a position, so a far teammate's chimes stay quiet in co-op. Presets
+marked `eventDriven` (craft, level-up) are played from their semantic event (which knows the player);
+their positionless raw `sfx` events are ignored and positioned ones play spatially (the voice limiter's
+retrigger gap merges them with the semantic cue).
 
 ## Music
 Tracks: `forest swamp cave frost crystal volcano lair town boss invasion title victory gameover` (biome ids
 alias onto them; unknown ids get a stable derived mood). `levelEnter` picks town / boss / biome music;
-a boss `death` returns to the biome theme; `bossPhase` (roaming giant) → `boss`; sfx `wraith_spawn` →
+a boss `death` returns to the biome theme (when boss music was playing); `bossPhase` (roaming giant) → `boss`; sfx `wraith_spawn` →
 `invasion`; `runOver` → `victory` / `gameover`.
