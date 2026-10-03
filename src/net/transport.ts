@@ -50,9 +50,9 @@ export abstract class TransportBase implements Transport {
   abstract readonly selfId: PeerId;
   readonly stats = emptyStats();
   closed = false;
-  private msgFns: MessageHandler[] = [];
-  private joinFns: PeerHandler[] = [];
-  private leaveFns: PeerHandler[] = [];
+  private msgFns: readonly MessageHandler[] = [];
+  private joinFns: readonly PeerHandler[] = [];
+  private leaveFns: readonly PeerHandler[] = [];
 
   abstract peers(): readonly PeerId[];
   abstract send(peer: PeerId, channel: Channel, data: Uint8Array): void;
@@ -62,44 +62,44 @@ export abstract class TransportBase implements Transport {
     for (const p of this.peers()) this.send(p, channel, data);
   }
 
+  // Listener lists are copy-on-write: (un)subscribing swaps in a new array, so emitting iterates a
+  // stable list without copying it for every packet.
   onMessage(fn: MessageHandler): () => void {
-    return sub(this.msgFns, fn);
+    this.msgFns = [...this.msgFns, fn];
+    return () => void (this.msgFns = this.msgFns.filter((f) => f !== fn));
   }
 
   onPeerJoin(fn: PeerHandler): () => void {
-    return sub(this.joinFns, fn);
+    this.joinFns = [...this.joinFns, fn];
+    return () => void (this.joinFns = this.joinFns.filter((f) => f !== fn));
   }
 
   onPeerLeave(fn: PeerHandler): () => void {
-    return sub(this.leaveFns, fn);
+    this.leaveFns = [...this.leaveFns, fn];
+    return () => void (this.leaveFns = this.leaveFns.filter((f) => f !== fn));
   }
 
   protected emitMessage(peer: PeerId, channel: Channel, data: Uint8Array): void {
     this.stats.bytesIn += data.length;
     this.stats.packetsIn++;
-    for (const fn of this.msgFns.slice()) fn(peer, channel, data);
+    const fns = this.msgFns;
+    for (let i = 0; i < fns.length; i++) fns[i]!(peer, channel, data);
   }
 
   protected emitJoin(peer: PeerId): void {
-    for (const fn of this.joinFns.slice()) fn(peer);
+    const fns = this.joinFns;
+    for (let i = 0; i < fns.length; i++) fns[i]!(peer);
   }
 
   protected emitLeave(peer: PeerId): void {
-    for (const fn of this.leaveFns.slice()) fn(peer);
+    const fns = this.leaveFns;
+    for (let i = 0; i < fns.length; i++) fns[i]!(peer);
   }
 
   protected countOut(bytes: number): void {
     this.stats.bytesOut += bytes;
     this.stats.packetsOut++;
   }
-}
-
-function sub<T>(arr: T[], fn: T): () => void {
-  arr.push(fn);
-  return () => {
-    const i = arr.indexOf(fn);
-    if (i >= 0) arr.splice(i, 1);
-  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -312,7 +312,6 @@ export class LoopbackNetwork {
 
   /** Graceful or abrupt departure of a node. */
   leave(id: number, abrupt: boolean): void {
-    const delayMs = abrupt ? this.crashDetectMs : this.conditions.latencyMs;
     for (const other of this.nodes.values()) {
       if (other.selfId === id || other.closed) continue;
       // Abrupt: in-flight packets from the dead peer are lost.
@@ -320,7 +319,12 @@ export class LoopbackNetwork {
         this.down.add(`${id}>${other.selfId}`);
         this.down.add(`${other.selfId}>${id}`);
       }
-      this.schedule({ at: this.t + delayMs, kind: 'leave', from: id, to: other.selfId, channel: 'reliable', data: null });
+      // Graceful: the close follows the reliable data already sent on that link (e.g. a Leave
+      // message sent right before close()), like a TCP FIN / SCTP shutdown does.
+      const at = abrupt
+        ? this.t + this.crashDetectMs
+        : Math.max(this.t + this.cond(id, other.selfId).latencyMs, this.lastReliable.get(`${id}>${other.selfId}`) ?? 0);
+      this.schedule({ at, kind: 'leave', from: id, to: other.selfId, channel: 'reliable', data: null });
     }
   }
 }
