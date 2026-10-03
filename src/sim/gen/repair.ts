@@ -1,5 +1,5 @@
 import { Tile } from '../tiles';
-import { carve, IS_HAZARD, IS_SOLID, put } from './grid';
+import { carve, IS_HAZARD, IS_LIQUID, IS_SOLID, put } from './grid';
 import { F_CLAIM, F_NOHAZ, F_PROTECT, type GenCtx } from './types';
 import { analyzeTraversal, type Traversal } from './validate';
 
@@ -133,7 +133,8 @@ function ladderOut(ctx: GenCtx, t: Traversal, group: number[]): boolean {
     const y = (c - x) / w;
     if (x <= 1 || x >= w - 2) continue;
     const below = grid.get(x, y + 1);
-    if (!IS_SOLID[below] && below !== Tile.LADDER) continue; // ladders start on firm ground
+    // Ladders start on firm ground (or at the surface of a liquid you're swimming in).
+    if (!IS_SOLID[below] && below !== Tile.LADDER && !(IS_LIQUID[grid.get(x, y)] && !IS_LIQUID[grid.get(x, y - 1)])) continue;
     for (let up = 1; up <= 40 && up < bestCost; up++) {
       const yy = y - up;
       if (yy < 2) break;
@@ -216,4 +217,48 @@ function walkway(ctx: GenCtx, t: Traversal, a: number, b: number): boolean {
     }
   }
   return changed;
+}
+
+interface Snapshot {
+  fg: Uint8Array;
+  bg: Uint8Array;
+  flags: Uint8Array;
+  lights: number;
+}
+
+function snapshot(ctx: GenCtx): Snapshot {
+  return { fg: ctx.grid.fg.slice(), bg: ctx.grid.bg.slice(), flags: ctx.flags.slice(), lights: ctx.lights.length };
+}
+
+function restore(ctx: GenCtx, s: Snapshot): void {
+  ctx.grid.fg.set(s.fg);
+  ctx.grid.bg.set(s.bg);
+  ctx.flags.set(s.flags);
+  ctx.lights.length = s.lights;
+}
+
+function exitsOk(ctx: GenCtx): boolean {
+  if (ctx.exits.length === 0) return true;
+  return analyze(ctx).exitReachable.every(Boolean);
+}
+
+/**
+ * Run terrain dressing passes (liquids, hazards, special tiles…) without breaking the route: if the
+ * exits were reachable before and aren't after, roll back and re-run the passes one at a time,
+ * dropping any pass that breaks reachability. Costs one traversal analysis in the common case.
+ */
+export function guardedPasses(ctx: GenCtx, passes: readonly ((ctx: GenCtx) => void)[]): void {
+  if (!exitsOk(ctx)) {
+    for (const p of passes) p(ctx);
+    return;
+  }
+  const before = snapshot(ctx);
+  for (const p of passes) p(ctx);
+  if (exitsOk(ctx)) return;
+  restore(ctx, before);
+  for (const p of passes) {
+    const s = snapshot(ctx);
+    p(ctx);
+    if (!exitsOk(ctx)) restore(ctx, s);
+  }
 }

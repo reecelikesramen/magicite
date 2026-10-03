@@ -18,8 +18,8 @@ export const MOVE = {
   reachLow: 6,
   /** Horizontal reach at double-jump heights. */
   reachHigh: 4,
-  /** Leap out of water (head above the surface). */
-  swimJump: 2,
+  /** Leap out of water (head above the surface): swim-jump apex ≈ 3 tiles, plus the air jump. */
+  swimJump: 3,
   swimReach: 3,
 } as const;
 

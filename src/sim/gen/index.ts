@@ -9,7 +9,7 @@ import { buildCliffs, buildEntrance, buildProfile, carveCaverns, carveCorridors,
 import { backWalls, cavernPools, platforms, rockPockets, routeBasins, secretPockets, specialTiles, spikes } from './features';
 import { levelName } from './names';
 import { populate } from './populate';
-import { repairTraversal } from './repair';
+import { guardedPasses, repairTraversal } from './repair';
 import { arenaSize, buildArena, buildExitTerraces, buildLair, EXIT_W } from './structures';
 import { styleFor } from './styles';
 import { buildTown } from './town';
@@ -120,11 +120,7 @@ function buildDistrictLevel(ctx: GenCtx, boss: boolean): void {
   if (a) ctx.arena = buildArena(ctx, arenaX0, profile.floor[routeEnd - 1]!, a, req.nextBiomes);
   else buildExitTerraces(ctx, profile, req.nextBiomes);
   connectPockets(ctx);
-  routeBasins(ctx, ENTRANCE_W + 8, cavEnd - 6);
-  cavernPools(ctx);
-  specialTiles(ctx);
-  platforms(ctx);
-  spikes(ctx);
+  guardedPasses(ctx, [(c) => routeBasins(c, ENTRANCE_W + 8, cavEnd - 6), cavernPools, specialTiles, platforms, spikes]);
   rockPockets(ctx);
   const secrets = secretPockets(ctx);
   backWalls(ctx);

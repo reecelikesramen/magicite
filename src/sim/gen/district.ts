@@ -111,10 +111,14 @@ export function buildProfile(ctx: GenCtx, x1: number, endFlat: number, endFloor?
       } else cur = target;
     } else cur = target;
     // --- terraces inside the zone ---
+    // The first segment stays at the transition height: cliff structures and stairs end exactly
+    // there, and a step on top of a ≤3 transition could stack into an unjumpable wall.
     const base = cur;
+    let first = true;
     while (x < xe) {
       const sw = rng.int(style.segW[0], style.segW[1]);
-      if (rng.chance(style.stepChance)) cur = clamp(cur + rng.int(-style.stepMax, style.stepMax), Math.max(lo, base - 4), Math.min(hi, base + 4));
+      if (rng.chance(style.stepChance) && !first) cur = clamp(cur + rng.int(-style.stepMax, style.stepMax), Math.max(lo, base - 4), Math.min(hi, base + 4));
+      first = false;
       if (last && endFloor !== undefined) cur = endFloor;
       for (let i = 0; i < sw && x < xe; i++) floor[x++] = cur;
     }
