@@ -260,3 +260,12 @@ describe('skill panel layout', () => {
     expect(inside(L.buttons[0]!, L.panel)).toBe(true);
   });
 });
+
+describe('inventory tip line', () => {
+  it('the mouse and gamepad hints both fit the native 320 px view', async () => {
+    const { PAD_TIP } = await import('../../src/ui/inventory');
+    expect(measureText(PAD_TIP)).toBeLessThanOrEqual(320 - 2 * MARGIN);
+    expect(measureText('SHIFT + CLICK TWO ITEMS TO CRAFT')).toBeLessThanOrEqual(320 - 2 * MARGIN);
+    expect(PAD_TIP).toMatch(/X CRAFT/);
+  });
+});

@@ -14,6 +14,8 @@ import { UI } from './theme';
 import { IconButton, SlotView, frame, panel } from './widgets';
 
 const TIP = 'SHIFT + CLICK TWO ITEMS TO CRAFT';
+/** The same line while the gamepad cursor drives the panel (X craft-picks, Y uses/equips). */
+export const PAD_TIP = 'A MOVE  X CRAFT PICK  Y USE  B BACK';
 
 /** Horizontal pitch of the two stat columns on the character card. */
 const statPitch = (cardW: number): number => Math.floor((cardW - 6) / 2) + 1;
@@ -154,6 +156,7 @@ export class InventoryPanel extends Container {
   ): void {
     const L = this.L;
     this.pulse += dt;
+    this.tip.text = cursor ? PAD_TIP : TIP;
     const heldStack = s.held ? stackAt(p, s.held) : null;
     const heldDef = heldStack ? Content.items.get(heldStack.id) : undefined;
     const focus = cursor ?? hover;
