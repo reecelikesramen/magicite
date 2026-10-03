@@ -2,7 +2,7 @@ import { TILE } from './constants';
 
 /**
  * Tiles are generic *materials*; the level's biome decides how they look (palette, fringe).
- * e.g. GROUND in Toadvale Forest renders as brown soil with green grass on exposed tops,
+ * e.g. GROUND in Mossgrave Woods renders as brown soil with green grass on exposed tops,
  * while GROUND in the volcano renders as dark basalt with a glowing lava crust.
  */
 export const Tile = {

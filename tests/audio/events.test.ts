@@ -140,7 +140,7 @@ describe('GameEvent → sound mapping', () => {
   it('picks level music: biome → track, towns, boss arenas, the Lair', () => {
     expect(trackForBiome('woods')).toBe('forest');
     expect(trackForBiome('cinder')).toBe('volcano');
-    expect(trackForBiome('toadvale_forest')).toBe('forest'); // BiomeDef.music
+    expect(trackForBiome('woods')).toBe('forest'); // BiomeDef.music
     expect(trackForLevel({ biome: 'hollow', isTown: false, isBoss: false })).toBe('cave');
     expect(trackForLevel({ biome: 'hollow', isTown: true, isBoss: false })).toBe('town');
     expect(trackForLevel({ biome: 'rime', isTown: false, isBoss: true })).toBe('boss');

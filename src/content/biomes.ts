@@ -2,8 +2,8 @@ import type { BiomeDef } from './types';
 
 export const BIOMES: BiomeDef[] = [
   {
-    id: 'toadvale_forest',
-    name: 'Toadvale Forest',
+    id: 'woods',
+    name: 'Mossgrave Woods',
     palette: {
       wall: [0x0a0806, 0x141009, 0x1f170e, 0x2a1f14],
       ground: [0x1c140c, 0x2a1f14, 0x3b2a1a, 0x4e3822],

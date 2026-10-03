@@ -16,7 +16,7 @@ describe('colour helpers', () => {
 describe('biome styles', () => {
   it('maps GDD biome ids (and legacy ids) to visual families', () => {
     for (const id of ['woods', 'fen', 'hollow', 'rime', 'amethyst', 'cinder', 'lair'] as const) expect(biomeFamily(id)).toBe(id);
-    expect(biomeFamily('toadvale_forest')).toBe('woods');
+    expect(biomeFamily('mossy_forest')).toBe('woods');
     expect(biomeFamily('volcano_depths')).toBe('cinder');
   });
 

@@ -296,7 +296,7 @@ export interface Palette {
 
 export interface BiomeDef {
   id: string;
-  /** e.g. "Toadvale Forest" */
+  /** e.g. "Mossgrave Woods" */
   name: string;
   palette: Palette;
   /** Level size range in tiles. */

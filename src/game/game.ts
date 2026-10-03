@@ -27,10 +27,14 @@ export class Game {
     readonly app: Application,
     readonly input: InputManager,
     public session: Session,
+    /** Builds a fresh session for "restart run" (run-over screen). */
+    private readonly newSession?: () => Session,
   ) {
     this.renderer = new Renderer(app);
     app.stage.addChild(this.ui.root);
     input.screenToWorld = (x, y) => this.renderer.screenToWorld(x, y);
+    this.audio.setLocalPlayer(this.localPlayer);
+    this.ui.onRestart = () => this.restart();
     const unlock = () => this.audio.unlock();
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
@@ -50,6 +54,14 @@ export class Game {
 
   stop(): void {
     this.loop.stop();
+  }
+
+  /** Replace the session with a fresh run (keeps renderer/UI/audio). */
+  restart(): void {
+    if (!this.newSession) return;
+    this.session.dispose();
+    this.session = this.newSession();
+    this.audio.setLocalPlayer(this.localPlayer);
   }
 
   private step(): void {

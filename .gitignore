@@ -7,3 +7,4 @@ desktop/build/
 /screenshots/
 /test-results/
 .claude/worktrees/
+dist-artifact/

@@ -5,7 +5,7 @@ import { hueSat, luminance } from './color';
  * Presentation-only biome styling. The sim's tiles are generic materials; this decides how a
  * biome draws them (fringe kind, special tile look, tree look, spike tint, water colour...).
  * Picked by biome-id keywords so it works for both the GDD ids (`woods`, `fen`, `rime`…) and
- * older/longer ids (`toadvale_forest`), falling back to palette analysis. Pure (testable).
+ * older/longer ids (e.g. `mossy_forest`), falling back to palette analysis. Pure (testable).
  */
 export type BiomeFamily = 'woods' | 'fen' | 'hollow' | 'rime' | 'amethyst' | 'cinder' | 'lair';
 export type FringeKind = 'grass' | 'moss' | 'snow' | 'crust' | 'crystal' | 'blight';

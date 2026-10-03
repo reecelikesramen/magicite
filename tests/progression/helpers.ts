@@ -27,7 +27,7 @@ export function arenaLevel(info: Partial<LevelInfo> = {}, exits: ExitPortal[] = 
   g.fill(0, 0, 0, h - 1, Tile.BEDROCK);
   g.fill(w - 1, 0, w - 1, h - 1, Tile.BEDROCK);
   return {
-    info: { district: 2, biome: 'toadvale_forest', name: 'Test Arena', isTown: false, isBoss: false, seed: 1, ...info },
+    info: { district: 2, biome: 'woods', name: 'Test Arena', isTown: false, isBoss: false, seed: 1, ...info },
     grid: g,
     spawn: { x: 10 * TILE, y: FLOOR_Y },
     exits,

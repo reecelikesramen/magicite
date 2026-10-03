@@ -10,7 +10,7 @@ export interface LevelInfo {
   /** 1-based district depth. Towns share the depth of the district they follow. */
   district: number;
   biome: string;
-  /** Display name, e.g. "District 1: Toadvale Forest". */
+  /** Display name, e.g. "District 1: Mossgrave Woods". */
   name: string;
   isTown: boolean;
   isBoss: boolean;
