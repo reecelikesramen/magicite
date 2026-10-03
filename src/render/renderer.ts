@@ -216,7 +216,7 @@ export class Renderer {
           this.camera.addShake(ev.amount, ev.ticks);
           break;
         case 'hitstop':
-          this.flash = Math.max(this.flash, Math.min(0.35, 0.05 * ev.ticks));
+          this.flash = Math.max(this.flash, Math.min(0.2, 0.03 * ev.ticks));
           this.flashColor = 0xffffff;
           break;
         case 'tileBroken':

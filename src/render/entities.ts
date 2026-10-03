@@ -28,6 +28,9 @@ interface View {
   trailX: number;
   trailY: number;
   emissive: boolean;
+  /** Layer the sprite normally lives in (it moves to the unlit layer while hurt-flashing). */
+  home: Container | null;
+  flashing: boolean;
   /** Variant frame for `meta.variants` sprites (trees). */
   variant: number;
   /** Render position this frame (anchor point, world px), for overlays. */
@@ -170,7 +173,7 @@ export class EntityViews {
     sprite.tint = 0xffffff;
     const v: View = {
       id: e.id, seen: 0, key, set, sprite, held: null, heldKey: '', anim: '', t: 0, shake: 0,
-      prevGround: e.onGround, prevVy: e.vy, trailX: e.x, trailY: e.y, emissive: false,
+      prevGround: e.onGround, prevVy: e.vy, trailX: e.x, trailY: e.y, emissive: false, home: null, flashing: false,
       variant: hash3(e.id, 17, 3), ax: 0, ay: 0,
     };
     this.attach(v, e);
@@ -192,6 +195,8 @@ export class EntityViews {
             ? this.front
             : this.main;
     layer.addChild(v.sprite);
+    v.home = layer;
+    v.flashing = false;
     v.sprite.anchor.set(v.set.ox / v.set.w, v.set.oy / v.set.h);
   }
 
@@ -230,7 +235,13 @@ export class EntityViews {
       v.anim = anim;
       v.t = 0;
     } else v.t += dt;
-    const frames = e.hurt > 0 && !meta?.emissive ? setFlashFrames(set, anim) : setFrames(set, anim);
+    // Hurt flash: a pure-white silhouette drawn unlit (so it reads white even in warm light).
+    const flash = e.hurt > 0 && !meta?.emissive;
+    if (flash !== v.flashing) {
+      v.flashing = flash;
+      (flash ? this.emissive : v.home ?? this.main).addChild(s);
+    }
+    const frames = flash ? setFlashFrames(set, anim) : setFrames(set, anim);
     let fi: number;
     if (meta?.variants) fi = v.variant % frames.length;
     else {
@@ -305,7 +316,8 @@ export class EntityViews {
       v.held.tint = 0xffffff;
     }
     const h = v.held;
-    if (h.parent !== v.sprite.parent) v.sprite.parent?.addChild(h);
+    const home = v.home ?? v.sprite.parent;
+    if (home && h.parent !== home) home.addChild(h);
     if (v.heldKey !== key) {
       v.heldKey = key;
       const set = spriteSet(key, { kind: 'effect', w: 6, h: 3, label: def.id });
@@ -333,7 +345,7 @@ export class EntityViews {
     h.scale.set(1, Math.cos(ang) < 0 ? -1 : 1);
     // Held item draws in front of the body when swinging or facing the camera side.
     const parent = h.parent;
-    if (parent) {
+    if (parent && parent === v.sprite.parent) {
       const si = parent.getChildIndex(v.sprite);
       const hi = parent.getChildIndex(h);
       if (hi < si) parent.setChildIndex(h, si);
