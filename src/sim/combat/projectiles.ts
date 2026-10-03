@@ -370,6 +370,7 @@ function updateProjectile(world: World, e: Entity, pc: ProjectileComp, def: Comb
   const fallingShot = ey > sy && def.gravity > 0;
   let ox = sx;
   let oy = sy;
+  let bounced = false;
   for (let i = 1; i <= steps; i++) {
     const cx = sx + ((ex - sx) * i) / steps;
     const cy = sy + ((ey - sy) * i) / steps;
@@ -379,6 +380,7 @@ function updateProjectile(world: World, e: Entity, pc: ProjectileComp, def: Comb
       if (def.fuse || pc.bouncesLeft > 0) {
         if (!def.fuse) pc.bouncesLeft--;
         bounce(world, e, def, ox + lx, oy + ly, cx + lx, cy + ly);
+        bounced = true;
         break;
       }
       if (def.explode) detonate(world, e, pc, def);
@@ -395,6 +397,11 @@ function updateProjectile(world: World, e: Entity, pc: ProjectileComp, def: Comb
     }
     ox = cx;
     oy = cy;
+  }
+  if (!bounced) {
+    // Pierced targets moved us to the contact point; carry on to where physics put us.
+    e.x = ex - half;
+    e.y = ey - e.h / 2;
   }
 
   // Water snuffs fire.

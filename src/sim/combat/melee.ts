@@ -198,6 +198,7 @@ function resolveSwing(world: World, e: Entity, s: MeleeSwing): void {
   const a = swingActive(def, s.total);
   if (elapsed <= w || elapsed > w + a) return;
   const p = e.kind === 'player' ? world.players[e.playerIndex ?? -1] : undefined;
+  if (p && (p.downed || p.out)) return;
   const thrust = isThrust(def);
   const a0 = thrust ? s.angle : bladeAngle(s, def, e.facing, elapsed - 1);
   const a1 = thrust ? s.angle : bladeAngle(s, def, e.facing, elapsed);

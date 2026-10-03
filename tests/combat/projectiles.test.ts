@@ -13,6 +13,25 @@ describe('projectiles', () => {
     expect(ds.map((d) => d.hp)).toEqual([95, 95, 100]);
   });
 
+  it('piercing shots keep their pace through targets', () => {
+    const { world, e } = makeWorld();
+    spawnEnemy(world, 't_dummy', 130, FLOOR_Y, { kbResist: 1 });
+    const bolt = fireProjectile(world, e, 'bolt', 100, 124, 0, { damage: 1 })!;
+    step(world, 10);
+    expect(bolt.dead).toBe(false);
+    expect(bolt.x + bolt.w / 2).toBeCloseTo(100 + (380 / 60) * 10, 0);
+  });
+
+  it('enemy shots pass through players in dash i-frames', () => {
+    const { world, e } = makeWorld();
+    const hp = e.hp;
+    e.invuln = 30;
+    const a = fireProjectile(world, null, 'arrow', 110, 122, Math.PI, { team: 'enemy', damage: 1 })!;
+    step(world, 12);
+    expect(e.hp).toBe(hp);
+    expect(a.x).toBeLessThan(e.x);
+  });
+
   it('bounce: reflects off a wall once, then stops at the next wall', () => {
     const { world } = makeWorld();
     const b = fireProjectile(world, null, 't_bouncer', 360, 100, 0, { team: 'player' })!;

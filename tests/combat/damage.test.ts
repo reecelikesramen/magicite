@@ -68,6 +68,13 @@ describe('damage formula', () => {
     expect(applyDamage(world, d, 2)).toBe(1);
   });
 
+  it('armour pieces wear when their wearer is hit', () => {
+    const { world, p, e } = makeWorld();
+    p.equipment.body = { id: 't_shield', count: 1, durability: 1 };
+    applyDamage(world, e, 1);
+    expect(p.equipment.body).toBeNull();
+  });
+
   it('life steal heals the attacking player', () => {
     const { world, p, e } = makeWorld();
     give(p, 't_sword');
