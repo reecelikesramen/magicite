@@ -264,6 +264,7 @@ export class HostSession implements Session {
     for (const i of this.localPlayers) this.inputs[i] = local.get(i) ?? EMPTY_INPUT;
     for (const c of this.clients.values()) {
       const inp = c.inputs.take(T);
+      if (DEBUG && T < 100) console.log(`host T=${T} input ${inp ? `jump=${inp.jump} mx=${inp.moveX}` : 'MISSING'} newest=${c.newestInput}`);
       if (inp) copyInput(c.last, inp);
       else if (c.firstInput >= 0 && T > c.firstInput) c.misses++;
       copyInput(c.cur, c.last);
@@ -403,7 +404,7 @@ export class HostSession implements Session {
         tick: -1, epoch: 0, slot: 0, inc: new Int32Array(64), count: 0, owner: new Float64Array(owner.n), hasOwner: false,
         pubVer: new Int32Array(MAX_PLAYERS), defs: [],
       })),
-      knownAcked: new Set(), knownReliable: new Set(), newestInput: -1, firstInput: -1, slackMin: 1e9, slackReported: 0,
+      knownAcked: new Set(), knownReliable: new Set(), newestInput: -1, firstInput: -1, slackMin: 1e9, slackReported: 127,
       slackWindowStart: world.tick, misses: 0, lastHeard: this.clock(), priv: new Map(), privKeys: [], privKeysTick: -1e9,
       privSlowTick: -1e9, worldState: null, bytesOut: 0, packetsOut: 0, joinedTick: world.tick,
     };
@@ -813,6 +814,7 @@ function isImportantType(type: string): boolean {
   return type === 'levelUp' || type === 'downed' || type === 'revived' || type === 'runOver' || type === 'bossPhase' || type === 'message' || type === 'craft' || type === 'pickup';
 }
 
+const DEBUG = typeof process !== 'undefined' && !!process.env?.NET_DEBUG;
 const LEAVE_MARK = new Uint8Array(0);
 const NO_IDS: number[] = [];
 const NO_COMMANDS: PlayerCommand[] = [];
