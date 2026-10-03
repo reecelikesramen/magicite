@@ -2,7 +2,7 @@ import { Container, Rectangle, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { TILE } from '../../sim/constants';
 import { CHUNK, tileProps, type TileGrid } from '../../sim/tiles';
 import type { BiomeStyle } from '../style';
-import { ATTEN_SIZE, CHUNK_PX, makeChunkBuffers, paintChunk, paintRegion, scanChunk, type ChunkBuffers, type ChunkMeta, type Emitter } from './painter';
+import { ATTEN_SIZE, attenChunksForEdit, CHUNK_PX, fillAtten, makeChunkBuffers, paintChunk, paintRegion, scanChunk, type ChunkBuffers, type ChunkMeta, type Emitter } from './painter';
 import { crackTextures, surfaceTextures } from './textures';
 
 const SNAP = CHUNK + 2;
@@ -175,6 +175,9 @@ export class ChunkLayer {
     // Show only the chunk's own 32×32 texels; bilinear sampling still reads the 1-texel ring of
     // neighbour values, so the gradient is continuous across chunk edges (no overlap → no double multiply).
     const attenTex = new Texture({ source: attenBase.source, frame: new Rectangle(1, 1, CHUNK, CHUNK) });
+    // Drop the full-frame wrapper (keeps the source): Texture.from caches it by canvas and only
+    // un-caches on destroy, so keeping it would leak one cache entry per chunk per level.
+    attenBase.destroy(false);
     const attenSprite = new Sprite(attenTex);
     attenSprite.position.set(cx * CHUNK_PX, cy * CHUNK_PX);
     attenSprite.scale.set(TILE);
@@ -237,6 +240,31 @@ export class ChunkLayer {
     }
     c.meta = scanChunk(g, st, c.cx, c.cy);
     this.syncMeta(c);
+    // Neighbours' depth masks read tiles up to ATTEN_REACH outside them, but the grid only bumps
+    // chunks within 1 tile of an edit: refresh the other loaded ones here so no stale dark seams stay.
+    const r = attenChunksForEdit(bx + minX, by + minY, bx + maxX, by + maxY, g.chunksX, g.chunksY);
+    for (let ny = r.cy0; ny <= r.cy1; ny++) {
+      for (let nx = r.cx0; nx <= r.cx1; nx++) {
+        if (nx === c.cx && ny === c.cy) continue;
+        const n = this.chunks[ny * g.chunksX + nx];
+        if (!n) continue;
+        fillAtten(g, nx, ny, n.meta.atten);
+        this.uploadAtten(n);
+      }
+    }
+  }
+
+  private uploadAtten(c: ChunkRec): void {
+    const ctx = c.attenCanvas.getContext('2d')!;
+    const img = ctx.createImageData(ATTEN_SIZE, ATTEN_SIZE);
+    const a = c.meta.atten;
+    for (let i = 0; i < ATTEN_SIZE * ATTEN_SIZE; i++) {
+      const v = a[i]!;
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    c.attenSprite.texture.source.update();
   }
 
   private syncGlow(c: ChunkRec, x: number, y: number, w: number, h: number): void {
@@ -265,18 +293,7 @@ export class ChunkLayer {
   }
 
   private syncMeta(c: ChunkRec): void {
-    {
-      const ctx = c.attenCanvas.getContext('2d')!;
-      const img = ctx.createImageData(ATTEN_SIZE, ATTEN_SIZE);
-      const a = c.meta.atten;
-      for (let i = 0; i < ATTEN_SIZE * ATTEN_SIZE; i++) {
-        const v = a[i]!;
-        img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
-        img.data[i * 4 + 3] = 255;
-      }
-      ctx.putImageData(img, 0, 0);
-      c.attenSprite.texture.source.update();
-    }
+    this.uploadAtten(c);
     // Sky mask (1 px per tile, upscaled with linear filtering into the lightmap).
     if (c.meta.skyCount > 0) {
       if (!c.skyCanvas) {

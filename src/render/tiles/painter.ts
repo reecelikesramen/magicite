@@ -593,13 +593,14 @@ export function paintChunk(grid: GridView, st: BiomeStyle, cx: number, cy: numbe
 
 const MAX_RUN = 6;
 
-/** Scan a chunk for light emitters, liquid surfaces and open-sky tiles. */
-export function scanChunk(grid: GridView, st: BiomeStyle, cx: number, cy: number): ChunkMeta {
-  const emitters: Emitter[] = [];
-  const surfaces: Surface[] = [];
-  const sky = new Uint8Array(CHUNK * CHUNK);
-  const atten = new Uint8Array(ATTEN_SIZE * ATTEN_SIZE);
-  let skyCount = 0;
+/**
+ * How far (in tiles) outside a chunk a tile edit can change that chunk's attenuation mask:
+ * `solidDepth` looks 3 tiles out and the mask carries a 1-tile neighbour ring.
+ */
+export const ATTEN_REACH = 4;
+
+/** Fill a chunk's ATTEN_SIZE² attenuation mask (chunk + 1-tile ring; outside the level = 0). */
+export function fillAtten(grid: GridView, cx: number, cy: number, atten: Uint8Array): void {
   const bx = cx * CHUNK;
   const by = cy * CHUNK;
   for (let y = 0; y < ATTEN_SIZE; y++) {
@@ -609,6 +610,31 @@ export function scanChunk(grid: GridView, st: BiomeStyle, cx: number, cy: number
       atten[y * ATTEN_SIZE + x] = tx < 0 || ty < 0 || tx >= grid.w || ty >= grid.h ? 0 : ATTEN_BY_DEPTH[solidDepth(grid, tx, ty)]!;
     }
   }
+}
+
+/**
+ * Chunk range whose attenuation masks depend on tiles [tx0..tx1]×[ty0..ty1] (inclusive, clamped).
+ * The grid only bumps chunks within 1 tile of an edit, so the renderer refreshes the rest itself.
+ */
+export function attenChunksForEdit(tx0: number, ty0: number, tx1: number, ty1: number, chunksX: number, chunksY: number): { cx0: number; cy0: number; cx1: number; cy1: number } {
+  return {
+    cx0: Math.max(0, Math.floor((tx0 - ATTEN_REACH) / CHUNK)),
+    cy0: Math.max(0, Math.floor((ty0 - ATTEN_REACH) / CHUNK)),
+    cx1: Math.min(chunksX - 1, Math.floor((tx1 + ATTEN_REACH) / CHUNK)),
+    cy1: Math.min(chunksY - 1, Math.floor((ty1 + ATTEN_REACH) / CHUNK)),
+  };
+}
+
+/** Scan a chunk for light emitters, liquid surfaces and open-sky tiles. */
+export function scanChunk(grid: GridView, st: BiomeStyle, cx: number, cy: number): ChunkMeta {
+  const emitters: Emitter[] = [];
+  const surfaces: Surface[] = [];
+  const sky = new Uint8Array(CHUNK * CHUNK);
+  const atten = new Uint8Array(ATTEN_SIZE * ATTEN_SIZE);
+  let skyCount = 0;
+  const bx = cx * CHUNK;
+  const by = cy * CHUNK;
+  fillAtten(grid, cx, cy, atten);
   const fringeGlow = st.fringeEmissive ? ramp(st.pal.fringe, 2) : 0;
   const specialGlow = st.special === 'crystal' ? 0xc040ff : st.special === 'obsidian' ? 0xff6020 : st.special === 'blight' ? 0xff40a0 : 0;
   for (let ty = by; ty < by + CHUNK && ty < grid.h; ty++) {

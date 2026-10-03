@@ -4,7 +4,7 @@ import { CHUNK, Tile, TileGrid, Wall } from '../../src/sim/tiles';
 import { biomeStyle } from '../../src/render/style';
 import { crackStage } from '../../src/render/tiles/chunks';
 import { makeCobble, patterns } from '../../src/render/tiles/pattern';
-import { ATTEN_BY_DEPTH, ATTEN_SIZE, bladeHeight, CHUNK_PX, makeChunkBuffers, paintChunk, paintRegion, scanChunk, solidDepth } from '../../src/render/tiles/painter';
+import { ATTEN_BY_DEPTH, ATTEN_SIZE, attenChunksForEdit, bladeHeight, CHUNK_PX, fillAtten, makeChunkBuffers, paintChunk, paintRegion, scanChunk, solidDepth } from '../../src/render/tiles/painter';
 
 const SURFACE = 20;
 
@@ -144,6 +144,30 @@ describe('chunk scan (lights, liquids, attenuation)', () => {
     expect(solidDepth(g, 30, 10)).toBe(0);
     expect(solidDepth(g, 30, SURFACE + 2)).toBe(3);
     expect(solidDepth(g, 30, SURFACE + 9)).toBe(4);
+  });
+});
+
+describe('attenuation after tile edits', () => {
+  it('an edit 3 tiles from a chunk edge changes the neighbour mask, which the grid does not bump', () => {
+    const g = new TileGrid(64, 64);
+    g.fill(0, 10, 63, 63, Tile.GROUND);
+    const before = scanChunk(g, biomeStyle('woods'), 1, 0).atten.slice();
+    const v1 = g.chunkVersion[1];
+    // Dig a hole at tx=29 (chunk 0), 3 tiles left of chunk 1's first column (tx=32).
+    g.set(29, 20, Tile.AIR);
+    expect(g.chunkVersion[1]).toBe(v1); // the grid only touches chunks within 1 tile
+    const after = new Uint8Array(ATTEN_SIZE * ATTEN_SIZE);
+    fillAtten(g, 1, 0, after);
+    expect(after).not.toEqual(before); // …yet chunk 1's mask (ring column tx=31, depth 2) changed
+    expect(after).toEqual(scanChunk(g, biomeStyle('woods'), 1, 0).atten);
+    // The renderer's refresh range covers that neighbour.
+    const r = attenChunksForEdit(29, 20, 29, 20, g.chunksX, g.chunksY);
+    expect(r.cx0).toBe(0);
+    expect(r.cx1).toBe(1);
+    expect(r.cy0).toBe(0);
+    expect(r.cy1).toBe(0);
+    // Far from any edge only the own chunk is affected.
+    expect(attenChunksForEdit(16, 16, 16, 16, g.chunksX, g.chunksY)).toEqual({ cx0: 0, cy0: 0, cx1: 0, cy1: 0 });
   });
 });
 
