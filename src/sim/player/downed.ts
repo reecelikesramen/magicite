@@ -56,7 +56,7 @@ function standUp(world: World, p: PlayerState, e: Entity, hp: number, invuln: nu
 export function enterLevelFor(world: World, p: PlayerState, key = currentLevelKey(world)): void {
   p.ctl.levelKey = key;
   const e = world.get(p.entityId);
-  if (!e) return;
+  if (!e || e.dead) return; // dead player entity = departed co-op player (net keeps them out)
   if (p.downed || p.out) standUp(world, p, e, 1, secs(1));
   else resetMotion(p, e);
   p.ctl.safeX = e.x;

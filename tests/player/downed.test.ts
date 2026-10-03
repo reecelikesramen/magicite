@@ -89,6 +89,16 @@ describe('downed & revive (co-op)', () => {
     expect(ent(w, 0).hp).toBe(1);
   });
 
+  it('a departed co-op player (dead entity, out) is not stood up on level entry', () => {
+    const w = coop(3);
+    pl(w, 2).out = true;
+    ent(w, 2).dead = true; // how net hides a disconnected player
+    loadTestLevel(w, boxGrid(80, 40, 30), { district: 2 });
+    run(w, 1);
+    expect(pl(w, 2).out).toBe(true);
+    expect(w.events.some((ev) => ev.type === 'revived')).toBe(false);
+  });
+
   it('downed (not yet out) players also revive at 1 HP on level entry', () => {
     const w = coop();
     down(w, 1);
