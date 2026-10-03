@@ -3,7 +3,7 @@ import type { ItemDef, StatMods, StatusId } from '../../content/types';
 import { secs } from '../constants';
 import type { Entity, ItemStack, PlayerState } from '../types';
 import type { World } from '../world';
-import { equipFromInventory, naturalSlot } from './equip';
+import { EQUIP_SLOTS, equipFromInventory, naturalSlot } from './equip';
 import { takeFromSlot } from './inventory';
 import { recalcStats } from './stats';
 import { tierForDistrict } from './tiers';
@@ -182,7 +182,11 @@ export interface WornRef {
   max: number;
 }
 
-/** The most worn durable item (equipment first, then inventory), or null if nothing is damaged. */
+/**
+ * The most worn durable item (equipment first, in EQUIP_SLOTS order, then inventory), or null if
+ * nothing is damaged. Ties keep the first found; the fixed slot order (not the equipment object's
+ * key order, which a decoded snapshot need not preserve) keeps the pick identical on every peer.
+ */
 export function mostWorn(p: PlayerState): WornRef | null {
   let best: WornRef | null = null;
   let bestFrac = 1;
@@ -196,7 +200,7 @@ export function mostWorn(p: PlayerState): WornRef | null {
       best = { stack: s, max };
     }
   };
-  for (const s of Object.values(p.equipment)) consider(s);
+  for (const slot of EQUIP_SLOTS) consider(p.equipment[slot]);
   for (const s of p.inventory) consider(s);
   return best;
 }

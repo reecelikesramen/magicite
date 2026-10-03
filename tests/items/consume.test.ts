@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Content, recipeKey } from '../../src/content';
 import { secs } from '../../src/sim/constants';
-import { applyConsume, drinkMystery, MYSTERY_TABLE, revealRecipe } from '../../src/sim/items/consume';
+import { applyConsume, drinkMystery, mostWorn, MYSTERY_TABLE, revealRecipe } from '../../src/sim/items/consume';
+import { makeStack } from '../../src/sim/items/inventory';
 import { countItem } from '../../src/sim/items/inventory';
 import { recalcStats } from '../../src/sim/items/stats';
 import { tierForDistrict } from '../../src/sim/items/tiers';
@@ -150,5 +151,24 @@ describe('recipe scrolls and repair kits', () => {
     expect(countItem(p, 'repair_kit')).toBe(0);
     expect(p.inventory[2]!.durability).toBe(6 + Math.ceil(Content.items.get('wooden_sword')!.durability! / 2));
     expect(p.inventory[1]!.durability).toBe(100);
+  });
+
+  it('mostWorn prefers the lowest durability fraction, equipment before pack on ties, in slot order', () => {
+    const { p } = rig();
+    const half = (id: string) => {
+      const st = makeStack(id, 1);
+      st.durability = Content.items.get(id)!.durability! / 2;
+      return st;
+    };
+    p.inventory[0] = half('iron_sword');
+    p.equipment.trinket = half('buckler');
+    p.equipment.body = half('leather_tunic');
+    expect(mostWorn(p)?.stack.id).toBe('leather_tunic'); // body comes before trinket in EQUIP_SLOTS
+    // Rebuilding the equipment record in another key order (as a decoded snapshot might) changes nothing.
+    const eq = p.equipment;
+    p.equipment = { trinket: eq.trinket, ammo: eq.ammo, accessory2: eq.accessory2, accessory1: eq.accessory1, body: eq.body, head: eq.head };
+    expect(mostWorn(p)?.stack.id).toBe('leather_tunic');
+    p.inventory[0]!.durability = 1;
+    expect(mostWorn(p)?.stack.id).toBe('iron_sword');
   });
 });

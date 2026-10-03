@@ -122,14 +122,27 @@ describe('recipes', () => {
     expect(Content.recipes.get(recipeKey('iron_ore', 'iron_ore'))?.station).toBe('forge');
   });
 
-  it('give armour from the forge and cooking at a campfire only', () => {
+  it('cook at a campfire, smelt and forge metal armour at a forge', () => {
+    const cooked = ['cooked_meat', 'bread', 'hearty_stew', 'berry_pie', 'omelette'];
+    const forged = /^(iron|gold|diamond|voidshard)_(helm|chestplate|plate|shield)$|^(iron|gold)_bar$|^emberplate|^amethyst_(circlet|mail)$/;
+    let cooking = 0;
+    let forging = 0;
     for (const r of RECIPES) {
       const out = Content.items.get(r.result)!;
-      if (r.station === 'campfire') expect(out.category, r.result).toBe('consumable');
-      if (out.tags?.includes('food') && out.id !== 'raw_meat' && ['cooked_meat', 'bread', 'hearty_stew', 'berry_pie', 'omelette'].includes(out.id)) {
-        expect(r.station, r.result).toBe('campfire');
+      if (r.station === 'campfire') {
+        expect(out.category, r.result).toBe('consumable');
+        expect(out.tags, r.result).toContain('food');
+        cooking++;
       }
+      if (cooked.includes(out.id)) expect(r.station, `${r.a}+${r.b}`).toBe('campfire');
+      if (forged.test(out.id)) {
+        expect(r.station, `${r.a}+${r.b}=${r.result}`).toBe('forge');
+        forging++;
+      }
+      if (r.station === 'forge') expect(['material', 'armor'], r.result).toContain(out.category);
     }
+    expect(cooking).toBeGreaterThanOrEqual(cooked.length);
+    expect(forging).toBeGreaterThanOrEqual(15);
   });
 });
 

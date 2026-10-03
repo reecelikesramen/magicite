@@ -3,6 +3,7 @@ import { Content } from '../../src/content';
 import { createRun, emptyInput } from '../../src/sim';
 import { HOTBAR_SIZE, INVENTORY_SIZE } from '../../src/sim/constants';
 import { DROP_DELAY } from '../../src/sim/items/commands';
+import { spawnPickup } from '../../src/sim/items/drops';
 import { addItem, countItem, makeStack, roomFor } from '../../src/sim/items/inventory';
 import { cmd, give, idle, rig, SETUP } from './helpers';
 
@@ -236,5 +237,49 @@ describe('split, sort, drop', () => {
     expect(p.equipment.body).toBeNull();
     expect(p.stats.def).toBe(0);
     expect(e.armor).toBe(0);
+  });
+});
+
+describe('pickups', () => {
+  /** Put a pickup right under the player, ready to be collected next tick. */
+  const under = (w: ReturnType<typeof rig>['w'], e: ReturnType<typeof rig>['e'], id: string, count: number, gold = 0) => {
+    const pk = spawnPickup(w, id, count, e.x + e.w / 2, e.y + e.h, gold);
+    pk.pickup!.delay = 0;
+    pk.x = e.x + e.w / 2 - pk.w / 2;
+    pk.y = e.y + e.h / 2 - pk.h / 2;
+    pk.vx = pk.vy = 0;
+    pk.gravityScale = 0;
+    return pk;
+  };
+
+  it('coins go to the wallet, scaled by goldFind', () => {
+    const { w, p, e } = rig();
+    p.gold = 0;
+    under(w, e, 'gold', 5, 5);
+    idle(w, 1);
+    expect(p.gold).toBe(5);
+    give(p, 0, 'ring_of_fortune'); // goldFind +0.25
+    cmd(w, { type: 'equip', slot: 0 });
+    expect(p.mods.goldFind).toBeCloseTo(0.25);
+    under(w, e, 'gold', 4, 4);
+    idle(w, 1);
+    expect(p.gold).toBe(5 + 5); // 4 × 1.25
+    // Fractions are paid by a world.rng roll: one coin is worth 1 or 2, never anything else.
+    for (let i = 0; i < 20; i++) {
+      const before = p.gold;
+      under(w, e, 'gold', 1, 1);
+      idle(w, 1);
+      expect([1, 2]).toContain(p.gold - before);
+    }
+    expect(countItem(p, 'gold')).toBe(0);
+  });
+
+  it('a drop of the gold currency id never lands in the pack as an item', () => {
+    const { w, p, e } = rig();
+    p.gold = 0;
+    under(w, e, 'gold', 3);
+    idle(w, 1);
+    expect(p.gold).toBe(3);
+    expect(countItem(p, 'gold')).toBe(0);
   });
 });

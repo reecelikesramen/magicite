@@ -3,14 +3,19 @@ import type { Entity, ItemStack } from '../types';
 import type { World } from '../world';
 import { cloneStack, makeStack } from './inventory';
 
-/** Spawn a pickup that pops out with a little random velocity. New durable items start at full durability. */
+/**
+ * Spawn a pickup that pops out with a little random velocity. New durable items start at full
+ * durability. The `gold` currency id always becomes wallet coins (a drop table listing `gold`
+ * must never put a "Gold" item into someone's pack).
+ */
 export function spawnPickup(world: World, id: string, count: number, x: number, y: number, gold = 0): Entity {
+  const coins = gold > 0 ? gold : id === 'gold' ? Math.max(1, count) : 0;
   return world.spawn('pickup', id, x - 3, y - 3, {
     w: 6,
     h: 6,
     vx: world.rng.range(-50, 50),
     vy: world.rng.range(-140, -80),
-    pickup: { item: gold > 0 ? { id, count } : makeStack(id, count), delay: 20, gold },
+    pickup: { item: coins > 0 ? { id, count } : makeStack(id, count), delay: 20, gold: coins },
   });
 }
 
