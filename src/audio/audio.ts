@@ -2,7 +2,7 @@ import type { GameEvent } from '../sim/types';
 import { beginBatch, createAudioEventState, mapGameEvent, type AudioEventState, type CueSink } from './events';
 import { MusicEngine } from './music/sequencer';
 import { resolveTrackId } from './music/moods';
-import { DEFAULT_GAP, DEFAULT_VARY, DEFAULT_VOICES, normalizeSamples, resolveSfxId, SFX } from './presets';
+import { DEFAULT_GAP, DEFAULT_VARY, DEFAULT_VOICES, isSpatialCue, normalizeSamples, resolveSfxId, SFX } from './presets';
 import { spatialize, type SpatialOut } from './spatial';
 import { VoiceLimiter } from './voices';
 import { loadZzfx, type SampleBuilder } from './zzfx';
@@ -26,6 +26,8 @@ export interface AudioManagerOptions {
 const MUSIC_TRIM = 0.55;
 const SFX_TRIM = 0.75;
 const TIMER_MS = 50;
+/** Main-thread budget per prewarm slice. */
+const PREWARM_SLICE_MS = 4;
 
 /**
  * Procedural audio: zzfx SFX + generative chiptune music, driven by GameEvents.
@@ -143,7 +145,7 @@ export class AudioManager {
 
   /** Play a sound by id (UI sounds, previews). Non-positional unless x/y given. */
   playSfx(id: string, x?: number, y?: number, volume = 1, pitch = 1): boolean {
-    const positional = x !== undefined && y !== undefined;
+    const positional = x !== undefined && y !== undefined && isSpatialCue(SFX[resolveSfxId(id)]!, true);
     return this.playSfxAt(id, x ?? 0, y ?? 0, positional, volume, pitch);
   }
 
@@ -164,9 +166,21 @@ export class AudioManager {
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.onVisibility);
     this.music?.dispose();
     this.music = null;
+    // Voice end times / buffers belong to the old context's clock and sample rate; a later unlock() starts a
+    // fresh context at t = 0, where stale end times would block those ids for as long as the old one ran.
+    this.limiter.reset();
+    this.buffers.clear();
+    this.builder = null;
+    this.master = this.musicBus = this.sfxBus = null;
     const ctx = this.ctx;
     this.ctx = null;
-    if (ctx) void ctx.close().catch(() => undefined);
+    if (ctx) {
+      try {
+        void ctx.close().catch(() => undefined);
+      } catch {
+        // already closed
+      }
+    }
   }
 
   // ── internals ─────────────────────────────────────────────────────────────
@@ -210,6 +224,7 @@ export class AudioManager {
       if (this.opts.timer !== false) this.timer = setInterval(() => this.music?.tick(), TIMER_MS);
       if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
       this.ready = loadZzfx(ctx).then((b) => {
+        if (this.ctx !== ctx) return false; // disposed meanwhile
         this.builder = b;
         if (b) this.prewarm();
         return b !== null;
@@ -248,16 +263,29 @@ export class AudioManager {
     this.sfxBus.gain.setTargetAtTime(this.volumes.sfx * SFX_TRIM, t, 0.02);
   }
 
-  /** Render presets ahead of time in small chunks so the first hit of each sound has no hitch. */
+  /**
+   * Render presets ahead of time so the first hit of each sound has no hitch. Runs in small time slices
+   * (idle callbacks where available): rendering every preset takes a few hundred ms, and this starts on
+   * the very first key press — exactly when the player starts moving.
+   */
   private prewarm(): void {
     const ids = Object.keys(SFX);
+    const ctx = this.ctx;
     let i = 0;
-    const step = (): void => {
-      if (!this.ctx) return;
-      for (let k = 0; k < 6 && i < ids.length; k++, i++) this.getBuffer(ids[i]!);
-      if (i < ids.length) setTimeout(step, 0);
+    const g = globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+    const later = (): void => {
+      if (typeof g.requestIdleCallback === 'function') g.requestIdleCallback(step, { timeout: 200 });
+      else setTimeout(step, 16);
     };
-    setTimeout(step, 0);
+    const now = (): number => (typeof performance !== 'undefined' ? performance.now() : 0);
+    const step = (): void => {
+      if (this.ctx !== ctx || !this.builder) return;
+      const until = now() + PREWARM_SLICE_MS;
+      do this.getBuffer(ids[i++]!);
+      while (i < ids.length && now() < until);
+      if (i < ids.length) later();
+    };
+    later();
   }
 
   /** Lazily render a preset to an AudioBuffer (cached; null if zzfx isn't loaded yet). */
@@ -289,7 +317,7 @@ export class AudioManager {
     const preset = SFX[key]!;
     let gain = (preset.gain ?? 1) * volume;
     let pan = 0;
-    if (spatial && preset.spatial !== false && this.hasListener) {
+    if (spatial && this.hasListener) {
       const s = spatialize(x - this.listenerX, y - this.listenerY, this.spatialTmp);
       gain *= s.gain;
       pan = s.pan;

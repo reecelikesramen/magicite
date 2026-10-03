@@ -23,8 +23,16 @@ export interface SfxPreset {
   /** false = non-positional (UI, alerts, stingers): ignores listener distance and pan. Default true. */
   spatial?: boolean;
   /**
-   * Driven by a semantic GameEvent that knows *which player* it belongs to (e.g. `craft`), so raw `sfx`
-   * events with this id are ignored to avoid hearing teammates' menus at full volume (see events.ts).
+   * Belongs to one player's own action (menus, shop, crafting, out-of-stamina…). Played non-positionally
+   * when the sim gives no position (x = y = 0, the "UI sound" convention), but a raw `sfx` event that
+   * carries a position is spatialised like any other sound, so a teammate's shop chime across the level
+   * stays quiet in co-op while your own (emitted at your feet) is full volume.
+   */
+  personal?: boolean;
+  /**
+   * Also driven by a semantic GameEvent that knows *which player* it belongs to (e.g. `craft`): positionless
+   * raw `sfx` events with this id are ignored (the semantic event plays it); positioned ones are played
+   * spatially (implies `personal`). See events.ts.
    */
   eventDriven?: boolean;
 }
@@ -39,7 +47,7 @@ export const SFX: Readonly<Record<string, SfxPreset>> = {
   slam: { z: [0.5, 0, 80, 0, 0.04, 0.2, 2, 1, -4, 0, 0, 0, 0, 0.6, 0, 0.2], gain: 0.8 },
   splash: { z: [0.4, 0, 500, 0.01, 0.06, 0.25, 4, 1, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0.6, 0, 0, -2000], gain: 0.5, vary: 0.1 },
   dive: { z: [0.35, 0, 180, 0, 0.05, 0.15, 0, 1, -15, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, -1000], gain: 0.45 },
-  stamina_empty: { z: [0.3, 0, 90, 0, 0.03, 0.06, 5, 1, 0, 0, 0, 0, 0, 0.1], gain: 0.35, spatial: false, gap: 0.2 },
+  stamina_empty: { z: [0.3, 0, 90, 0, 0.03, 0.06, 5, 1, 0, 0, 0, 0, 0, 0.1], gain: 0.35, spatial: false, gap: 0.2, personal: true },
 
   // ── melee / defence ──────────────────────────────────────────────────────
   swing: { z: [0.3, 0, 900, 0, 0.01, 0.08, 4, 1, -30], gain: 0.45, vary: 0.12 },
@@ -51,15 +59,15 @@ export const SFX: Readonly<Record<string, SfxPreset>> = {
   block: { z: [0.45, 0, 320, 0, 0.02, 0.15, 2, 1, -5, 0, 0, 0, 0, 0.2, 40], gain: 0.75 },
   shield_hit: { z: [0.45, 0, 520, 0, 0.02, 0.18, 1, 2, -4, 0, 0, 0, 0, 0.15, 60], gain: 0.75 },
   deflect: { z: [0.4, 0, 1400, 0, 0.02, 0.15, 0, 1, -10, 0, 0, 0, 0, 0, 80], gain: 0.6 },
-  item_break: { z: [0.5, 0, 400, 0, 0.02, 0.25, 2, 1, -25, 0, 0, 0, 0, 0.5, 0, 0.4], gain: 0.8, spatial: false },
+  item_break: { z: [0.5, 0, 400, 0, 0.02, 0.25, 2, 1, -25, 0, 0, 0, 0, 0.5, 0, 0.4], gain: 0.8, spatial: false, personal: true },
 
   // ── ranged / magic ───────────────────────────────────────────────────────
   bow: { z: [0.4, 0, 420, 0, 0.01, 0.12, 1, 1, -18, 0, 0, 0, 0, 0, 30], gain: 0.55, vary: 0.06 },
   shoot_crossbow: { z: [0.45, 0, 250, 0, 0.01, 0.1, 2, 1, -20, 0, 0, 0, 0, 0.2, 20], gain: 0.6 },
   arrow_hit: { z: [0.35, 0, 200, 0, 0.01, 0.06, 1, 1, -30, 0, 0, 0, 0, 0.5], gain: 0.45, vary: 0.12, voices: 4 },
   throw: { z: [0.3, 0, 700, 0, 0.01, 0.1, 4, 1, -15], gain: 0.4, vary: 0.1 },
-  empty: { z: [0.3, 0, 1500, 0, 0.01, 0.03, 5, 0.3, -50], gain: 0.35, spatial: false, gap: 0.15 },
-  fizzle: { z: [0.35, 0, 500, 0, 0.05, 0.2, 4, 1, -15, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, -1500], gain: 0.45, spatial: false, gap: 0.15 },
+  empty: { z: [0.3, 0, 1500, 0, 0.01, 0.03, 5, 0.3, -50], gain: 0.35, spatial: false, gap: 0.15, personal: true },
+  fizzle: { z: [0.35, 0, 500, 0, 0.05, 0.2, 4, 1, -15, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, -1500], gain: 0.45, spatial: false, gap: 0.15, personal: true },
   magic_cast: { z: [0.35, 0, 500, 0.02, 0.08, 0.2, 0, 1, 10, 0, 300, 0.04, 0.04], gain: 0.55, vary: 0.06 },
   fireball: { z: [0.45, 0, 120, 0.03, 0.1, 0.3, 4, 1, 4, 0, 0, 0, 0, 2, 0, 0.2, 0, 1, 0, 0, -1500], gain: 0.7, vary: 0.08 },
   ice_shard: { z: [0.35, 0, 1800, 0, 0.03, 0.15, 0, 1, -30, 0, 0, 0, 0, 0, 120, 0, 0.03], gain: 0.5, vary: 0.06 },
@@ -102,6 +110,8 @@ export const SFX: Readonly<Record<string, SfxPreset>> = {
   place: { z: [0.3, 0, 220, 0, 0.01, 0.05, 1, 1, -10, 0, 0, 0, 0, 0.3], gain: 0.45, vary: 0.08 },
   portal: { z: [0.5, 0, 200, 0.05, 0.2, 0.4, 0, 1, 30, 0, 0, 0, 0, 0, 5], gain: 0.75, voices: 1, gap: 0.3, spatial: false },
   portal_open: { z: [0.4, 0, 400, 0.05, 0.2, 0.5, 0, 1, 10, 0, 0, 0, 0.1, 0, 0, 0, 0, 1, 0, 0.3], gain: 0.7, voices: 1, gap: 0.3, spatial: false },
+  pot_break: { z: [0.45, 0, 900, 0, 0.01, 0.18, 4, 1, -30, 0, 0, 0, 0.03, 0.4, 0, 0.2, 0, 0.7, 0, 0, 800], gain: 0.6, vary: 0.12 },
+  drop: { z: [0.3, 0, 260, 0, 0.01, 0.06, 1, 1, -12, 0, 0, 0, 0, 0.2], gain: 0.35, vary: 0.1, gap: 0.08 },
   locked: { z: [0.35, 0, 140, 0, 0.06, 0.08, 2, 1, 0, 0, -30, 0.05, 0, 0.1, 0, 0.2], gain: 0.45, vary: 0, gap: 0.2 },
 
   // ── items / meters ───────────────────────────────────────────────────────
@@ -109,10 +119,11 @@ export const SFX: Readonly<Record<string, SfxPreset>> = {
   pickup: { z: [0.3, 0, 700, 0, 0.02, 0.07, 5, 0.5, 0, 0, 350, 0.03], gain: 0.4, vary: 0.04, voices: 3, gap: 0.05 },
   eat: { z: [0.35, 0, 220, 0, 0.12, 0.05, 4, 1, 0, 0, 0, 0, 0.06, 0.4, 0, 0, 0, 1, 0, 1], gain: 0.55, vary: 0.08, voices: 1 },
   drink: { z: [0.35, 0, 300, 0, 0.08, 0.1, 0, 1, -10, 0, 0, 0, 0.07, 0.1, 0, 0, 0, 1, 0, 0.6], gain: 0.55, vary: 0.06, voices: 1 },
-  heal: { z: [0.3, 0, 600, 0.02, 0.06, 0.2, 0, 1, 6, 0, 300, 0.06], gain: 0.45 },
-  craft: { z: [0.4, 0, 660, 0, 0.05, 0.2, 5, 0.5, 0, 0, 330, 0.05, 0.05], gain: 0.55, vary: 0.02, spatial: false, eventDriven: true },
-  craft_fail: { z: [0.35, 0, 120, 0, 0.08, 0.1, 2, 1, -3, 0, 0, 0, 0, 0, 0, 0.2], gain: 0.45, vary: 0, spatial: false, eventDriven: true },
-  discover: { z: [0.4, 0, 880, 0, 0.05, 0.25, 0, 1, 0, 0, 440, 0.05, 0.05, 0, 0, 0, 0, 1, 0, 0.2], gain: 0.6, vary: 0, voices: 1, spatial: false },
+  heal: { z: [0.3, 0, 600, 0.02, 0.06, 0.2, 0, 1, 6, 0, 300, 0.06], gain: 0.45, voices: 2, gap: 0.25 },
+  scroll: { z: [0.35, 0, 900, 0.02, 0.08, 0.25, 4, 1, 12, 0, 0, 0, 0, 0.6, 0, 0, 0, 1, 0, 0.3, 1200], gain: 0.5, vary: 0.05, voices: 1 },
+  craft: { z: [0.4, 0, 660, 0, 0.05, 0.2, 5, 0.5, 0, 0, 330, 0.05, 0.05], gain: 0.55, vary: 0.02, gap: 0.2, spatial: false, eventDriven: true },
+  craft_fail: { z: [0.35, 0, 120, 0, 0.08, 0.1, 2, 1, -3, 0, 0, 0, 0, 0, 0, 0.2], gain: 0.45, vary: 0, gap: 0.2, spatial: false, eventDriven: true },
+  discover: { z: [0.4, 0, 880, 0, 0.05, 0.25, 0, 1, 0, 0, 440, 0.05, 0.05, 0, 0, 0, 0, 1, 0, 0.2], gain: 0.6, vary: 0, voices: 1, spatial: false, personal: true },
   levelup: { z: [0.5, 0, 523, 0, 0.1, 0.4, 5, 0.5, 0, 0, 262, 0.08, 0.08], gain: 0.75, vary: 0, voices: 1, gap: 0.3, spatial: false, eventDriven: true },
   revive: { z: [0.5, 0, 330, 0, 0.1, 0.3, 5, 0.5, 15], gain: 0.7, vary: 0, voices: 1, gap: 0.3, spatial: false },
   downed: { z: [0.5, 0, 440, 0, 0.1, 0.3, 5, 0.5, -15], gain: 0.8, vary: 0, voices: 1, gap: 0.3, spatial: false },
@@ -124,10 +135,13 @@ export const SFX: Readonly<Record<string, SfxPreset>> = {
   ui_hover: { z: [0.1, 0, 2400, 0, 0, 0.01, 5, 0.5], gain: 0.15, vary: 0.02, spatial: false, voices: 1, gap: 0.03 },
   ui_open: { z: [0.2, 0, 500, 0, 0.02, 0.06, 5, 0.5, 0, 0, 250, 0.03], gain: 0.3, vary: 0, spatial: false, voices: 1 },
   ui_close: { z: [0.2, 0, 750, 0, 0.02, 0.06, 5, 0.5, 0, 0, -250, 0.03], gain: 0.3, vary: 0, spatial: false, voices: 1 },
-  ui_error: { z: [0.25, 0, 150, 0, 0.05, 0.08, 5, 0.5], gain: 0.35, vary: 0, spatial: false, voices: 1, gap: 0.1 },
-  buy: { z: [0.35, 0, 900, 0, 0.03, 0.1, 5, 0.5, 0, 0, 450, 0.04, 0.04], gain: 0.45, vary: 0, spatial: false },
-  sell: { z: [0.3, 0, 1100, 0, 0.02, 0.08, 5, 0.5, 0, 0, -300, 0.04], gain: 0.4, vary: 0, spatial: false },
-  equip: { z: [0.3, 0, 300, 0, 0.02, 0.08, 2, 1, 0, 0, 0, 0, 0, 0.3, 25], gain: 0.4, spatial: false },
+  ui_error: { z: [0.25, 0, 150, 0, 0.05, 0.08, 5, 0.5], gain: 0.35, vary: 0, spatial: false, voices: 1, gap: 0.1, personal: true },
+  buy: { z: [0.35, 0, 900, 0, 0.03, 0.1, 5, 0.5, 0, 0, 450, 0.04, 0.04], gain: 0.45, vary: 0, spatial: false, personal: true },
+  sell: { z: [0.3, 0, 1100, 0, 0.02, 0.08, 5, 0.5, 0, 0, -300, 0.04], gain: 0.4, vary: 0, spatial: false, personal: true },
+  unequip: { z: [0.3, 0, 240, 0, 0.02, 0.07, 2, 1, -6, 0, 0, 0, 0, 0.3, 20], gain: 0.35, spatial: false, personal: true },
+  repair: { z: [0.4, 0, 1500, 0, 0.18, 0.12, 0, 1, -20, 0, 0, 0, 0.1, 0, 70, 0, 0, 1, 0, 0.9], gain: 0.55, vary: 0.04, voices: 1, spatial: false, personal: true },
+  blessing: { z: [0.45, 0, 520, 0.05, 0.25, 0.5, 0, 1, 4, 0, 260, 0.1, 0.1, 0, 0, 0, 0.08, 1, 0, 0.2], gain: 0.65, vary: 0, voices: 1, gap: 0.5, spatial: false, personal: true },
+  equip: { z: [0.3, 0, 300, 0, 0.02, 0.08, 2, 1, 0, 0, 0, 0, 0, 0.3, 25], gain: 0.4, spatial: false, personal: true },
 };
 
 /** Alternative ids used by other modules → canonical preset id. */
@@ -151,6 +165,8 @@ export const SFX_ALIASES: Readonly<Record<string, string>> = {
   purchase: 'buy',
   gather: 'harvest',
   crafted: 'craft',
+  // items workstream (shop / equip / repair / consume / loot)
+  denied: 'ui_error',
   // run / progression workstream
   portal_enter: 'portal',
   portal_unlock: 'portal_open',
@@ -205,6 +221,16 @@ export function resolveSfxId(id: string): string {
   if (own(SFX_ALIASES, id)) return SFX_ALIASES[id]!;
   for (const [prefix, target] of SFX_PREFIXES) if (id.startsWith(prefix)) return target;
   return FALLBACK_SFX;
+}
+
+/**
+ * Should a cue for `preset` be spatialised? `positioned` = the source carries a real position (the sim uses
+ * x = y = 0 for "no position"). Spatial presets always are; `personal` / `eventDriven` ones only when
+ * positioned; everything else (UI, alerts, stingers) never.
+ */
+export function isSpatialCue(preset: SfxPreset, positioned: boolean): boolean {
+  if (preset.spatial !== false) return true;
+  return positioned && (preset.personal === true || preset.eventDriven === true);
 }
 
 /** True when `id` has a preset of its own or via an alias (not just a prefix rule or the fallback). */

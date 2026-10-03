@@ -229,7 +229,11 @@ export const TRACK_ALIASES: Readonly<Record<string, string>> = {
 
 /** Canonical track id ('' stays '' = silence). Unknown ids are kept (they get a derived mood). */
 export function resolveTrackId(id: string): string {
-  return TRACK_ALIASES[id] ?? id;
+  return own(TRACK_ALIASES, id) ? TRACK_ALIASES[id]! : id;
+}
+
+function own(o: object, k: string): boolean {
+  return Object.prototype.hasOwnProperty.call(o, k);
 }
 
 const DERIVED_BASES = ['forest', 'cave', 'swamp', 'frost', 'crystal', 'volcano', 'town'] as const;
@@ -242,8 +246,7 @@ const derived = new Map<string, MoodDef>();
  */
 export function moodFor(trackId: string): MoodDef {
   const id = resolveTrackId(trackId);
-  const known = MOODS[id];
-  if (known) return known;
+  if (own(MOODS, id)) return MOODS[id]!;
   let m = derived.get(id);
   if (!m) {
     const h = hashSeed(`mood:${id}`);

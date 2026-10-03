@@ -12,7 +12,7 @@ const REQUIRED = [
   'boss_roar', 'splash', 'step',
 ];
 
-/** Ids emitted by sibling workstreams (combat, player) at the time of writing — keep them covered after merge. */
+/** Ids emitted by sibling workstreams (combat, player, progression, items) at the time of writing — keep them covered after merge. */
 const SIBLING_IDS = [
   'teleport', 'place', 'block', 'item_break', 'shield_hit', 'harvest', 'dig', 'deflect', 'explode', 'arrow_stick',
   'sizzle', 'empty', 'fizzle', 'thrust', 'swing_heavy', 'shoot_crossbow', 'shoot_bow', 'cast', 'throw', 'slam',
@@ -21,6 +21,9 @@ const SIBLING_IDS = [
   'portal_enter', 'portal_unlock', 'portal_locked', 'portal_open', 'victory', 'wraith_warning', 'wraith_spawn',
   'skill_learn', 'skill_not_ready', 'skill_fail', 'trap_snap', 'companion_heal', 'companion_shield', 'companion_zap',
   'level_up',
+  // items (shop / equip / repair / consume / loot)
+  'denied', 'blessing', 'repair', 'scroll', 'unequip', 'drop', 'pot_break', 'buy', 'sell', 'equip', 'discover',
+  'chest_open',
 ];
 
 /** GDD §10 skills; progression emits `skill_${id}` when one is used. */
@@ -64,6 +67,18 @@ describe('sfx preset table', () => {
     for (const [prefix, target] of SFX_PREFIXES) expect(SFX[target], prefix).toBeDefined();
     expect(resolveSfxId('definitely_not_a_sound')).toBe(FALLBACK_SFX);
     expect(resolveSfxId('toString')).toBe(FALLBACK_SFX);
+  });
+
+  it('personal sounds (one player\'s menus/shop/crafting) are non-positional by default but not global alerts', () => {
+    for (const id of ['buy', 'sell', 'equip', 'unequip', 'repair', 'blessing', 'discover', 'denied', 'craft', 'craft_fail', 'level_up']) {
+      const p = SFX[resolveSfxId(id)]!;
+      expect(p.spatial, id).toBe(false);
+      expect(p.personal === true || p.eventDriven === true, id).toBe(true);
+    }
+    for (const id of ['boss_roar', 'boss_death', 'wraith_spawn', 'wraith_warn', 'downed', 'revive', 'run_win', 'run_lose']) {
+      expect(SFX[id]!.personal ?? false, id).toBe(false);
+      expect(SFX[id]!.eventDriven ?? false, id).toBe(false);
+    }
   });
 
   it('presets have sane parameters', () => {

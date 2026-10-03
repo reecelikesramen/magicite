@@ -211,6 +211,48 @@ describe('AudioManager sfx', () => {
     expect(sources(fake).length).toBe(1);
   });
 
+  it("a far teammate's positioned shop/craft sounds fade with distance; positionless and global ones don't", async () => {
+    const { fake, am } = await ready();
+    am.handleEvents([
+      { type: 'sfx', id: 'buy', x: 5000, y: 0 },
+      { type: 'sfx', id: 'craft_fail', x: 5000, y: 0 },
+    ]);
+    expect(sources(fake).length).toBe(0);
+    am.handleEvents([{ type: 'sfx', id: 'denied', x: 0, y: 0 }]);
+    expect(sources(fake).length).toBe(1);
+    expect(am.playSfx('sell')).toBe(true); // UI call, no position
+    expect(am.playSfx('boss_roar', 5000, 0)).toBe(true); // global alert ignores distance
+    expect(am.playSfx('equip', 5000, 0)).toBe(false); // personal + far away
+  });
+
+  it('dispose() then unlock() starts clean on a new context (no stale voices from the old clock)', async () => {
+    const fakes: FakeAudioContext[] = [];
+    const am = new AudioManager({
+      timer: false,
+      createContext: () => {
+        const f = new FakeAudioContext();
+        fakes.push(f);
+        return asAudioContext(f);
+      },
+    });
+    am.unlock();
+    expect(await am.whenReady()).toBe(true);
+    am.setListener(0, 0);
+    fakes[0]!.currentTime = 500;
+    for (let i = 0; i < 3; i++) {
+      am.handleEvents([{ type: 'sfx', id: 'explosion', x: 0, y: 0 }]);
+      fakes[0]!.currentTime += 0.07;
+    }
+    expect(sources(fakes[0]!).length).toBe(3);
+    am.dispose();
+    expect(fakes[0]!.state).toBe('closed');
+    am.unlock();
+    expect(await am.whenReady()).toBe(true);
+    expect(fakes.length).toBe(2);
+    am.handleEvents([{ type: 'sfx', id: 'explosion', x: 0, y: 0 }]);
+    expect(sources(fakes[1]!).length).toBe(1);
+  });
+
   it('is silent while the context is suspended, and unlock resumes it', async () => {
     const { fake, am } = await ready();
     fake.state = 'suspended';

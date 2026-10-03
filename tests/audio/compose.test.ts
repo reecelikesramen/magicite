@@ -139,6 +139,15 @@ describe('generative composer', () => {
     expect(leadIn(1)).toBe(leadIn(0));
   });
 
+  it('never resolves inherited object keys as tracks or moods', () => {
+    for (const id of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(resolveTrackId(id), id).toBe(id);
+      const m = moodFor(id);
+      expect(m.id, id).toBe(id);
+      expect(typeof m.bpm, id).toBe('number');
+    }
+  });
+
   it('gives unknown track ids a stable derived mood', () => {
     const a = moodFor('phase2_dunes');
     expect(moodFor('phase2_dunes')).toBe(a);

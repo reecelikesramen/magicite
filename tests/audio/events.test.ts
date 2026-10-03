@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { beginBatch, createAudioEventState, mapGameEvent, resourceBreakSfx, trackForBiome, trackForLevel, type CueSink } from '../../src/audio/events';
+import { Content } from '../../src/content';
 import type { GameEvent } from '../../src/sim/types';
 
 interface Cue {
@@ -36,18 +37,40 @@ describe('GameEvent → sound mapping', () => {
     expect(c!.spatial).toBe(false);
   });
 
-  it('ignores raw sfx for event-driven sounds and plays them from the semantic event instead', () => {
+  it('ignores positionless raw sfx for event-driven sounds and plays them from the semantic event instead', () => {
     const cues = run(
       [
         { type: 'sfx', id: 'craft', x: 0, y: 0 },
         { type: 'craft', player: 0, a: 'wood', b: 'wood', result: 'plank', count: 1, discovered: true },
-        { type: 'sfx', id: 'level_up', x: 5, y: 5 },
+        { type: 'sfx', id: 'level_up', x: 0, y: 0 },
         { type: 'levelUp', player: 0, level: 2 },
       ],
       0,
     );
     expect(cues.map((c) => c.id)).toEqual(['craft', 'discover', 'levelup']);
     expect(cues.every((c) => c.spatial === false)).toBe(true);
+  });
+
+  it('positioned raw sfx of event-driven sounds play spatially (e.g. a craft failing for want of a station)', () => {
+    // items: `craft_fail` at the crafter, with only a message (no `craft` event) when no station is near.
+    const cues = run([{ type: 'sfx', id: 'craft_fail', x: 40, y: 8 }], 0);
+    expect(cues).toEqual([{ kind: 'sfx', id: 'craft_fail', x: 40, y: 8, spatial: true, volume: 1, pitch: 1 }]);
+    // A teammate's level-up: the semantic event is filtered, the positioned raw sfx is spatialised.
+    const mate = run([{ type: 'levelUp', player: 1, level: 3 }, { type: 'sfx', id: 'level_up', x: 300, y: 8 }], 0);
+    expect(mate.map((c) => [c.id, c.spatial])).toEqual([['level_up', true]]);
+  });
+
+  it('personal sounds are spatialised only when the sim gives them a position', () => {
+    const cues = run([
+      { type: 'sfx', id: 'buy', x: 120, y: 64 },
+      { type: 'sfx', id: 'denied', x: 0, y: 0 },
+      { type: 'sfx', id: 'wraith_spawn', x: 120, y: 64 },
+    ]);
+    expect(cues.filter((c) => c.kind === 'sfx').map((c) => [c.id, c.spatial])).toEqual([
+      ['buy', true],
+      ['denied', false],
+      ['wraith_spawn', false], // global alert: never attenuated
+    ]);
   });
 
   it("doesn't play teammates' crafting or level-ups", () => {
@@ -107,6 +130,11 @@ describe('GameEvent → sound mapping', () => {
     expect(resourceBreakSfx('chest_wood')).toBe('chest_open');
     expect(resourceBreakSfx('plant_fiber')).toBe('harvest');
     expect(resourceBreakSfx('pot')).toBe('break');
+    // Content defs decide by their harvesting tool, whatever the id looks like.
+    for (const def of Content.resources.values()) {
+      const want = def.tool === 'axe' ? 'tree_fall' : def.tool === 'pickaxe' || def.tool === 'hammer' ? 'rock_break' : def.tool === 'net' ? 'pickup' : 'harvest';
+      expect(resourceBreakSfx(def.id), def.id).toBe(want);
+    }
   });
 
   it('picks level music: biome → track, towns, boss arenas, the Lair', () => {
@@ -130,6 +158,18 @@ describe('GameEvent → sound mapping', () => {
       { kind: 'sfx', id: 'boss_death', x: 0, y: 0, spatial: false, volume: 1, pitch: 1 },
       { kind: 'music', id: 'crystal' },
     ]);
+  });
+
+  it('a giant monster dying during a Wraith invasion keeps the invasion theme', () => {
+    const st = createAudioEventState();
+    run([enter('woods', false, true)], -1, st);
+    expect(run([{ type: 'sfx', id: 'wraith_spawn', x: 1, y: 1 }], -1, st)).toContainEqual({ kind: 'music', id: 'invasion' });
+    const cues = run([{ type: 'death', entity: 7, kind: 'boss', def: 'gloomjaw', x: 0, y: 0 }], -1, st);
+    expect(cues.filter((c) => c.kind === 'music')).toEqual([]);
+    // …and the Lair's own theme is never replaced by the biome fallback either.
+    const lair = createAudioEventState();
+    run([enter('lair', false, true)], -1, lair);
+    expect(run([{ type: 'death', entity: 8, kind: 'boss', def: 'blightwall', x: 0, y: 0 }], -1, lair).filter((c) => c.kind === 'music')).toEqual([]);
   });
 
   it('a roaming giant monster waking up switches to boss music once', () => {

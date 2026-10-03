@@ -2,7 +2,7 @@ import { Content } from '../content';
 import { TILE } from '../sim/constants';
 import type { GameEvent } from '../sim/types';
 import { resolveTrackId } from './music/moods';
-import { resolveSfxId, SFX } from './presets';
+import { isSpatialCue, resolveSfxId, SFX } from './presets';
 
 /**
  * Pure GameEvent → sound mapping. The AudioManager feeds every event of a frame through
@@ -53,8 +53,23 @@ export function trackForLevel(ev: { biome: string; isTown: boolean; isBoss: bool
   return biomeTrack;
 }
 
-/** Sound for a broken resource node, by def id prefix (tree_*, rock_*, chest_*, bug_*, plants…). */
+/** Break sound per harvesting tool (ResourceDef.tool). */
+const BREAK_BY_TOOL: Readonly<Record<string, string>> = {
+  axe: 'tree_fall',
+  pickaxe: 'rock_break',
+  hammer: 'rock_break',
+  net: 'pickup',
+  sickle: 'harvest',
+  hand: 'harvest',
+};
+
+/**
+ * Sound for a broken resource node: by its content def's tool (so `amethyst_cluster`, `frost_crystal_node`…
+ * crack like rock), else by def id prefix (tree_*, rock_*, chest_*, bug_*, plants…).
+ */
 export function resourceBreakSfx(def: string): string {
+  const tool = Content.resources.get(def)?.tool;
+  if (tool !== undefined && Object.prototype.hasOwnProperty.call(BREAK_BY_TOOL, tool)) return BREAK_BY_TOOL[tool]!;
   if (def.startsWith('tree_')) return 'tree_fall';
   if (def.startsWith('rock_')) return 'rock_break';
   if (def.startsWith('chest_')) return 'chest_open';
@@ -72,13 +87,17 @@ export function mapGameEvent(ev: GameEvent, st: AudioEventState, sink: CueSink):
   switch (ev.type) {
     case 'sfx': {
       const preset = SFX[resolveSfxId(ev.id)]!;
-      if (preset.eventDriven) return;
+      const positioned = ev.x !== 0 || ev.y !== 0;
+      // Positionless raw sfx of event-driven sounds (craft, level-up) are played by their semantic event,
+      // which knows the player. Positioned ones (e.g. a craft that fails for want of a station, which has
+      // no `craft` event) play spatially; the voice limiter merges them with the semantic cue.
+      if (preset.eventDriven && !positioned) return;
       if (ev.id === 'chop' || ev.id === 'mine' || ev.id === 'harvest') {
         st.hitX = ev.x;
         st.hitY = ev.y;
         st.hasHit = true;
       }
-      sink.sfx(ev.id, ev.x, ev.y, preset.spatial !== false, ev.volume ?? 1, ev.pitch ?? 1);
+      sink.sfx(ev.id, ev.x, ev.y, isSpatialCue(preset, positioned), ev.volume ?? 1, ev.pitch ?? 1);
       // The Blight Wraith has arrived: panic music until the party leaves the district.
       if (ev.id === 'wraith_spawn' && st.levelTrack !== 'invasion') {
         st.levelTrack = 'invasion';
@@ -96,8 +115,9 @@ export function mapGameEvent(ev: GameEvent, st: AudioEventState, sink: CueSink):
       switch (ev.kind) {
         case 'boss':
           sink.sfx('boss_death', ev.x, ev.y, false, 1, 1);
-          // Giant monster down: the portals open and the biome theme returns.
-          if (st.biomeTrack !== '' && st.levelTrack !== st.biomeTrack) {
+          // Giant monster down: the portals open and the biome theme returns (unless something else took
+          // over the music meanwhile, e.g. the Blight Wraith's invasion theme — the Wraith is still there).
+          if (st.biomeTrack !== '' && st.levelTrack === 'boss') {
             st.levelTrack = st.biomeTrack;
             sink.music(st.biomeTrack);
           }
