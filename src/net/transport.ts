@@ -272,7 +272,10 @@ export class LoopbackNetwork {
     if (p.kind === 'join') {
       const from = this.nodes.get(p.from);
       if (!from || from.closed) return;
+      // The link opens in both directions at once (a peer may send from its onPeerJoin handler
+      // before the other side's join event has been delivered).
       this.connected.add(key);
+      this.connected.add(`${p.to}>${p.from}`);
       to.addPeer(p.from);
       return;
     }
