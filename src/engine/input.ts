@@ -2,7 +2,7 @@ import type { PlayerInput } from '../sim/types';
 import { emptyInput } from '../sim/types';
 
 export type Action =
-  | 'left' | 'right' | 'up' | 'down' | 'jump' | 'attack' | 'alt' | 'interact'
+  | 'left' | 'right' | 'up' | 'down' | 'jump' | 'dashLeft' | 'dashRight' | 'attack' | 'alt' | 'interact'
   | 'inventory' | 'pause' | 'craftMod' | 'slot1' | 'slot2' | 'slot3' | 'slot4' | 'slot5'
   | 'skill1' | 'skill2' | 'skill3';
 
@@ -13,6 +13,8 @@ export const DEFAULT_KEYS: Record<Action, string[]> = {
   up: ['KeyW', 'ArrowUp'],
   down: ['KeyS', 'ArrowDown'],
   jump: ['Space'],
+  dashLeft: ['KeyQ'],
+  dashRight: ['KeyE'],
   attack: ['KeyJ'],
   alt: ['KeyK'],
   interact: ['KeyF'],
@@ -28,6 +30,10 @@ export const DEFAULT_KEYS: Record<Action, string[]> = {
   skill2: ['KeyX'],
   skill3: ['KeyC'],
 };
+
+function dashDir(left: boolean, right: boolean): -1 | 0 | 1 {
+  return left === right ? 0 : left ? -1 : 1;
+}
 
 /**
  * Collects raw keyboard / mouse / gamepad state and produces a PlayerInput per tick for the
@@ -116,7 +122,9 @@ export class InputManager {
     const inp = emptyInput();
     inp.moveX = (this.held('right') ? 1 : 0) - (this.held('left') ? 1 : 0);
     inp.moveY = (this.held('down') ? 1 : 0) - (this.held('up') ? 1 : 0);
-    inp.jump = this.held('jump');
+    // `|| pressed` catches taps shorter than a tick (keydown + keyup between two samples).
+    inp.jump = this.held('jump') || this.pressed('jump');
+    inp.dash = dashDir(this.held('dashLeft') || this.pressed('dashLeft'), this.held('dashRight') || this.pressed('dashRight'));
     inp.attack = this.held('attack') || (this.mouseLeft && !this.pointerCaptured);
     inp.alt = this.held('alt') || (this.mouseRight && !this.pointerCaptured);
     inp.interact = this.held('interact');
@@ -131,6 +139,8 @@ export class InputManager {
       if (Math.abs(ay) > 0.5) inp.moveY = ay;
       const b = (i: number) => !!pad.buttons[i]?.pressed;
       inp.jump ||= b(0);
+      // LB / RB dash; both together = 0 (left free for the hotbar-cycle chord).
+      if (inp.dash === 0) inp.dash = dashDir(b(4), b(5));
       inp.attack ||= b(2) || b(7);
       inp.alt ||= b(6);
       inp.interact ||= b(3);

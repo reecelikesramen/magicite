@@ -2,7 +2,7 @@ import { Content } from '../../content';
 import { INVENTORY_SIZE } from '../constants';
 import { addItem } from '../items/inventory';
 import { DEFAULT_BASE, recalcStats } from '../items/stats';
-import type { PlayerState, RunStats } from '../types';
+import type { Entity, PlayerCtl, PlayerState, RunStats } from '../types';
 import type { PlayerSetup, World } from '../world';
 
 /** Player hitbox in px (sprite is ~8x12; hitbox is slightly narrower for forgiving platforming). */
@@ -15,6 +15,35 @@ export function emptyRunStats(): RunStats {
     treesChopped: 0, oresMined: 0, bugsCaught: 0, plantsHarvested: 0, goldEarned: 0, deaths: 0,
     revives: 0, districtsCleared: 0, ticksPlayed: 0,
   };
+}
+
+/** Fresh controller/meter scratch for a new player. */
+export function createCtl(): PlayerCtl {
+  return {
+    coyote: 0, jumpBuffer: 0, airJumpsUsed: 0, dropThrough: 0, climbing: false, mineX: -1, mineY: -1, mineTicks: 0,
+    jumping: false, dashT: 0, dashDir: 0, dashAir: false, dashCd: 0, dashBuf: 0, diving: false, airT: 0, fallPeak: 0,
+    safeX: 0, safeY: 0, staminaT: 0, manaT: 0, hungerT: 0, starveT: 0, downedT: 0, levelKey: 0,
+  };
+}
+
+/** Cancel transient movement state (dash, climb, dive, buffers) — on downed, revive and level entry. */
+export function resetMotion(p: PlayerState, e: Entity): void {
+  const c = p.ctl;
+  c.coyote = 0;
+  c.jumpBuffer = 0;
+  c.airJumpsUsed = 0;
+  c.dropThrough = 0;
+  c.climbing = false;
+  c.jumping = false;
+  c.dashT = 0;
+  c.dashDir = 0;
+  c.dashAir = false;
+  c.dashBuf = 0;
+  c.diving = false;
+  c.airT = 0;
+  c.fallPeak = 0;
+  e.gravityScale = 1;
+  e.usesPlatforms = true;
 }
 
 /** Add a player (entity + state) to the world, applying race base stats and starting items. */
@@ -53,8 +82,8 @@ export function addPlayer(world: World, setup: PlayerSetup): PlayerState {
     downed: false,
     reviveProgress: 0,
     out: false,
-    ctl: { coyote: 0, jumpBuffer: 0, airJumpsUsed: 0, dropThrough: 0, climbing: false, mineX: -1, mineY: -1, mineTicks: 0 },
-    prev: { jump: false, attack: false, interact: false, alt: false },
+    ctl: createCtl(),
+    prev: { jump: false, attack: false, interact: false, alt: false, dash: 0 },
     knownRecipes: [],
     runStats: emptyRunStats(),
     craftPick: -1,
