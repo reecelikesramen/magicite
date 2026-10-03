@@ -53,11 +53,24 @@ export class InputManager {
   pointerCaptured = false;
   private queuedCommands: PlayerInput['commands'] = [];
   private keys = DEFAULT_KEYS;
+  /**
+   * Key presses since the last `sample()` (movement edges). Unlike `pressedQ` (cleared per rendered
+   * frame) this survives frames in which no tick runs (high refresh rates), so short taps still land.
+   */
+  private tapQ = new Set<string>();
+  /** Last sampled jump/dash and a press deferred by one tick (see `sample`). */
+  private lastJump = false;
+  private jumpPending = false;
+  private lastDash: -1 | 0 | 1 = 0;
+  private dashPending: -1 | 0 | 1 = 0;
 
   constructor(target: HTMLElement) {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
-      if (!this.down.has(e.code)) this.pressedQ.add(e.code);
+      if (!this.down.has(e.code)) {
+        this.pressedQ.add(e.code);
+        this.tapQ.add(e.code);
+      }
       this.down.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
@@ -95,6 +108,11 @@ export class InputManager {
     return this.keys[a].some((k) => this.pressedQ.has(k));
   }
 
+  /** Pressed since the last `sample()` (movement edges). */
+  private tapped(a: Action): boolean {
+    return this.keys[a].some((k) => this.tapQ.has(k));
+  }
+
   mousePressed(button: number): boolean {
     return this.pressedQ.has(`Mouse${button}`);
   }
@@ -122,9 +140,13 @@ export class InputManager {
     const inp = emptyInput();
     inp.moveX = (this.held('right') ? 1 : 0) - (this.held('left') ? 1 : 0);
     inp.moveY = (this.held('down') ? 1 : 0) - (this.held('up') ? 1 : 0);
-    // `|| pressed` catches taps shorter than a tick (keydown + keyup between two samples).
-    inp.jump = this.held('jump') || this.pressed('jump');
-    inp.dash = dashDir(this.held('dashLeft') || this.pressed('dashLeft'), this.held('dashRight') || this.pressed('dashRight'));
+    // `|| tapped` catches taps shorter than a tick (keydown + keyup between two samples).
+    const jumpTap = this.tapped('jump');
+    const tapL = this.tapped('dashLeft');
+    const tapR = this.tapped('dashRight');
+    this.tapQ.clear();
+    inp.jump = this.held('jump') || jumpTap;
+    inp.dash = dashDir(this.held('dashLeft') || tapL, this.held('dashRight') || tapR);
     inp.attack = this.held('attack') || (this.mouseLeft && !this.pointerCaptured);
     inp.alt = this.held('alt') || (this.mouseRight && !this.pointerCaptured);
     inp.interact = this.held('interact');
@@ -154,11 +176,37 @@ export class InputManager {
         inp.aimY = playerCenter.y + inp.moveY * 20;
       }
     }
+    this.keepEdges(inp, jumpTap, dashDir(tapL, tapR));
     for (let i = 0; i < 5; i++) if (this.pressed(`slot${i + 1}` as Action)) inp.select = i;
     for (let i = 0; i < 3; i++) if (this.pressed(`skill${i + 1}` as Action)) inp.skill = i;
     inp.commands = this.queuedCommands;
     this.queuedCommands = [];
     return inp;
+  }
+
+  /**
+   * The sim derives jump/dash presses from consecutive ticks, so a release + re-press between two
+   * samples (fast double-jump taps at low frame rates) would read as one long hold and be lost.
+   * Insert one released tick and deliver the press on the next sample instead (+1 tick latency,
+   * only in that case; the jump buffer absorbs it).
+   */
+  private keepEdges(inp: PlayerInput, jumpTap: boolean, dashTap: -1 | 0 | 1): void {
+    if (this.jumpPending) {
+      inp.jump = true;
+      this.jumpPending = false;
+    } else if (jumpTap && this.lastJump) {
+      inp.jump = false;
+      this.jumpPending = true;
+    }
+    this.lastJump = inp.jump;
+    if (this.dashPending !== 0) {
+      inp.dash = this.dashPending;
+      this.dashPending = 0;
+    } else if (dashTap !== 0 && dashTap === this.lastDash) {
+      inp.dash = 0;
+      this.dashPending = dashTap;
+    }
+    this.lastDash = inp.dash;
   }
 
   /** Clear edge-triggered state; call once per rendered frame after UI has read it. */
