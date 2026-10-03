@@ -3,10 +3,11 @@ import { ByteReader, ByteWriter } from '../../src/net/codec';
 import { TileTracker, applyEdits, gridHash, regenerateLevel } from '../../src/net/levelsync';
 import { OwnerAccess, buildOwnerLayout, readOwnerDelta, writeOwnerDelta } from '../../src/net/predict';
 import {
-  HostEncoder, Msg, decodeHello, decodeInputPacket, encodeHello, encodeInputPacket, openHostPacket, quantizeInput,
+  CREATION_RULES, HostEncoder, Msg, decodeHello, decodeInputPacket, encodeHello, encodeInputPacket, openHostPacket, quantizeInput,
   readLevelChange, sanitizeRequest, writeLevelChange,
 } from '../../src/net/protocol';
 import { createStringTable } from '../../src/net/strings';
+import { Content } from '../../src/content';
 import { createRun } from '../../src/sim';
 import type { PlayerInput } from '../../src/sim/types';
 import { emptyInput } from '../../src/sim/types';
@@ -49,18 +50,27 @@ describe('protocol', () => {
     expect(again).toEqual(inp);
   });
 
-  it('Hello sanitizes an untrusted setup', () => {
+  it('Hello sanitizes an untrusted setup to the GDD creation rules', () => {
     const table = createStringTable();
-    const evil = { name: 'X'.repeat(100), race: 5, hat: 'h', companion: '', traits: ['a', 3, 'b', 'c', 'd', 'e'], stats: { hp: 1e9, atk: -4, dex: NaN }, difficulty: 'godmode' };
-    const pkt = encodeHello({ version: 1, stringHash: table.hash, clientTime: 5, token: '', setup: evil as never }, table);
-    const r = new ByteReader(pkt);
-    r.u8();
-    const h = decodeHello(r, table);
-    expect(h.setup.name.length).toBe(16);
-    expect(h.setup.race).toBe('');
-    expect(h.setup.traits).toEqual(['a', 'b', 'c', 'd']);
-    expect(h.setup.stats).toEqual({ hp: 99, atk: 0, dex: 0, mag: 0, lck: 0 });
-    expect(h.setup.difficulty).toBeUndefined();
+    const roundTrip = (setup: unknown) => {
+      const pkt = encodeHello({ version: 1, stringHash: table.hash, clientTime: 5, token: '', setup: setup as never }, table);
+      const r = new ByteReader(pkt);
+      r.u8();
+      return decodeHello(r, table).setup;
+    };
+    const known = [...Content.traits.keys()];
+    const traits = [known[0], known[0], 3, 'not_a_trait', known[1], known[2]].filter((t) => t !== undefined);
+    const evil = roundTrip({ name: 'X'.repeat(100), race: 5, hat: 'h', companion: '', traits, stats: { hp: 99, atk: 99, dex: 99, mag: 99, lck: 99 }, difficulty: 'godmode' });
+    expect(evil.name.length).toBe(CREATION_RULES.nameMax);
+    expect(evil.race).toBe('');
+    expect(evil.traits).toEqual(known.slice(0, 2)); // known, distinct, at most 2 (trait mods stack per entry)
+    expect(evil.stats).toBeUndefined(); // illegal roll → default spread
+    expect(evil.difficulty).toBeUndefined();
+    // Legal rolls pass untouched; a single point over the total or a range does not.
+    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', stats: { hp: 6, atk: 2, dex: 3, mag: 2, lck: 2 } }).stats).toEqual({ hp: 6, atk: 2, dex: 3, mag: 2, lck: 2 });
+    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', stats: { hp: 6, atk: 3, dex: 3, mag: 2, lck: 2 } }).stats).toBeUndefined();
+    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', stats: { hp: 7, atk: 2, dex: 2, mag: 2, lck: 2 } }).stats).toBeUndefined();
+    expect(roundTrip({ name: '   ', race: '', hat: '', companion: '' }).name).toBe('DELVER');
   });
 
   it('LevelChange round-trips a request + edits; clients rebuild the identical grid', () => {

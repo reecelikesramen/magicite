@@ -1,5 +1,6 @@
+import { Content } from '../content';
 import type { LevelRequest } from '../sim/gen';
-import type { PlayerCommand, PlayerInput } from '../sim/types';
+import type { BaseStats, PlayerCommand, PlayerInput } from '../sim/types';
 import { emptyInput } from '../sim/types';
 import type { Level, PlayerSetup, RunState } from '../sim/world';
 import {
@@ -132,16 +133,50 @@ export function decodeHello(r: ByteReader, table: StringTable): Hello {
   return { version, stringHash, clientTime, token, setup };
 }
 
-/** Untrusted setup → a well-formed PlayerSetup. */
+/**
+ * GDD §3 character-creation rules, enforced on setups from the network (a modified client must not
+ * join with 99 in every stat or the same trait four times — trait mods stack per entry). Mirrors
+ * STAT_RULES / NAME_MAX in the progression workstream's creation helpers.
+ */
+export const CREATION_RULES = {
+  nameMax: 10,
+  traits: 2,
+  statTotal: 15,
+  statMin: { hp: 4, atk: 2, dex: 2, mag: 2, lck: 2 } as Readonly<BaseStats>,
+  statMax: { hp: 6, atk: 4, dex: 4, mag: 4, lck: 4 } as Readonly<BaseStats>,
+} as const;
+
+const STAT_KEYS: readonly (keyof BaseStats)[] = ['hp', 'atk', 'dex', 'mag', 'lck'];
+
+/** Untrusted setup → a well-formed PlayerSetup within the creation rules. */
 export function sanitizeSetup(v: unknown): PlayerSetup {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   const s = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : '');
-  const setup: PlayerSetup = { name: s(o.name, 16) || 'DELVER', race: s(o.race, 32), hat: s(o.hat, 32), companion: s(o.companion, 32) };
-  if (Array.isArray(o.traits)) setup.traits = o.traits.filter((t): t is string => typeof t === 'string').slice(0, 4).map((t) => t.slice(0, 32));
+  const R = CREATION_RULES;
+  const setup: PlayerSetup = { name: s(o.name, R.nameMax).trim() || 'DELVER', race: s(o.race, 32), hat: s(o.hat, 32), companion: s(o.companion, 32) };
+  if (Array.isArray(o.traits)) {
+    const traits: string[] = [];
+    for (const t of o.traits) {
+      if (traits.length >= R.traits) break;
+      if (typeof t === 'string' && Content.traits.has(t) && !traits.includes(t)) traits.push(t);
+    }
+    setup.traits = traits;
+  }
   const st = o.stats as Record<string, unknown> | undefined;
   if (st && typeof st === 'object') {
-    const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.min(99, Math.round(x))) : 0);
-    setup.stats = { hp: n(st.hp), atk: n(st.atk), dex: n(st.dex), mag: n(st.mag), lck: n(st.lck) };
+    // Rolled stats are kept only if they are a legal roll; anything else gets the default spread.
+    let total = 0;
+    let ok = true;
+    const stats = {} as BaseStats;
+    for (const k of STAT_KEYS) {
+      const x = st[k];
+      if (typeof x !== 'number' || !Number.isInteger(x) || x < R.statMin[k] || x > R.statMax[k]) ok = false;
+      else {
+        stats[k] = x;
+        total += x;
+      }
+    }
+    if (ok && total === R.statTotal) setup.stats = stats;
   }
   if (o.difficulty === 'madcap' || o.difficulty === 'normal') setup.difficulty = o.difficulty;
   return setup;
