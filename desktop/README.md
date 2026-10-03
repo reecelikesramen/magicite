@@ -17,12 +17,14 @@ builds each platform on its own runner. Run it from the Actions tab, or push a t
 
 ## Platforms
 
-| Target | Webview | Online co-op | Download (measured / expected) |
+| Target | Webview | Online co-op | Installer download (measured in CI) |
 |---|---|---|---|
-| macOS (Apple Silicon) | WKWebView (system) | yes (WebKit WebRTC) | ~15–30 MB |
-| Windows x64 | WebView2 (system Chromium) | yes | ~15–30 MB |
-| Linux x64 | bundled CEF (Chromium 147) | yes | **160 MB** (measured) |
-| Linux x64 Lite | WebKitGTK (system) | no (solo only) | **33 MB** (measured) |
+| macOS (Apple Silicon) | WKWebView (system) | yes (WebKit WebRTC) | **≈ 19 MB** |
+| Windows x64 | WebView2 (system Chromium) | yes | **≈ 33 MB** |
+| Linux x64 | bundled CEF (Chromium 147) | yes | **≈ 160 MB** |
+| Linux x64 Lite | WebKitGTK (system) | no (solo only) | **≈ 33 MB** |
+
+(Each CI artifact zip holds the installer and the updater archive, so it is about twice these.)
 
 Linux bundles Chromium because distro WebKitGTK builds ship without WebRTC. We checked this:
 Ubuntu 24.04's WebKitGTK 2.52 has no `RTCPeerConnection`, even with `enable-webrtc` set. The Lite
@@ -43,7 +45,9 @@ Runtime requirements on Linux: `libwebkit2gtk-4.1-0` (Lite) and `libayatana-appi
 - If WebGL is unavailable anywhere (blocklisted GPU), the game renders unlit on Pixi's Canvas renderer
   instead of going black.
 
-The macOS and Windows builds come from CI. Smoke-test those on real machines before release.
+All four targets build green in CI (`.github/workflows/desktop.yml`). The macOS and Windows apps
+have not been launched here. Smoke-test them on real machines before release, in particular WebRTC in
+WKWebView (online play).
 
 ## Signing (later)
 
