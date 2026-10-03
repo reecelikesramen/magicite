@@ -64,24 +64,31 @@ await page.waitForTimeout(250);
 await page.screenshot({ path: `${out}/03-inventory-tooltip.png` });
 
 // Shift+click wood + wood (backpack slots 0 and 1 → inventory 5, 6) to craft.
+const L = await page.evaluate(() => (window as any).game.ui.inv.L);
+const centre = (r: { x: number; y: number }) => at(r.x + 7, r.y + 7);
 await page.keyboard.down('ShiftLeft');
-[mx, my] = at(3 + 7, 94 + 7);
+await page.waitForTimeout(50);
+[mx, my] = centre(L.backpack[0]);
+await page.mouse.click(mx, my);
+await page.waitForTimeout(150);
+await page.screenshot({ path: `${out}/04-craft-pick.png` });
+[mx, my] = centre(L.backpack[1]);
 await page.mouse.click(mx, my);
 await page.waitForTimeout(100);
-await page.screenshot({ path: `${out}/04-craft-pick.png` });
-[mx, my] = at(3 + 16 + 7, 94 + 7);
-await page.mouse.click(mx, my);
 await page.keyboard.up('ShiftLeft');
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${out}/05-crafted.png` });
 
 // Pick up the bow and hover an equipment slot (invalid target highlight).
-[mx, my] = at(3 + 16 + 7, 12 + 7);
+[mx, my] = centre(L.hotbar[1]);
 await page.mouse.click(mx, my);
-[mx, my] = at(3 + 7, 31 + 22 + 7);
+await page.waitForTimeout(100);
+[mx, my] = centre(L.equip.body);
 await page.mouse.move(mx, my);
 await page.waitForTimeout(150);
 await page.screenshot({ path: `${out}/06-held-item.png` });
+// Put it back.
+[mx, my] = centre(L.hotbar[1]);
 await page.mouse.click(mx, my);
 await page.waitForTimeout(150);
 
@@ -122,6 +129,29 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(500);
 await page.screenshot({ path: `${out}/09-toasts-levelup.png` });
+
+// Co-op: a teammate (shares the local entity, display only) who is down and being revived.
+await page.waitForTimeout(1600);
+await page.evaluate(() => {
+  const w = (window as any).game.session.world;
+  const p = w.players[0];
+  p.skillPicks = 0;
+  const mate = JSON.parse(JSON.stringify(p));
+  mate.index = 1;
+  mate.name = 'BRYNNA';
+  mate.downed = true;
+  mate.reviveProgress = 50;
+  const mate2 = JSON.parse(JSON.stringify(p));
+  mate2.index = 2;
+  mate2.name = 'OSWIN';
+  w.players.push(mate, mate2);
+});
+await page.waitForTimeout(300);
+await page.screenshot({ path: `${out}/10a-coop.png` });
+await page.evaluate(() => {
+  const w = (window as any).game.session.world;
+  w.players.length = 1;
+});
 
 // Downed.
 await page.evaluate(() => {

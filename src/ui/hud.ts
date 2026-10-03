@@ -306,7 +306,8 @@ export class Hud {
     // Being downed supersedes celebratory banners.
     if (p.downed || p.out) this.levelUp.hide();
     this.flash.update(dt, this.viewW, this.viewH);
-    this.downed.update(world, playerIndex, dt, this.t, this.viewW, this.viewH);
+    const noticeTop = L.party.y + Math.max(0, world.players.length - 1) * 9 + 4;
+    this.downed.update(world, playerIndex, dt, this.t, this.viewW, this.viewH, noticeTop);
     this.runOver.update(this.t, this.viewW, this.viewH);
 
     input.pointerCaptured = captured;
@@ -397,7 +398,8 @@ export class Hud {
       return { lines, ...anchor() };
     }
     if (t.kind === 'button') {
-      const text = t.id === 'recipes' ? 'Recipe book' : t.id === 'sort' ? 'Sort backpack' : '';
+      // The open book sits where the button tooltip would go; its own title says enough.
+      const text = t.id === 'recipes' ? (this.bookOpen ? '' : 'Recipe book') : t.id === 'sort' ? 'Sort backpack' : '';
       return text ? { lines: [{ text, color: UI.text }], ...anchor() } : null;
     }
     if (t.kind === 'book') {

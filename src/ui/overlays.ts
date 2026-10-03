@@ -191,7 +191,8 @@ export class DownedOverlay extends Container {
     this.addChild(this.veil, this.title, this.sub, this.bar, this.noticeLayer);
   }
 
-  update(world: World, me: number, dt: number, t: number, viewW: number, viewH: number): void {
+  /** `noticeTop` = y of the first teammate-down notice (below the co-op party list). */
+  update(world: World, me: number, dt: number, t: number, viewW: number, viewH: number, noticeTop = 40): void {
     const p = world.players[me];
     const down = !!p && (p.downed || p.out) && !world.run.over;
     this.veil.visible = this.title.visible = this.sub.visible = this.bar.visible = down;
@@ -210,10 +211,10 @@ export class DownedOverlay extends Container {
       this.bar.set(cx - 30, y + 29, 60, 5, Math.round(58 * frac), frac);
       this.bar.tick(dt);
     }
-    this.updateNotices(world, me, dt, viewW);
+    this.updateNotices(world, me, dt, viewW, noticeTop);
   }
 
-  private updateNotices(world: World, me: number, dt: number, viewW: number): void {
+  private updateNotices(world: World, me: number, dt: number, viewW: number, top: number): void {
     const downed: PlayerState[] = world.players.filter((q) => q.index !== me && q.downed && !q.out);
     while (this.notices.length < downed.length) {
       const n = { text: new PixelText('', { color: UI.bad }), bar: new Bar(UI.good) };
@@ -225,7 +226,7 @@ export class DownedOverlay extends Container {
       const q = downed[i];
       n.text.visible = n.bar.visible = !!q;
       if (!q) return;
-      const y = 40 + i * 16;
+      const y = top + i * 16;
       n.text.text = `${fitText(q.name, 60)} is down! Hold F to revive`;
       n.text.position.set(cx - Math.floor(n.text.textWidth / 2), y);
       const frac = reviveFraction(q.reviveProgress);
