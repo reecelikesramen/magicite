@@ -3,6 +3,7 @@ import { fireProjectile } from '../../src/sim/combat/projectiles';
 import { swingActive, swingDuration, swingPhase, swingWindup } from '../../src/sim/combat/melee';
 import { Content } from '../../src/content';
 import { secs } from '../../src/sim/constants';
+import { emptyInput } from '../../src/sim/types';
 import { FLOOR_Y, give, makeWorld, spawnEnemy, step, stepCollect, tap } from './helpers';
 
 describe('melee swings', () => {
@@ -159,8 +160,8 @@ describe('melee swings', () => {
     const d = spawnEnemy(world, 't_dummy', 92, FLOOR_Y, { kbResist: 1 });
     for (let i = 0; i < 20; i++) {
       world.step([
-        { attack: i === 0, aimX: 140, aimY: 122, moveX: 0, moveY: 0, jump: false, alt: false, interact: false, select: -1, skill: -1, commands: [] },
-        { attack: i === 0, aimX: 20, aimY: 122, moveX: 0, moveY: 0, jump: false, alt: false, interact: false, select: -1, skill: -1, commands: [] },
+        { ...emptyInput(), attack: i === 0, aimX: 140, aimY: 122 },
+        { ...emptyInput(), attack: i === 0, aimX: 20, aimY: 122 },
       ]);
     }
     expect(d.hp).toBe(100 - 2 * (2 + p.stats.atk));
