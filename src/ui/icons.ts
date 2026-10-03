@@ -1,7 +1,10 @@
 /**
  * UI icon textures. Item icons are procedural (see iconArt.ts) unless a sprite source is
  * installed via `setItemIconSource` (the lead routes this through src/render/sprites once the
- * sprite registry lands, e.g. `setItemIconSource((def) => getFrames(def.sprite)?.[0])`).
+ * sprite registry lands). The source must return null for keys the registry can't draw —
+ * `getFrames`/`getIcon` never return undefined (unknown keys yield a labelled placeholder), so
+ * guard them: `setItemIconSource((def) => (resolveSpriteDef(def.sprite) ? getIcon(def.sprite) : null))`.
+ * Returned textures are drawn at ICON (10) px.
  */
 import { Texture } from 'pixi.js';
 import { Content } from '../content';

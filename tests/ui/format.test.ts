@@ -84,6 +84,8 @@ describe('item tooltips', () => {
     expect(tunic).toContain('+2 DEF');
     expect(tunic).toContain('+10% Speed');
     expect(tunic).toContain('Right-click to equip');
+    expect(itemTooltip('test_robe', null).map((l) => l.text)).toContain('Right-click to equip');
+    expect(itemTooltip('test_axe', null).map((l) => l.text).some((t) => t.startsWith('Right-click'))).toBe(false);
     expect(itemTooltip('test_potion', null).map((l) => l.text)).toContain('Right-click to use');
     expect(itemTooltip('test_potion', null).map((l) => l.text)).toContain('+2 HP');
   });

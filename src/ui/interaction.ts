@@ -55,13 +55,18 @@ export function isAccessorySlot(s: EquipSlot | undefined): boolean {
   return s === 'accessory1' || s === 'accessory2';
 }
 
-/** The equipment slot an item naturally goes to (explicit `equipSlot`, else by category). */
+/**
+ * The equipment slot an item naturally goes to (explicit `equipSlot`, else by category; armour
+ * without a slot is body armour). The sim stays authoritative — this only pre-validates moves.
+ */
 export function naturalSlot(def: ItemDef | undefined): EquipSlot | undefined {
   if (!def) return undefined;
   if (def.equipSlot) return def.equipSlot;
   switch (def.category) {
     case 'hat':
       return 'head';
+    case 'armor':
+      return 'body';
     case 'ammo':
       return 'ammo';
     case 'accessory':

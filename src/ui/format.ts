@@ -7,6 +7,7 @@ import type { ItemCategory, ItemDef, SkillDef, StatMods } from '../content/types
 import { measureText } from '../render/pixelfont';
 import { TICK_RATE } from '../sim/constants';
 import type { GameEvent, ItemStack, RunStats } from '../sim/types';
+import { isEquippable } from './interaction';
 import { PATH_COLORS, PATH_NAMES, UI, tierColor } from './theme';
 
 /** 'iron_bar' → 'Iron Bar', 'bossKills' → 'Boss Kills'. */
@@ -214,7 +215,7 @@ export function itemTooltip(id: string, stack: ItemStack | null, opts: TooltipOp
     stat(`Durability ${stack.durability}/${max}`, frac < 0.25 ? UI.bad : UI.text);
   }
   if (def.value > 0) stat(`Value ${def.value} gold`, UI.gold);
-  const hint = def.equipSlot || def.category === 'hat' || def.category === 'ammo' || def.category === 'accessory'
+  const hint = isEquippable(def)
     ? 'Right-click to equip'
     : def.use === 'consume' || def.consume
       ? 'Right-click to use'

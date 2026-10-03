@@ -80,6 +80,9 @@ describe('equipment slots', () => {
     expect(naturalSlot(Content.items.get('test_ring'))).toBe('accessory1');
     expect(naturalSlot(Content.items.get('test_arrow'))).toBe('ammo');
     expect(naturalSlot(Content.items.get('wood'))).toBeUndefined();
+    // Armour without an explicit equipSlot is body armour.
+    expect(naturalSlot(Content.items.get('test_robe'))).toBe('body');
+    expect(secondaryCommand(view({ 9: ['test_robe', 1] }), { kind: 'inv', index: 9 })).toEqual({ type: 'equip', slot: 9 });
     expect(isEquippable(Content.items.get('test_tunic'))).toBe(true);
     expect(isEquippable(Content.items.get('test_axe'))).toBe(false);
     expect(isEquippable(Content.items.get('test_sword'))).toBe(false);

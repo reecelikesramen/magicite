@@ -192,6 +192,8 @@ export function iconKind(def: ItemDef | undefined, id: string): IconKind {
   if (has(s, /berry|berries|apple|fruit/)) return 'berry';
   if (has(s, /shroom|glowcap|mushroom|fungus/)) return 'mushroom';
   if (has(s, /herb|leaf|moss|root|plant/)) return 'herb';
+  // Parts before creatures: 'beetle_shell' is a shell, 'stag_beetle' a bug.
+  if (has(s, /shell|carapace|scale/)) return 'shell';
   if (has(s, /firefly|moth|beetle|bug|butterfly/)) return 'bug';
   if (has(s, /plank|board/)) return 'plank';
   if (has(s, /stick|handle|hilt|rod/)) return 'stick';
@@ -205,7 +207,6 @@ export function iconKind(def: ItemDef | undefined, id: string): IconKind {
   if (has(s, /leather|hide|pelt|fur|skin/)) return 'hide';
   if (has(s, /bone|skull|fang|tooth|horn/)) return 'bone';
   if (has(s, /slime|gel|goo|ooze/)) return 'slime';
-  if (has(s, /shell|carapace|scale/)) return 'shell';
   if (has(s, /wing/)) return 'wing';
   if (has(s, /sac|gland|venom|bladder/)) return 'sac';
   if (has(s, /key/)) return 'key';

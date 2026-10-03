@@ -51,6 +51,8 @@ describe('procedural item icons', () => {
     expect(k('iron_pick_head')).toBe('head');
     expect(k('iron_blade')).toBe('blade');
     expect(k('bug_net')).toBe('net');
+    expect(k('beetle_shell')).toBe('shell');
+    expect(k('stag_beetle')).toBe('bug');
     expect(iconKind({ id: 'x', name: 'X', category: 'tool', tool: 'pickaxe', description: '', sprite: '', maxStack: 1, value: 0, tier: 1 }, 'thing')).toBe('pickaxe');
     expect(iconKind({ id: 'x', name: 'X', category: 'weapon', use: 'cast', projectile: 'fireball', description: '', sprite: '', maxStack: 1, value: 0, tier: 1 }, 'ember_focus')).toBe('wand');
     expect(iconKind(undefined, 'qqq')).toBe('unknown');

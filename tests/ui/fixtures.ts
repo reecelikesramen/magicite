@@ -17,6 +17,7 @@ export const TEST_ITEMS: ItemDef[] = [
   { ...base, id: 'test_helmet', name: 'Test Helmet', category: 'armor', equipSlot: 'head', mods: { def: 1 } },
   { ...base, id: 'test_tunic', name: 'Test Tunic', category: 'armor', equipSlot: 'body', mods: { def: 2, moveSpeed: 0.1 } },
   { ...base, id: 'test_ring', name: 'Test Ring', category: 'accessory', mods: { lck: 1 } },
+  { ...base, id: 'test_robe', name: 'Test Robe', category: 'armor', mods: { mag: 1 } },
   { ...base, id: 'test_arrow', name: 'Test Arrow', category: 'ammo', maxStack: 99, ammoKind: 'arrow' },
   { ...base, id: 'test_potion', name: 'Test Potion', category: 'consumable', maxStack: 10, use: 'consume', consume: { heal: 2 } },
   { ...base, id: 'test_food', name: 'Test Jerky', category: 'consumable', maxStack: 20, tier: 1, use: 'consume', consume: { food: 2 } },
