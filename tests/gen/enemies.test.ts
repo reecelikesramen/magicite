@@ -7,7 +7,7 @@ import { SAFE_RADIUS } from '../../src/sim/gen/populate';
 import { TILE_PROPS } from '../../src/sim/tiles';
 
 /**
- * Enemy selection against a temporary roster (only one real enemy def exists so far): defs are
+ * Enemy selection against a temporary roster added next to the real one: defs are
  * filtered by biome, minDepth and weight, and each lands on the spawn-point type its movement needs.
  * The defs are registered for this file only (vitest isolates test files) and removed afterwards.
  */
@@ -22,7 +22,8 @@ const ROSTER: EnemyDef[] = [
   { ...base, id: 't_never', behavior: 'walker', w: 8, h: 6, biomes: ['hollow'], weight: 0, minDepth: 1 },
   { ...base, id: 't_elsewhere', behavior: 'walker', w: 8, h: 6, biomes: ['cinder'], weight: 10, minDepth: 1 },
 ];
-const POINT: Record<string, string> = { t_bat: 'air', t_imp: 'air', t_spider: 'ceiling', t_totem: 'turret', t_crawler: 'ground', t_deep: 'ground' };
+/** Spawn-point kind a def's movement needs (fixtures and the real roster alike). */
+const pointFor = (d: EnemyDef): string => (d.flying ? 'air' : d.behavior === 'dropper' ? 'ceiling' : d.behavior === 'turret' ? 'turret' : 'ground');
 const enemies = Content.enemies as Map<string, EnemyDef>;
 
 beforeAll(() => {
@@ -49,7 +50,7 @@ describe('enemy placement', () => {
         if (s.kind !== 'enemy') continue;
         seen.add(s.def);
         expect(['t_never', 't_elsewhere', 't_deep', 'green_slime'], s.def).not.toContain(s.def);
-        expect(s.data?.point, s.def).toBe(POINT[s.def]);
+        expect(s.data?.point, s.def).toBe(pointFor(Content.enemies.get(s.def)!));
         const dx = (s.x - l.spawn.x) / TILE;
         const dy = (s.y - l.spawn.y) / TILE;
         expect(dx * dx + dy * dy).toBeGreaterThanOrEqual(SAFE_RADIUS * SAFE_RADIUS);

@@ -117,6 +117,8 @@ describe('net sessions over a lossy loopback', () => {
     expect(gridsEqual(rig.host.world, late.world)).toBe(true);
     expect(gridsEqual(rig.host.world, rig.clients[0]!.world)).toBe(true);
     expect(rig.host.world.players.length).toBe(3);
+    // Convergence is about sync, not combat: clear enemies so nothing knocks idle players around.
+    for (const e of rig.host.world.entities) if (e.kind === 'enemy') rig.host.world.kill(e);
     run(rig, 120, idle, idle);
     for (const c of rig.clients) expect(playerError(rig, c)).toBeLessThanOrEqual(1);
 

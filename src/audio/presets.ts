@@ -199,6 +199,15 @@ export const SFX_ALIASES: Readonly<Record<string, string>> = {
   skill_smoke_bomb: 'smoke',
   skill_hawk: 'hawk',
   skill_volley_step: 'dash',
+  // Enemy AI cues (src/sim/ai)
+  enemy_telegraph: 'zap',
+  enemy_shoot: 'magic_cast',
+  enemy_spit: 'sizzle',
+  enemy_hop: 'jump',
+  enemy_swoop: 'dash',
+  enemy_charge: 'dash',
+  enemy_stun: 'clink',
+  enemy_drop: 'land',
 };
 
 /** Id prefixes (for ids built at runtime, e.g. `skill_${def.id}`) → preset. Checked after aliases. */

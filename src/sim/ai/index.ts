@@ -1,54 +1,74 @@
-import { Content } from '../../content';
+import { approach } from '../../engine/math';
+import { isDisabled, speedMul } from '../combat/status';
 import { DT } from '../constants';
 import type { Entity } from '../types';
 import type { World } from '../world';
+import { charger, critter, dropper, flyer, hopper, shooter, turret, walker } from './behaviors';
+import { enemyDef } from './common';
 
-/** Nearest active player entity to `e` within `range` px, or undefined. */
-export function nearestPlayer(world: World, e: Entity, range: number): Entity | undefined {
-  let best: Entity | undefined;
-  let bestD = range * range;
-  const cx = e.x + e.w / 2;
-  const cy = e.y + e.h / 2;
-  for (const p of world.activePlayers()) {
-    const dx = p.x + p.w / 2 - cx;
-    const dy = p.y + p.h / 2 - cy;
-    const d = dx * dx + dy * dy;
-    if (d < bestD) {
-      bestD = d;
-      best = p;
-    }
-  }
-  return best;
+export { canSee, lineOfSight, nearestPlayer } from './common';
+
+/**
+ * Boss pattern hook: src/sim/ai/bosses registers `(world, boss) => void` updaters by boss id.
+ * Kept as a registry so the AI dispatcher has no hard dependency on boss content.
+ */
+export type BossUpdater = (world: World, e: Entity) => void;
+export const BOSS_UPDATERS: Record<string, BossUpdater> = {};
+
+/** Entities whose movement is owned by another system (the Blight Wraith: progression/wraith.ts). */
+function externallyDriven(e: Entity): boolean {
+  return e.def === 'blight_wraith';
 }
 
-/** PLACEHOLDER (scaffold) hopper: periodically hops toward a nearby player. */
-function hopper(world: World, e: Entity): void {
-  const def = Content.enemies.get(e.def);
-  const ai = (e.ai ??= { state: 'idle', t: 0, target: 0, phase: 0, n: {} });
-  ai.t++;
-  if (e.onGround) {
-    e.vx *= 0.8;
-    if (ai.t > 50 + (e.id % 30)) {
-      const target = nearestPlayer(world, e, def?.sight ?? 80);
-      const dir = target ? Math.sign(target.x - e.x) || 1 : world.rng.sign();
-      e.facing = dir as 1 | -1;
-      e.vx = dir * (def?.speed ?? 40);
-      e.vy = -150;
-      ai.t = 0;
-    }
-  } else if (e.wallDir !== 0) {
-    e.vx = -e.vx;
-  }
-  e.anim = e.onGround ? 'idle' : 'jump';
-  void DT;
-}
-
-/** AI dispatcher: routes each enemy/boss to its behaviour by content def. */
+/** AI dispatcher: routes each enemy/boss to its behaviour (content-driven, deterministic). */
 export function aiSystem(world: World): void {
   if (world.freeze > 0) return;
   for (const e of world.entities) {
-    if (e.dead || (e.kind !== 'enemy' && e.kind !== 'boss')) continue;
-    if (e.hurt > 0 && e.kind === 'enemy') continue; // brief stagger
-    hopper(world, e);
+    if (e.dead) continue;
+    if (e.kind === 'boss') {
+      const up = BOSS_UPDATERS[e.def];
+      if (up && !isDisabled(e)) up(world, e);
+      continue;
+    }
+    if (e.kind !== 'enemy' || externallyDriven(e)) continue;
+    const def = enemyDef(e);
+    if (!def) continue;
+    if (isDisabled(e)) {
+      // Frozen/stunned: no control, slide to a stop (flyers hang in the air).
+      e.vx = approach(e.vx, 0, 600 * DT);
+      if (def.flying) e.vy = approach(e.vy, 0, 600 * DT);
+      e.anim = 'hurt';
+      continue;
+    }
+    if (e.hurt > 0 && def.behavior !== 'turret') continue; // brief stagger: let knockback play
+    const spd = speedMul(e);
+    switch (def.behavior) {
+      case 'walker':
+        walker(world, e, def, spd);
+        break;
+      case 'hopper':
+        hopper(world, e, def, spd);
+        break;
+      case 'flyer':
+        flyer(world, e, def, spd);
+        break;
+      case 'shooter':
+        shooter(world, e, def, spd);
+        break;
+      case 'turret':
+        turret(world, e, def);
+        break;
+      case 'charger':
+        charger(world, e, def, spd);
+        break;
+      case 'dropper':
+        dropper(world, e, def, spd);
+        break;
+      case 'critter':
+        critter(world, e, def, spd);
+        break;
+      default:
+        walker(world, e, def, spd);
+    }
   }
 }
