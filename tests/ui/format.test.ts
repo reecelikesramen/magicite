@@ -213,7 +213,7 @@ describe('run summary', () => {
   it('lists reached district, level, time and every run stat', () => {
     const stats = { kills: 23, bossKills: 1, damageDealt: 141, damageTaken: 19, itemsCrafted: 12, recipesDiscovered: 4, treesChopped: 9, oresMined: 7, bugsCaught: 0, plantsHarvested: 0, goldEarned: 312, deaths: 0, revives: 0, districtsCleared: 3, ticksPlayed: 600, wraithEscapes: 2 } as RunStats;
     const rows = runSummary(stats, { level: 5, district: 4 });
-    expect(rows[0]).toEqual(['Reached', 'District 4']);
+    expect(rows[0]).toEqual(['Reached', 'District 2']); // run level 4 (town after District 2)
     expect(rows[1]).toEqual(['Level', '5']);
     expect(rows[2]).toEqual(['Time', '0:10']);
     expect(rows).toContainEqual(['Monsters slain', '23']);
@@ -226,7 +226,7 @@ describe('run summary', () => {
     // Progression records runStats.level / .district / .xpEarned; the run may end in the town ahead.
     const stats = { kills: 1, ticksPlayed: 60, level: 7, district: 5, xpEarned: 120, skillsLearned: 1, mageSkills: 1 } as unknown as RunStats;
     const rows = runSummary(stats, { level: 6, district: 6 });
-    expect(rows[0]).toEqual(['Reached', 'District 5']);
+    expect(rows[0]).toEqual(['Reached', 'District 3']); // run level 5 = 3rd combat district
     expect(rows[1]).toEqual(['Level', '7']);
     expect(rows.filter(([l]) => l === 'Level')).toHaveLength(1);
     expect(rows.some(([l]) => l === 'District')).toBe(false);
@@ -234,6 +234,6 @@ describe('run summary', () => {
     expect(rows).toContainEqual(['Skills learned', '1']);
     expect(rows).toContainEqual(['Mage skills', '1']);
     // Without recorded values the current level's numbers are used.
-    expect(runSummary({ kills: 0 } as RunStats, { level: 2, district: 3 }).slice(0, 2)).toEqual([['Reached', 'District 3'], ['Level', '2']]);
+    expect(runSummary({ kills: 0 } as RunStats, { level: 2, district: 3 }).slice(0, 2)).toEqual([['Reached', 'District 2'], ['Level', '2']]); // run level 3
   });
 });

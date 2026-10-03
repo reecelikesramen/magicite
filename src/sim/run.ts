@@ -14,16 +14,31 @@ import type { Entity, PlayerState } from './types';
 import type { World } from './world';
 
 /**
- * Run flow (GDD §3): district 1 (woods) → [3 colour-coded portals, one per next-biome option] →
- * town themed to the chosen biome → its right gate → the next district in that biome → … Districts
- * 3/6/9/12/15/18 end in a boss arena (exits locked until the boss dies). District 20's single portal
- * leads straight into the Blight Lair (21, no town, no exit): killing the Blightwall wins the run.
+ * Run flow (GDD §2b): `LevelInfo.district` / `LevelRequest.district` is the run LEVEL 1–21.
+ * Odd levels are combat districts (level 1, 3, … 19 = "District 1 … 10"), even levels are towns
+ * themed to the biome picked at the previous district's portals, level 21 is the Blight Lair (no
+ * exit: killing the Blightwall wins). Combat district → [3 colour-coded portals, one per next-biome
+ * option] → town (level+1) → its right gate → next combat district (level+2) in that biome.
+ * Levels 5/11/17 (3rd/6th/9th combat district) end in a boss arena; other combat districts have a
+ * ROAMING_BOSS_CHANCE of a giant monster without an arena.
  */
 export const FINAL_DISTRICT = 21;
 export const LAIR_BIOME = 'lair';
 export const START_BIOME = 'woods';
 export const FINAL_BOSS = 'blightwall';
-export const BOSS_DISTRICTS: readonly number[] = [3, 6, 9, 12, 15, 18];
+/** Run levels with a boss arena (3rd, 6th and 9th combat district). */
+export const BOSS_DISTRICTS: readonly number[] = [5, 11, 17];
+/** Chance that another combat district (not level 1) holds a roaming giant monster. */
+export const ROAMING_BOSS_CHANCE = 0.15;
+
+/** Combat district number shown to players for run level `level` (1, 3, 5 … → 1, 2, 3 …). */
+export function combatNumber(level: number): number {
+  return Math.max(1, Math.ceil(level / 2));
+}
+
+export function isTownLevel(level: number): boolean {
+  return level < FINAL_DISTRICT && level % 2 === 0;
+}
 /** Number of next-biome portals offered at the end of a district. */
 export const PORTAL_OPTIONS = 3;
 /** Co-op portal countdown (solo play transitions immediately). */
@@ -31,9 +46,9 @@ export const PORTAL_COUNTDOWN = secs(5);
 
 export type DistrictKind = 'normal' | 'boss' | 'lair';
 
-export function districtKind(district: number): DistrictKind {
-  if (district >= FINAL_DISTRICT) return 'lair';
-  return BOSS_DISTRICTS.includes(district) ? 'boss' : 'normal';
+export function districtKind(level: number): DistrictKind {
+  if (level >= FINAL_DISTRICT) return 'lair';
+  return BOSS_DISTRICTS.includes(level) ? 'boss' : 'normal';
 }
 
 /** Biome of district 1: `woods` when present, else the first biome allowed at depth 1. */
@@ -75,13 +90,14 @@ function portalRng(world: World, district: number, biome: string): Rng {
 export function districtRequest(world: World, district: number, biome: string): LevelRequest {
   const kind = districtKind(district);
   if (kind === 'lair') return { seed: world.seed, district: FINAL_DISTRICT, biome: LAIR_BIOME, kind, nextBiomes: [] };
-  const nextBiomes = nextBiomeOptions(portalRng(world, district, biome), district + 1);
+  // Portals pick the biome of the NEXT combat district (two levels on; the town between shares it).
+  const nextBiomes = nextBiomeOptions(portalRng(world, district, biome), district + 2);
   return { seed: world.seed, district, biome, kind, nextBiomes };
 }
 
-/** LevelRequest for the town after district `district`, themed to the chosen next `biome`. */
-export function townRequest(world: World, district: number, biome: string): LevelRequest {
-  return { seed: world.seed, district, biome, kind: 'town', nextBiomes: [] };
+/** LevelRequest for the town at (even) run level `level`, themed to the chosen next `biome`. */
+export function townRequest(world: World, level: number, biome: string): LevelRequest {
+  return { seed: world.seed, district: level, biome, kind: 'town', nextBiomes: [] };
 }
 
 /** Request for district `district` (district 1 → the start biome). Used by createRun. */
@@ -181,12 +197,13 @@ export function travel(world: World, exitIndex: number): void {
   const exit = lvl.exits[exitIndex] ?? lvl.exits[0];
   let req: LevelRequest;
   if (info.isTown) {
-    req = districtRequest(world, info.district + 1, info.biome);
+    // Town gate → the next combat district (level + 1) in the town's biome; level 21 is the lair.
+    req = districtRequest(world, info.district + 1, info.district + 1 >= FINAL_DISTRICT ? LAIR_BIOME : info.biome);
   } else {
     for (const p of world.players) p.runStats.districtsCleared++;
-    const next = info.district + 1;
-    const biome = exit?.biome || nextBiomeOptions(portalRng(world, next, info.biome), next)[0]!;
-    req = next >= FINAL_DISTRICT ? districtRequest(world, FINAL_DISTRICT, LAIR_BIOME) : townRequest(world, info.district, biome);
+    const town = info.district + 1;
+    const biome = exit?.biome || nextBiomeOptions(portalRng(world, info.district, info.biome), info.district + 2)[0]!;
+    req = town >= FINAL_DISTRICT ? districtRequest(world, FINAL_DISTRICT, LAIR_BIOME) : townRequest(world, town, biome);
   }
   const ex = exit ? exit.x + exit.w / 2 : 0;
   const ey = exit ? exit.y + exit.h / 2 : 0;

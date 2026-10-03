@@ -324,7 +324,8 @@ export interface LevelLike {
 
 export function levelBanner(ev: LevelLike): { kicker: string; title: string; sub: string } {
   const title = stripDistrictPrefix(ev.name) || ev.name;
-  const kicker = ev.isTown ? 'Town' : `District ${ev.district}`;
+  // ev.district is the run LEVEL (odd = combat districts, 21 = lair): show the combat number.
+  const kicker = ev.isTown ? 'Town' : ev.district >= 21 ? 'The End' : `District ${Math.ceil(ev.district / 2)}`;
   const sub = ev.isBoss ? 'A giant monster lurks here...' : ev.isTown ? 'Rest, trade and craft in safety' : '';
   return { kicker, title, sub };
 }
@@ -415,7 +416,7 @@ export function runSummary(stats: RunStats, extra: { level: number; district: nu
   const district = (stats.district ?? 0) > 0 ? stats.district! : extra.district;
   const level = Math.max(extra.level, stats.level ?? 0);
   const rows: [string, string][] = [
-    ['Reached', `District ${district}`],
+    ['Reached', district >= 21 ? 'The Blight Lair' : `District ${Math.max(1, Math.ceil(district / 2))}`],
     ['Level', String(level)],
     ['Time', formatTime(stats.ticksPlayed ?? 0)],
   ];

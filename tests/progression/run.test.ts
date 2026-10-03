@@ -94,7 +94,7 @@ describe('district sequence', () => {
     expect(startBiome([B('fen', [2, 3]), B('woods', [1])])).toBe('woods');
   });
 
-  it('D1 → town → D2 → … with towns between districts, boss districts locked, no town before the lair', () => {
+  it('levels 1–21: combat at odd levels, towns at even levels, bosses at 5/11/17, lair at 21', () => {
     const w = createRun(42, [SETUP]);
     const seq: string[] = [];
     for (let guard = 0; guard < 60; guard++) {
@@ -110,21 +110,16 @@ describe('district sequence', () => {
       expect(info.isBoss).toBe(BOSS_DISTRICTS.includes(info.district) && !info.isTown);
       expect(locked).toBe(info.isBoss && w.level.spawns.some((s) => s.kind === 'boss' && Content.bosses.has(s.def)));
       expect(w.level.request?.district).toBe(info.district);
-      if (info.district === 20 && !info.isTown) expect(exits.map((e) => e.biome)).toEqual([LAIR_BIOME]);
+      if (info.district === 19) expect(exits.map((e) => e.biome)).toEqual([LAIR_BIOME]);
+      expect(info.isTown).toBe(info.district % 2 === 0);
       const chosen = exits[exits.length - 1]!.biome;
       travel(w, exits.length - 1);
       if (!info.isTown && w.level.info.isTown) expect(w.level.info.biome).toBe(chosen);
       if (info.isTown) expect(w.level.info.biome).toBe(info.biome);
     }
-    const expected: string[] = [];
-    for (let d = 1; d <= 20; d++) {
-      expected.push(BOSS_DISTRICTS.includes(d) ? `B${d}` : `D${d}`);
-      if (d < 20) expected.push(`T${d}`);
-    }
-    expected.push('LAIR');
-    expect(seq).toEqual(expected);
-    expect(w.run.path).toHaveLength(21);
-    expect(w.players[0]!.runStats.districtsCleared).toBe(20);
+    expect(seq).toEqual(['D1', 'T2', 'D3', 'T4', 'B5', 'T6', 'D7', 'T8', 'D9', 'T10', 'B11', 'T12', 'D13', 'T14', 'D15', 'T16', 'B17', 'T18', 'D19', 'T20', 'LAIR']);
+    expect(w.run.path).toHaveLength(11); // 10 combat districts + the lair
+    expect(w.players[0]!.runStats.districtsCleared).toBe(10);
     expect(w.players[0]!.runStats.district).toBe(21);
   });
 
