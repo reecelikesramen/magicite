@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { Content } from '../../src/content';
 import { animFrame, heldRestAngle, heldSpriteKey, spriteKeyFor, swingAngle } from '../../src/render/entity-keys';
+import { registerBuiltinSprites } from '../../src/render/sprites';
+import { defineSpriteFamily } from '../../src/render/sprites/registry';
 import { createRun } from '../../src/sim';
 import type { Entity } from '../../src/sim/types';
 
+registerBuiltinSprites();
 const world = createRun(7, [{ name: 'A', race: 'drifter', hat: '', companion: '' }, { name: 'B', race: 'drifter', hat: '', companion: '' }]);
 
 function ent(over: Partial<Entity>): Entity {
@@ -59,5 +62,15 @@ describe('poses and animation', () => {
     expect(animFrame(4, 10, 0.45)).toBe(0);
     expect(animFrame(4, 10, 5, true)).toBe(3);
     expect(animFrame(1, 10, 3)).toBe(0);
+  });
+});
+
+describe('race art from other workstreams', () => {
+  // Keep last: registers a family that changes how the drifter race resolves.
+  it('a non-built-in family claiming the race sprite wins over the per-player chibi', () => {
+    const race = Content.races.get('drifter')!.sprite;
+    expect(spriteKeyFor(world.playerEntity(1)!, world.players)).toBe(`${race}#1`);
+    defineSpriteFamily('test_races', (k) => (k === race ? { w: 8, h: 12, anims: { idle: 1 }, draw: () => {} } : null), 1);
+    expect(spriteKeyFor(world.playerEntity(1)!, world.players)).toBe(race);
   });
 });

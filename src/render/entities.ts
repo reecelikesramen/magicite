@@ -20,6 +20,8 @@ interface View {
   sprite: Sprite;
   held: Sprite | null;
   heldKey: string;
+  /** Resting angle of the held item's silhouette (facing right). */
+  heldRest: number;
   anim: string;
   t: number;
   shake: number;
@@ -114,9 +116,10 @@ export class EntityViews {
       const cx = ix + e.w / 2;
       const cy = iy + e.h / 2;
       // Lights reach beyond the entity, so test them before culling the sprite.
-      if (e.light) this.addLight(e, cx, cy, view, style, lights);
-      else if (e.kind === 'projectile') this.projectileLight(e, cx, cy, lights, halos);
-      const onScreen = cx > vx0 && cx < vx1 && iy + e.h > vy0 && iy < vy1;
+      if (e.kind === 'projectile') this.projectileLight(e, cx, cy, view, lights, halos);
+      else if (e.light) this.addLight(e, cx, cy, view, style, lights);
+      const hw = e.w / 2;
+      const onScreen = cx + hw > vx0 && cx - hw < vx1 && iy + e.h > vy0 && iy < vy1;
       let v = this.views.get(e.id);
       if (!onScreen) {
         if (v) v.seen = frame;
@@ -153,13 +156,29 @@ export class EntityViews {
     lights.add(cx, cy - (isPlayer ? 2 : 0), r, color, k);
   }
 
-  /** Projectiles whose def declares a light but whose entity carries none. */
-  private projectileLight(e: Entity, cx: number, cy: number, lights: LightPool, halos: LightPool): void {
-    const def = e.projectile ? Content.projectiles.get(e.projectile.def) : undefined;
-    const l = def?.light;
-    if (!l) return;
-    lights.add(cx, cy, l.radius * ENTITY_LIGHT.radius, l.color, 0.9);
-    halos.add(cx, cy, Math.max(5, l.radius * 0.3), l.color, 0.5);
+  /**
+   * Glowing projectiles: the entity's own light (the combat sim copies ProjectileDef.light onto it)
+   * or else the def's, plus a glow halo either way.
+   */
+  private projectileLight(e: Entity, cx: number, cy: number, view: ViewRect, lights: LightPool, halos: LightPool): void {
+    let radius: number;
+    let color: number;
+    let k = 0.9;
+    if (e.light) {
+      radius = e.light.radius;
+      color = e.light.color;
+      k = 0.9 * e.light.intensity;
+      if (e.light.flicker) k *= 1 - e.light.flicker * flicker(e.id, this.time);
+    } else {
+      const l = e.projectile ? Content.projectiles.get(e.projectile.def)?.light : undefined;
+      if (!l) return;
+      radius = l.radius;
+      color = l.color;
+    }
+    const r = radius * ENTITY_LIGHT.radius;
+    if (cx + r < view.x || cx - r > view.x + view.w || cy + r < view.y || cy - r > view.y + view.h) return;
+    lights.add(cx, cy, r, color, k);
+    halos.add(cx, cy, Math.max(5, radius * 0.3), color, 0.5);
   }
 
   private create(e: Entity, players: readonly PlayerState[]): View {
@@ -172,7 +191,7 @@ export class EntityViews {
     sprite.scale.set(1);
     sprite.tint = 0xffffff;
     const v: View = {
-      id: e.id, seen: 0, key, set, sprite, held: null, heldKey: '', anim: '', t: 0, shake: 0,
+      id: e.id, seen: 0, key, set, sprite, held: null, heldKey: '', heldRest: 0, anim: '', t: 0, shake: 0,
       prevGround: e.onGround, prevVy: e.vy, trailX: e.x, trailY: e.y, emissive: false, home: null, flashing: false,
       variant: hash3(e.id, 17, 3), ax: 0, ay: 0,
     };
@@ -209,6 +228,7 @@ export class EntityViews {
       v.held.removeFromParent();
       this.freeSprites.push(v.held);
       v.held = null;
+      v.heldKey = '';
     }
   }
 
@@ -280,7 +300,7 @@ export class EntityViews {
         emitPreset(ps, 'dust_land', ax + 2, iy + e.h - 1, { count: 3, dirX: 1 });
       } else if (!e.onGround && v.prevGround && e.vy < -60 && e.kind === 'player') emitPreset(ps, 'jump_puff', ax, iy + e.h - 1);
       // Dash streaks: much faster than walking (the controller's dash burst).
-      if (e.kind === 'player' && Math.abs(e.vx) > DASH_SPEED && ps.rand() < 0.7) emitPreset(ps, 'dash', ax - e.facing * 3, iy + e.h * 0.5, { count: 1, dirX: -e.facing });
+      if (e.kind === 'player' && (e.anim === 'dash' || Math.abs(e.vx) > DASH_SPEED) && ps.rand() < 0.7) emitPreset(ps, 'dash', ax - e.facing * 3, iy + e.h * 0.5, { count: 1, dirX: -e.facing });
       v.prevGround = e.onGround;
       v.prevVy = e.vy;
     }
@@ -323,6 +343,7 @@ export class EntityViews {
       const set = spriteSet(key, { kind: 'effect', w: 6, h: 3, label: def.id });
       h.texture = setFrames(set, 'idle')[0]!;
       h.anchor.set(set.ox / set.w, set.oy / set.h);
+      v.heldRest = heldRestAngle(key);
     }
     h.visible = v.sprite.visible;
     h.alpha = v.sprite.alpha;
@@ -336,7 +357,7 @@ export class EntityViews {
       ang = sw.angle;
       this.drawArc(hx, hy, sw.start, sw.angle, h.texture.width);
     } else {
-      const rest = heldRestAngle(key);
+      const rest = v.heldRest;
       ang = f > 0 ? rest : Math.PI - rest;
     }
     h.position.set(hx, hy);

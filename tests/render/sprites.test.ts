@@ -11,6 +11,8 @@ import {
   resolveSpriteDef,
   ShelfPacker,
   spriteOrigin,
+  spritePriority,
+  BUILTIN_PRIORITY,
   type PixelContext,
   type SpriteDef,
 } from '../../src/render/sprites/registry';
@@ -75,6 +77,22 @@ describe('sprite registry', () => {
     expect(pickAnim(d, 'downed')).toBe('dead');
     expect(pickAnim(d, 'whatever')).toBe('idle');
     expect(spriteOrigin(d)).toEqual({ x: 2, y: 4 });
+  });
+
+  it('maps the player controller hints (dash, swim, dive, crawl, out) onto the chibi anims', () => {
+    const p = resolveSpriteDef('player_drifter#0')!;
+    expect(pickAnim(p, 'dash')).toBe('run');
+    expect(pickAnim(p, 'swim')).toBe('fall');
+    expect(pickAnim(p, 'dive')).toBe('fall');
+    expect(pickAnim(p, 'crawl')).toBe('downed');
+    expect(pickAnim(p, 'out')).toBe('downed');
+  });
+
+  it('reports who draws a key: explicit priority, claiming family priority, or -1', () => {
+    expect(spritePriority('test_thing')).toBe(5);
+    expect(spritePriority('zz_other')).toBe(3);
+    expect(spritePriority('player_drifter')).toBe(BUILTIN_PRIORITY);
+    expect(spritePriority('no_such_sprite_key_either')).toBe(-1);
   });
 
   it('shelf packer allocates without overlap and reports full pages', () => {

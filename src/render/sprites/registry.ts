@@ -63,6 +63,8 @@ interface Entry {
 const defs = new Map<string, Entry>();
 const families: { name: string; fn: SpriteFamily; priority: number }[] = [];
 const resolved = new Map<string, SpriteDef | null>();
+/** Priority of the family that resolved each cached key (-1 = none). */
+const resolvedPriority = new Map<string, number>();
 let version = 0;
 
 /** Priority used by the render core's built-in generators (anything else overrides them). */
@@ -91,6 +93,7 @@ export function defineSpriteFamily(name: string, fn: SpriteFamily, priority = 1)
   families.push({ name, fn, priority });
   families.sort((a, b) => b.priority - a.priority);
   resolved.clear();
+  resolvedPriority.clear();
   version++;
 }
 
@@ -104,16 +107,30 @@ export function resolveSpriteDef(key: string): SpriteDef | null {
   if (e) return e.def;
   if (resolved.has(key)) return resolved.get(key)!;
   let out: SpriteDef | null = null;
+  let prio = -1;
   for (const f of families) {
     const d = f.fn(key);
     if (d) {
       validateDef(key, d);
       out = d;
+      prio = f.priority;
       break;
     }
   }
   resolved.set(key, out);
+  resolvedPriority.set(key, prio);
   return out;
+}
+
+/**
+ * Priority of whatever draws `key` (explicit def or the family that claims it); -1 when only the
+ * placeholder would. Lets callers tell built-in fallbacks (BUILTIN_PRIORITY) from real art.
+ */
+export function spritePriority(key: string): number {
+  const e = defs.get(key);
+  if (e) return e.priority;
+  if (!resolved.has(key)) resolveSpriteDef(key);
+  return resolvedPriority.get(key) ?? -1;
 }
 
 /** Bumped whenever definitions change (atlas uses it to invalidate cached frames). */
@@ -158,6 +175,15 @@ const FALLBACK: Record<string, string[]> = {
   charge: ['attack', 'move'],
   telegraph: ['attack', 'idle'],
   downed: ['dead', 'idle'],
+  // Player controller hints (dash / swim / dive / crawl while downed / out for the level).
+  dash: ['run', 'move', 'walk'],
+  swim: ['fall', 'move', 'run'],
+  dive: ['fall', 'jump', 'move'],
+  crawl: ['downed', 'dead', 'idle'],
+  out: ['downed', 'dead', 'idle'],
+  land: ['idle'],
+  windup: ['telegraph', 'attack', 'idle'],
+  throw: ['attack', 'shoot', 'cast'],
 };
 
 /** Pick the anim a def actually has for a requested name. */

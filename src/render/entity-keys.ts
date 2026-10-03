@@ -2,7 +2,7 @@ import { Content } from '../content';
 import type { ItemDef } from '../content/types';
 import type { Entity, PlayerState } from '../sim/types';
 import { heldKey } from './sprites/builtin/items';
-import { hasSprite } from './sprites/registry';
+import { BUILTIN_PRIORITY, hasSprite, registryVersion, spritePriority } from './sprites/registry';
 
 /**
  * Pure mapping from sim entities to sprite keys / poses (no Pixi; unit-tested).
@@ -15,8 +15,9 @@ export function spriteKeyFor(e: Entity, players: readonly PlayerState[]): string
       const p = e.playerIndex !== undefined ? players[e.playerIndex] : undefined;
       const race = p ? Content.races.get(p.race) : undefined;
       const base = race?.sprite ?? 'player';
-      // Explicit art for the race wins; otherwise the built-in chibi family gets a per-player tunic.
-      return hasSprite(base) ? base : `${base}#${e.playerIndex ?? 0}`;
+      // Real art for the race (explicit def or a non-built-in family) wins; otherwise the built-in
+      // chibi family gets a per-player tunic.
+      return spritePriority(base) > BUILTIN_PRIORITY ? base : `${base}#${e.playerIndex ?? 0}`;
     }
     case 'enemy':
       return Content.enemies.get(e.def)?.sprite ?? `enemy_${e.def}`;
@@ -44,15 +45,28 @@ export function spriteKeyFor(e: Entity, players: readonly PlayerState[]): string
   }
 }
 
-/** Sprite key of an item held in hand: explicit `held_<sprite>` art, else a generic silhouette. */
+const heldCache = new Map<string, string>();
+let heldCacheVersion = -1;
+
+/** Sprite key of an item held in hand: explicit `held_<sprite>` art, else a generic silhouette (cached per item). */
 export function heldSpriteKey(def: ItemDef): string {
-  const explicit = `held_${def.sprite}`;
-  return hasSprite(explicit) ? explicit : heldKey(def);
+  if (heldCacheVersion !== registryVersion()) {
+    heldCache.clear();
+    heldCacheVersion = registryVersion();
+  }
+  let key = heldCache.get(def.id);
+  if (key === undefined) {
+    const explicit = `held_${def.sprite}`;
+    key = hasSprite(explicit) ? explicit : heldKey(def);
+    heldCache.set(def.id, key);
+  }
+  return key;
 }
 
 /** Resting angle (radians, facing right) of a held item by its silhouette kind. */
 export function heldRestAngle(key: string): number {
-  const kind = key.startsWith('held:') ? key.split(':')[1] : '';
+  const end = key.startsWith('held:') ? key.indexOf(':', 5) : -1;
+  const kind = end > 0 ? key.slice(5, end) : '';
   switch (kind) {
     case 'bow':
     case 'bomb':
