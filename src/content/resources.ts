@@ -35,13 +35,13 @@ const tree = (biome: string, h: number, weight: number, extra: DropEntry[] = [])
 export const RESOURCES: ResourceDef[] = [
   // Trees — one look per biome; heights tuned so they read as tall puff trees in open woods
   // and stubbier growths in tunnels.
-  tree('woods', 88, 30),
-  tree('fen', 64, 20, [one('fiber', 1, 2, 0.3)]),
+  tree('woods', 72, 30),
+  tree('fen', 56, 20, [one('fiber', 1, 2, 0.3)]),
   tree('hollow', 40, 6, [one('glowcap', 1, 1, 0.25)]),
-  tree('rime', 72, 22),
-  tree('amethyst', 80, 16, [one('amethyst_shard', 1, 1, 0.25)]),
-  tree('cinder', 56, 9, [one('coal', 1, 2, 0.4)]),
-  tree('lair', 64, 6, [one('voidshard', 1, 1, 0.08)]),
+  tree('rime', 64, 22),
+  tree('amethyst', 64, 16, [one('amethyst_shard', 1, 1, 0.25)]),
+  tree('cinder', 48, 9, [one('coal', 1, 2, 0.4)]),
+  tree('lair', 56, 6, [one('voidshard', 1, 1, 0.08)]),
 
   // Rocks and ores.
   {
@@ -110,6 +110,22 @@ export const RESOURCES: ResourceDef[] = [
   {
     id: 'bog_moss_patch', name: 'Bog Moss', sprite: 'res_bog_moss_patch', tool: 'hand', hardness: 0, hp: 1, w: 10, h: 6,
     drops: [one('bog_moss', 1, 2)], biomes: ['fen'], placement: 'ground', weight: 5, minDepth: 1,
+  },
+
+  // Ceiling growths (placement 'ceiling': SpawnSpec y = the ceiling surface, they hang below it).
+  {
+    id: 'vine_hanging', name: 'Hanging Vine', sprite: 'res_vine_hanging', tool: 'hand', hardness: 0, hp: 1, w: 6, h: 16,
+    drops: [one('fiber', 1, 2), one('herb', 1, 1, 0.15)], biomes: ['woods', 'fen', 'hollow', 'amethyst'], placement: 'ceiling', weight: 5, minDepth: 1,
+  },
+  {
+    id: 'icicle_cluster', name: 'Icicles', sprite: 'res_icicle_cluster', tool: 'pickaxe', hardness: 1, hp: 2, w: 8, h: 12,
+    drops: [one('frost_crystal', 1, 1)], biomes: ['rime'], placement: 'ceiling', weight: 5, minDepth: 1,
+    light: { radius: 10, color: 0x80f0ff },
+  },
+  {
+    id: 'crystal_stalactite', name: 'Crystal Stalactite', sprite: 'res_crystal_stalactite', tool: 'pickaxe', hardness: 2, hp: 3, w: 8, h: 12,
+    drops: [one('amethyst_shard', 1, 2)], biomes: ['amethyst', 'lair'], placement: 'ceiling', weight: 3, minDepth: 1,
+    light: { radius: 16, color: 0xe274ee },
   },
 
   // Bugs (caught with a net; they flit around their spot).

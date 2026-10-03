@@ -9,7 +9,7 @@ import { analyzeTraversal, type Traversal } from './validate';
  * otherwise a carved walkway (stairs / ladder shaft / plank bridge) to the nearest good cell.
  * Re-validates after every round. Returns the final analysis.
  */
-export function repairTraversal(ctx: GenCtx, maxRounds = 14): Traversal {
+export function repairTraversal(ctx: GenCtx, maxRounds = 20): Traversal {
   let t = analyze(ctx);
   for (let round = 0; round < maxRounds; round++) {
     let fixed = 0;
@@ -30,7 +30,13 @@ export function repairTraversal(ctx: GenCtx, maxRounds = 14): Traversal {
     // 2. Soft-locks: reachable nodes that can't reach an exit.
     const groups = trappedGroups(t, 4);
     if (groups.length === 0) break;
+    // One fix per neighbourhood per round: pieces of the same pit usually share an exit, so the
+    // next analysis decides whether a second ladder is really needed.
+    const done: number[][] = [];
     for (const g of groups) {
+      const box = bounds(t, g);
+      if (done.some((d) => box[0] <= d[2]! + 10 && box[2] >= d[0]! - 10 && box[1] <= d[3]! + 10 && box[3] >= d[1]! - 10)) continue;
+      const before = fixed;
       if (ladderOut(ctx, t, g)) fixed++;
       else {
         const sample = g.length > 24 ? g.filter((_, i) => i % Math.ceil(g.length / 24) === 0) : g;
@@ -49,6 +55,7 @@ export function repairTraversal(ctx: GenCtx, maxRounds = 14): Traversal {
         }
         if (best >= 0 && walkway(ctx, t, bestFrom, best)) fixed++;
       }
+      if (fixed > before) done.push(box);
     }
     if (fixed === 0) break;
     t = analyze(ctx);
@@ -88,7 +95,25 @@ function nearest(t: Traversal, from: number[], ok: (k: number) => boolean): numb
   return best;
 }
 
-/** Connected groups (8-neighbourhood over cells) of trapped nodes, largest first. */
+/** Tile bounding box [x0, y0, x1, y1] of a node group. */
+function bounds(t: Traversal, g: number[]): number[] {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const k of g) {
+    const c = t.cells[k]!;
+    const x = c % t.w;
+    const y = (c - x) / t.w;
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  return [x0, y0, x1, y1];
+}
+
+/** Connected groups (nearby cells) of trapped nodes, largest first. */
 function trappedGroups(t: Traversal, max: number): number[][] {
   const { w, h } = t;
   const seen = new Uint8Array(t.count);
@@ -102,7 +127,7 @@ function trappedGroups(t: Traversal, max: number): number[][] {
       const x = c % w;
       const y = (c - x) / w;
       for (let dy = -2; dy <= 2; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
+        for (let dx = -3; dx <= 3; dx++) {
           const xx = x + dx;
           const yy = y + dy;
           if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;

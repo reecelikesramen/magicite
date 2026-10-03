@@ -63,7 +63,8 @@ function fits(ctx: GenCtx, x: number, y: number, wpx: number, hpx: number, kind:
 }
 
 function treeFits(ctx: GenCtx, x: number, y: number, d: ResourceDef): boolean {
-  const tiles = Math.ceil(d.h / TILE);
+  // The drawn tree is taller than its hitbox (crown puffs above it).
+  const tiles = Math.ceil(d.h / TILE) + 1;
   const { grid } = ctx;
   if (headroom(grid, x, y, tiles + 2) < tiles + 1) return false;
   // Crown room: neighbours mostly clear (leaves may brush a wall).
@@ -80,7 +81,7 @@ function resourceWeight(ctx: GenCtx, d: ResourceDef): number {
 }
 
 export function populate(ctx: GenCtx, t: Traversal, secretChests: { x: number; y: number }[]): void {
-  const { rng, biome, w } = ctx;
+  const { rng, w } = ctx;
   const spots = floorSpots(ctx, t);
   const reachSpots = spots.filter((s) => s.reach);
   const sx = ctx.spawnTx;
@@ -122,64 +123,109 @@ export function populate(ctx: GenCtx, t: Traversal, secretChests: { x: number; y
   }
 
   // --- Harvestables ---
-  const defs = [...Content.resources.values()].filter((d) => d.weight > 0 && d.biomes.includes(biome.id) && d.minDepth <= ctx.req.district);
-  const ground = defs.filter((d) => d.placement === 'ground');
-  const air = defs.filter((d) => d.placement === 'air');
-  const ceiling = defs.filter((d) => d.placement === 'ceiling');
-  const groundCount = Math.round(reachSpots.length * 0.085 * biome.resourceDensity);
-  let placed = 0;
-  if (ground.length) {
-    for (const s of rng.shuffle(reachSpots.slice())) {
-      if (placed >= groundCount) break;
-      if (!far(s, 3)) continue;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const d = rng.weighted(ground, (r) => resourceWeight(ctx, r));
-        const tree = d.background === true;
-        if (tree && !treeFits(ctx, s.x, s.y, d)) continue;
-        if (!fits(ctx, s.x, s.y, d.w, d.h, 'resource', d.id)) continue;
-        ctx.spawns.push({ kind: 'resource', def: d.id, x: px(s.x), y: py(s.y) });
-        claim(ctx, s.x - (tree ? 2 : 1), s.x + (tree ? 2 : 1), s.y);
-        placed++;
-        break;
-      }
-    }
-  }
-  if (air.length) {
-    const bugCount = Math.max(1, Math.round(groundCount * 0.12));
-    let bugs = 0;
-    for (const s of rng.shuffle(reachSpots.slice())) {
-      if (bugs >= bugCount) break;
-      const lift = rng.int(2, 4);
-      const ay = s.y - lift;
-      if (!airAt(ctx.grid, s.x, ay) || !airAt(ctx.grid, s.x, ay - 1) || headroom(ctx.grid, s.x, s.y) < lift + 2) continue;
-      if (claimed(ctx, s.x, ay)) continue;
-      const d = rng.weighted(air, (r) => r.weight);
-      ctx.spawns.push({ kind: 'resource', def: d.id, x: px(s.x), y: py(ay) });
-      claim(ctx, s.x, s.x, ay);
-      bugs++;
-    }
-  }
-  if (ceiling.length) {
-    const want = Math.round(groundCount * 0.1);
-    let n = 0;
-    for (const s of rng.shuffle(reachSpots.slice())) {
-      if (n >= want) break;
-      const room = headroom(ctx.grid, s.x, s.y);
-      if (room < 4 || room > 14) continue;
-      const cy = s.y - room + 1;
-      if (!IS_SOLID[ctx.grid.get(s.x, cy - 1)] || claimed(ctx, s.x, cy)) continue;
-      const d = rng.weighted(ceiling, (r) => r.weight);
-      ctx.spawns.push({ kind: 'resource', def: d.id, x: px(s.x), y: cy * TILE });
-      claim(ctx, s.x, s.x, cy);
-      n++;
-    }
-  }
+  harvestables(ctx, reachSpots);
 
   // --- Enemy spawn points & enemies ---
   enemySpawns(ctx, reachSpots);
 
   // --- Decor & lanterns ---
   decor(ctx, reachSpots, spots);
+}
+
+/**
+ * Trees, ore veins, plant patches, bugs and ceiling growths on reachable spots. Counts come from
+ * the biome style (per 100 columns) × `BiomeDef.resourceDensity`; ores are weighted by depth.
+ */
+function harvestables(ctx: GenCtx, reachSpots: Spot[]): void {
+  const { rng, biome, style, w, grid } = ctx;
+  const defs = [...Content.resources.values()].filter((d) => d.weight > 0 && d.biomes.includes(biome.id) && d.minDepth <= ctx.req.district);
+  const trees = defs.filter((d) => d.background === true);
+  const rocks = defs.filter((d) => !d.background && d.placement === 'ground' && d.tool === 'pickaxe' && !d.critter);
+  const plants = defs.filter((d) => !d.background && d.placement === 'ground' && d.tool !== 'pickaxe' && !d.critter);
+  const crawlers = defs.filter((d) => d.placement === 'ground' && d.critter === true);
+  const flyers = defs.filter((d) => d.placement === 'air');
+  const hangers = defs.filter((d) => d.placement === 'ceiling');
+  const scale = (w / 100) * biome.resourceDensity;
+  const sx = ctx.spawnTx;
+  const sy = ctx.spawnTy;
+  const spots = rng.shuffle(reachSpots.filter((s) => Math.abs(s.x - sx) + Math.abs(s.y - sy) >= 3));
+  const place = (d: ResourceDef, x: number, y: number): boolean => {
+    if (!fits(ctx, x, y, d.w, d.h, 'resource', d.id)) return false;
+    ctx.spawns.push({ kind: 'resource', def: d.id, x: px(x), y: py(y) });
+    const half = Math.max(0, Math.ceil(d.w / TILE / 2) - 1);
+    claim(ctx, x - half, x + half, y);
+    return true;
+  };
+
+  // Trees: tall background growths where the ceiling clears them, a few tiles apart.
+  if (trees.length) {
+    const want = Math.round(style.trees * scale);
+    let n = 0;
+    for (const s of spots) {
+      if (n >= want) break;
+      const d = rng.weighted(trees, (r) => r.weight);
+      if (!treeFits(ctx, s.x, s.y, d) || claimed(ctx, s.x - 1, s.y) || claimed(ctx, s.x + 1, s.y)) continue;
+      if (!place(d, s.x, s.y)) continue;
+      claim(ctx, s.x - 2, s.x + 2, s.y);
+      n++;
+    }
+  }
+  // Rocks & ore veins: clusters of 1–3 nodes; the extra nodes repeat the ore or are plain stone.
+  const stone = rocks.find((d) => d.id === 'rock_stone');
+  const cluster = (pool: ResourceDef[], want: number, spread: number, extra: (first: ResourceDef) => ResourceDef): void => {
+    let n = 0;
+    for (const s of spots) {
+      if (n >= want) break;
+      const first = rng.weighted(pool, (r) => resourceWeight(ctx, r));
+      if (!place(first, s.x, s.y)) continue;
+      n++;
+      const size = rng.int(0, 2);
+      for (let k = 0, dir = rng.sign(); k < size && n < want; k++, dir = -dir as 1 | -1) {
+        const x = s.x + dir * (spread + (k >> 1));
+        if (groundSpot(grid, x, s.y) && place(extra(first), x, s.y)) n++;
+      }
+    }
+  };
+  if (rocks.length) cluster(rocks, Math.round(style.rocks * scale), 2, (first) => (stone && first !== stone && rng.chance(0.5) ? stone : first));
+  if (plants.length) cluster(plants, Math.round(style.plants * scale), 1, (first) => (rng.chance(0.6) ? first : rng.weighted(plants, (r) => r.weight)));
+  // Bugs: flyers hover 2–4 tiles above a floor; crawlers sit on it.
+  const bugs = [...flyers, ...crawlers];
+  if (bugs.length) {
+    const want = Math.max(1, Math.round(style.bugs * scale));
+    let n = 0;
+    for (const s of spots) {
+      if (n >= want) break;
+      const d = rng.weighted(bugs, (r) => r.weight);
+      if (d.placement === 'ground') {
+        if (place(d, s.x, s.y)) n++;
+        continue;
+      }
+      const lift = rng.int(2, 4);
+      const ay = s.y - lift;
+      if (headroom(grid, s.x, s.y, lift + 3) < lift + 2 || claimed(ctx, s.x, ay)) continue;
+      ctx.spawns.push({ kind: 'resource', def: d.id, x: px(s.x), y: py(ay) });
+      claim(ctx, s.x, s.x, ay);
+      n++;
+    }
+  }
+  // Ceiling growths (vines, icicles, crystal stalactites) over reachable floors.
+  if (hangers.length) {
+    const want = Math.round(style.hangers * scale);
+    let n = 0;
+    for (const s of spots) {
+      if (n >= want) break;
+      const room = headroom(grid, s.x, s.y, 16);
+      if (room < 5 || room > 14) continue;
+      const cy = s.y - room + 1;
+      const above = grid.get(s.x, cy - 1);
+      if (!IS_SOLID[above] || above === Tile.BEDROCK || claimed(ctx, s.x, cy)) continue;
+      const d = rng.weighted(hangers, (r) => r.weight);
+      if (Math.ceil(d.h / TILE) >= room - 2) continue;
+      ctx.spawns.push({ kind: 'resource', def: d.id, x: px(s.x), y: cy * TILE });
+      claim(ctx, s.x, s.x, cy);
+      n++;
+    }
+  }
 }
 
 const BEHAVIOR_POINT: Record<string, SpawnPointKind> = {
@@ -270,11 +316,14 @@ function enemySpawns(ctx: GenCtx, reachSpots: Spot[]): void {
     list.push(e);
     byKind.set(k, list);
   }
-  const want = Math.round((w / 9) * biome.enemyDensity * (1 + 0.6 * ctx.depth));
+  // ≈ 1 enemy per 12 columns at depth 1, ≈ 1 per 7 at depth 20; chosen points ≥ 5 tiles apart.
+  const want = Math.round((w / 12) * biome.enemyDensity * (1 + 0.8 * ctx.depth));
   const candidates = rng.shuffle(points.filter((p) => p.kind !== 'giant'));
+  const chosen: SpawnPoint[] = [];
   let made = 0;
   for (const p of candidates) {
     if (made >= want) break;
+    if (chosen.some((c) => Math.abs(c.x - p.x) < 5 * TILE && Math.abs(c.y - p.y) < 4 * TILE)) continue;
     let list = byKind.get(p.kind);
     if (!list && p.kind === 'turret') list = byKind.get('ground');
     if (!list || list.length === 0) continue;
@@ -283,6 +332,7 @@ function enemySpawns(ctx: GenCtx, reachSpots: Spot[]): void {
     const spec: SpawnSpec = { kind: 'enemy', def: e.id, x: p.x, y, data: { point: p.kind } };
     if (rectHitsSolid(ctx.grid, specRect(spec))) continue;
     ctx.spawns.push(spec);
+    chosen.push(p);
     made++;
   }
 }
