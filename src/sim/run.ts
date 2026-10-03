@@ -17,7 +17,9 @@ export function requestFor(world: World, district: number, biome = biomeForDistr
 
 export function enterLevel(world: World, req: LevelRequest): void {
   world.run.path.push(req.biome);
-  world.loadLevel(generateLevel(req), spawnLevelEntities);
+  const level = generateLevel(req);
+  level.request = req; // lets net clients regenerate this level locally (src/net/levelsync.ts)
+  world.loadLevel(level, spawnLevelEntities);
 }
 
 /** Exit portal: when every non-out player stands in the exit and one presses interact, advance. */
