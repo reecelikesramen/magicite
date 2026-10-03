@@ -3,7 +3,7 @@ import type { Session } from '../game/session';
 import { createRun } from '../sim';
 import { MAX_PLAYERS } from '../sim/constants';
 import { addPlayer } from '../sim/player/create';
-import type { GameEvent, PlayerCommand, PlayerInput, PlayerState } from '../sim/types';
+import type { GameEvent, PlayerCommand, PlayerInput } from '../sim/types';
 import { emptyInput } from '../sim/types';
 import type { Level, PlayerSetup, World } from '../sim/world';
 import { ByteReader, ByteWriter, CollectingSink, bytesEqual, writeValue } from './codec';
@@ -860,8 +860,3 @@ const LEAVE_MARK = new Uint8Array(0);
 const NO_IDS: number[] = [];
 const NO_COMMANDS: PlayerCommand[] = [];
 const EMPTY_INPUT: PlayerInput = emptyInput();
-
-/** Exposed for tests: the owner layout a host would compute for a player. */
-export function ownerLayoutFor(p: PlayerState, world: World) {
-  return buildOwnerLayout(p, world.get(p.entityId)!);
-}

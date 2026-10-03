@@ -196,11 +196,6 @@ export function readLevelFull(r: ByteReader, table: StringTable): Level {
   return { ...(meta as unknown as Level), grid, spawns: [] };
 }
 
-/** The level request a level was generated from, if the run flow recorded it. */
-export function levelRequestOf(level: Level): LevelRequest | undefined {
-  return level.request;
-}
-
 /** Client: rebuild a level locally from its request (spawns are dropped: entities come from snapshots). */
 export function regenerateLevel(req: LevelRequest): Level {
   const level = generateLevel(req);

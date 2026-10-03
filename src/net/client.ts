@@ -99,7 +99,6 @@ interface Predicted {
 
 const F_SWING = fieldIdx('swing');
 const F_SWING_TICKS = fieldIdx('swing.ticks');
-const F_PLAYER_INDEX = fieldIdx('playerIndex');
 /** Fields the client predicts (or manages) for its own player: never overwritten from rows. */
 const LOCAL_SKIP = fieldMask([...PREDICTED_ENTITY_KEYS, 'anim', 'age', 'held', ...fieldsUnder('swing').map((i) => ENTITY_FIELDS[i]!.key)]);
 /** Interpolated fields (written by the interpolator, not by row application). */
@@ -899,4 +898,3 @@ function applyRowDiff(e: Entity, rows: Int32Array, off: number, prev: Int32Array
 const DEBUG = typeof process !== 'undefined' && !!process.env?.NET_DEBUG;
 const EMPTY: PlayerInput = emptyInput();
 const NO_COMMANDS: PlayerInput['commands'] = [];
-void F_PLAYER_INDEX;

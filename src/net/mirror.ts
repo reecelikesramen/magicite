@@ -7,7 +7,7 @@ import type { Level, World } from '../sim/world';
  * Helpers for a client's *mirror* World: a World that is never stepped, whose entities are
  * created/removed by the netcode with host-assigned ids. World keeps its id index private (the sim
  * never needs to insert foreign ids), so the mirror reaches it through a narrow, checked cast
- * (covered by tests/net/mirror.test.ts so a rename in world.ts fails loudly).
+ * (covered by the mirror test in tests/net/snapshot.test.ts so a rename in world.ts fails loudly).
  */
 interface WorldInternals {
   byId: Map<number, Entity>;
