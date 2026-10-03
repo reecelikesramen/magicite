@@ -94,6 +94,7 @@ export const RECIPES: RecipeDef[] = [
   r('flint', 'fiber', 'flint_dagger'),
   r('bone', 'fiber', 'bone_dagger'),
   r('bone', 'bone', 'bone_club'),
+  r('iron_blade', 'bogscale', 'jade_blade', 1, { hint: 'Wrap an iron blade in fen scale for a swift green sword.' }),
   r('shaft', 'string', 'bug_net', 1, { hint: 'A string mesh on a long shaft.' }),
 
   // --- Metal lines --------------------------------------------------------------------------------
