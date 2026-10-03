@@ -81,6 +81,13 @@ or desktop app — or an optional headless Bun server running the same code) own
 
 ## Desktop packaging (later phase)
 
+Measured (docs/research/tech-stack.md): a `bun build --compile` hello-world is **81–95 MB** (the runtime is
+embedded); Deno is similar. So Bun/Deno shells are convenient but not tiny. Options, all loading the same
+single-file HTML:
+- **Bun shell** (`electrobun` or `webview-bun`): one toolchain with the dedicated server; ~25–37 MB compressed.
+- **Tauri 2 / C or Zig webview shell**: 1–10 MB binaries; networking/saves via small native plugins if needed.
+
+
 `bun run build:single` → `dist-single/index.html` (everything inlined). A Bun (`webview-bun`) or Deno
 (`@webview/webview`) shell loads that HTML into the OS webview (WebView2 / WKWebView / WebKitGTK) and
 is compiled to a single executable. The shell's native side can host networking/saves if a webview

@@ -21,6 +21,29 @@ You are a delver: descend 20 districts, break into the **Blight Lair**, and dest
 Intro: 5 caption cards over procedural pixel vignettes (village in sun → purple sky rays → ruined village →
 people underground by torchlight → title "SHARDFALL" with sparkles).
 
+## 2b. Decisions after code-verified research (supersede conflicting text below)
+Source: `docs/research/magicite-reference.md` §18. These are binding for implementation.
+1. **Run length (original pacing, ≈1 h)**: levels 1–21. **Odd = combat districts** (1, 3, …, 19 → 10 combat
+   districts), **even = towns** (2, 4, …, 20, themed to the biome chosen at the previous portal), **21 = Blight
+   Lair**. "District N" in the UI counts combat districts only (District 1–10, then *The Blight Lair*).
+2. **Giant monsters**: guaranteed boss arena on the **3rd, 6th and 9th combat district** (levels 5, 11, 17) using that
+   district's biome boss; every other combat district has a **15%** chance of a roaming giant monster (no arena, no
+   lock). Final boss Blightwall at level 21 (4500 HP + 700 per extra player).
+3. **Character creation**: every stat starts at **3** (HP, ATK, DEX, MAG; HP gets +2 → 5); the player (or *Reroll*)
+   picks **two "good" stats (+1)** and **one "bad" stat (−1)**. **LCK** (our extension) starts at 3 and only moves via
+   traits/gear/races. **Level-ups**: good stats +1 every 2 levels, neutral every 3, bad every 4 (deterministic
+   cadence), plus full meter refill. **XP to next level = L² + 3L + 4** (8 at Lv1, 92 at Lv8 — matches the owner's
+   screenshots); keep it a tunable function.
+4. **Stamina** (original rule): max = 4 until Lv4, then = level, cap 12 (+ mods); regen **1 per second**. DEX gives
+   +1% move speed per point above 3 and scales bows.
+5. **Crafting quantities**: *material* recipes consume **min(A, B)** from both stacks and produce `min(A,B) × count`
+   (batch crafting); gear/tool/consumable recipes craft one at a time. Combining a stack with itself pairs it with
+   itself: produces `floor(n/2) × count`.
+6. **Co-op scaling**: enemies & bosses get **+50% HP and +40% damage per extra player**.
+7. Our deliberate deviations stay: 1-of-3 skill choice (one per path), harsher hunger, hold-to-revive with
+   bleed-out, portal countdown + vote, distinct door biomes, Wraith warnings, knockback, acceleration + jump-cut.
+8. Naming: biome ids are `woods fen hollow rime amethyst cinder lair` — never original-game names.
+
 ## 3. Run structure
 - **Character creation**: name (random generator, ≤10 chars, editable), **race**, **companion**, **2 traits**
   (cycle with ◀ ▶), **stats** (15 points randomly spread over HP/ATK/DEX/MAG/LCK; HP 4–6, others 2–4; *Reroll*),
