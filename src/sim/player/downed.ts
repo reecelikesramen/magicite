@@ -48,21 +48,28 @@ function standUp(world: World, p: PlayerState, e: Entity, hp: number, invuln: nu
 }
 
 /**
- * Level-entry bookkeeping for every player: auto-revive downed/out players at 1 HP, reset transient
- * controller state, and record the safe position. Idempotent per level; the meters system calls it
- * automatically when the level key changes (run flow may also call it directly after loadLevel).
+ * Level-entry bookkeeping for one player: auto-revive at 1 HP if downed/out, reset transient
+ * controller state, and record the safe position. The meters system calls it for every player whose
+ * `ctl.levelKey` differs from the current level — all of them after a level change, but only the
+ * newcomer when someone drops into a co-op game mid-level (which must not revive anyone else).
+ */
+export function enterLevelFor(world: World, p: PlayerState, key = currentLevelKey(world)): void {
+  p.ctl.levelKey = key;
+  const e = world.get(p.entityId);
+  if (!e) return;
+  if (p.downed || p.out) standUp(world, p, e, 1, secs(1));
+  else resetMotion(p, e);
+  p.ctl.safeX = e.x;
+  p.ctl.safeY = e.y;
+}
+
+/**
+ * Level-entry bookkeeping for every player (see enterLevelFor). Idempotent per level; the meters
+ * system does this automatically when the level key changes, so run flow need not call it.
  */
 export function onLevelEnter(world: World): void {
   const key = currentLevelKey(world);
-  for (const p of world.players) {
-    p.ctl.levelKey = key;
-    const e = world.get(p.entityId);
-    if (!e) continue;
-    if (p.downed || p.out) standUp(world, p, e, 1, secs(1));
-    else resetMotion(p, e);
-    p.ctl.safeX = e.x;
-    p.ctl.safeY = e.y;
-  }
+  for (const p of world.players) enterLevelFor(world, p, key);
 }
 
 /** End the run as a defeat (once). */

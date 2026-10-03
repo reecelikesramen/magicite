@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PHYS, secs } from '../../src/sim/constants';
 import { applyDamage } from '../../src/sim/combat/damage';
+import { addPlayer } from '../../src/sim/player/create';
 import { DOWNED, onLevelEnter } from '../../src/sim/player/downed';
 import type { World } from '../../src/sim/world';
 import { boxGrid, ent, loadTestLevel, makeWorld, pl, place, run, settle, TILE } from './helpers';
@@ -99,6 +100,21 @@ describe('downed & revive (co-op)', () => {
     // Idempotent when called explicitly by run flow as well.
     onLevelEnter(w);
     expect(ent(w, 1).hp).toBe(1);
+  });
+
+  it('a teammate dropping in mid-level does not revive downed or out players', () => {
+    const w = coop(3);
+    down(w, 0);
+    run(w, DOWNED.bleedOutTicks + 5); // player 0 bled out
+    down(w, 1);
+    run(w, 5); // player 1 downed
+    expect([pl(w, 0).out, pl(w, 1).downed]).toEqual([true, true]);
+    addPlayer(w, { name: 'Late', race: 'drifter', hat: '', companion: '' });
+    run(w, 2);
+    expect(pl(w, 0).out).toBe(true);
+    expect(pl(w, 1).downed).toBe(true);
+    expect(ent(w, 0).hp).toBe(0);
+    expect(pl(w, 3).ctl.levelKey).toBe(pl(w, 2).ctl.levelKey); // newcomer got its level-entry bookkeeping
   });
 
   it('when the whole party is down the run is over', () => {

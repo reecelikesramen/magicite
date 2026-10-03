@@ -2,7 +2,7 @@ import { secs } from '../constants';
 import { applyDamage } from '../combat/damage';
 import type { Entity, PlayerState } from '../types';
 import type { World } from '../world';
-import { currentLevelKey, onLevelEnter, updateDowned } from './downed';
+import { currentLevelKey, enterLevelFor, updateDowned } from './downed';
 
 /**
  * Meter tuning (GDD §5). Meters are small integers shown as pips on the HUD:
@@ -160,12 +160,7 @@ function drainHunger(world: World, p: PlayerState, e: Entity): void {
 export function metersSystem(world: World): void {
   if (world.run.over) return;
   const key = currentLevelKey(world);
-  for (const p of world.players) {
-    if (p.ctl.levelKey !== key) {
-      onLevelEnter(world);
-      break;
-    }
-  }
+  for (const p of world.players) if (p.ctl.levelKey !== key) enterLevelFor(world, p, key);
   for (const p of world.players) {
     p.runStats.ticksPlayed++;
     const e = world.get(p.entityId);
