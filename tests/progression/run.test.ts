@@ -325,6 +325,15 @@ describe('run end', () => {
     expect(w.run.victory).toBe(true);
   });
 
+  it('a Blightwall killed outside the lair does not end the run', () => {
+    const w = makeWorld({ systems: FLOW_SYSTEMS, level: arenaLevel({ district: 9 }) });
+    const wall = dummy(w, 300, FLOOR_Y - 30, 400, 'boss', 'blightwall');
+    stepTicks(w, 1);
+    killEntity(w, wall, 0);
+    stepTicks(w, 2);
+    expect(w.run.over).toBe(false);
+  });
+
   it('other bosses dying outside the lair do not end the run', () => {
     const w = makeWorld({ systems: FLOW_SYSTEMS, level: arenaLevel({ district: 6, isBoss: true }, [], true) });
     const boss = dummy(w, 300, FLOOR_Y - 30, 100, 'boss', 'gloomjaw');

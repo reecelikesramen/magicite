@@ -223,10 +223,10 @@ export function declareDefeat(world: World): void {
 
 /**
  * Boss bookkeeping: bosses killed this tick are still in the entity list with `dead` set (cleanup
- * runs after all systems), so no event reading is needed. The final boss dying wins the run (in the
- * lair, so does every boss there being gone once one was seen — but a boss-kind minion dying while
- * the Blightwall lives does not); in a boss district the exits unlock once a boss was seen and none
- * remain. Returns true if the run just ended.
+ * runs after all systems), so no event reading is needed. The final boss dying in the lair wins the
+ * run (so does every lair boss being gone once one was seen — but a boss-kind minion dying while the
+ * Blightwall lives does not; a Blightwall killed elsewhere, e.g. a Madcap hunter, only retreats). In a
+ * boss district the exits unlock once a boss was seen and none remain. Returns true if the run ended.
  */
 function watchBosses(world: World): boolean {
   const lvl = world.level;
@@ -237,7 +237,7 @@ function watchBosses(world: World): boolean {
   for (const e of world.entities) {
     if (e.kind !== 'boss') continue;
     if (!e.dead) alive++;
-    else if (e.def === FINAL_BOSS) finalDown = true;
+    else if (lair && e.def === FINAL_BOSS) finalDown = true;
   }
   if (alive > 0) run.bossSeen = true;
   if (finalDown || (lair && run.bossSeen && alive === 0)) {

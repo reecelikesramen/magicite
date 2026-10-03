@@ -23,7 +23,7 @@ GDD §3 / §5 / §10 / §11. Everything under `src/sim` is pure and deterministi
 `D1 (woods) → 3 portals (biomes allowed at the next depth, from BiomeDef.depths) → town (district =
 the one just cleared, biome = chosen) → gate → D2 …`; D3/6/9/12/15/18 are `kind: 'boss'`
 (`level.locked` until a boss seen alive is gone); D20's single portal (`biome: 'lair'`) leads straight
-to the lair (D21, no town, no exits). Killing `blightwall` (or, in the lair, every boss gone once one
+to the lair (D21, no town, no exits). Killing `blightwall` in the lair (or every lair boss gone once one
 was seen — a boss-kind minion dying alone does not count) → `run.victory`,
 `run.over`, `runOver{victory:true}`. Portal options are seeded from (run seed, district, route), not
 `world.rng`. Solo portal use is immediate; co-op starts a 5 s countdown (message each second); at zero
