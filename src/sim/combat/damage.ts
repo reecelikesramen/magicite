@@ -117,7 +117,8 @@ export function computeDamage(
 /** Outgoing damage for non-player attackers (enemy contact / projectiles): base × weak × difficulty/co-op. */
 export function enemyDamage(world: World, e: Entity, base: number): number {
   const scaled = e.kind === 'enemy' || e.kind === 'boss' ? scaleEnemyDamage(world, base) : base;
-  return Math.max(1, Math.round(scaled * damageDealtMul(e)));
+  // `ai.n.dealtMul`: per-entity damage scale (boss depth scaling, see ai/bosses.ts).
+  return Math.max(1, Math.round(scaled * damageDealtMul(e) * (e.ai?.n.dealtMul ?? 1)));
 }
 
 /**

@@ -57,6 +57,10 @@ export const ENEMIES: EnemyDef[] = [
   enemy({ id: 'blight_head', name: 'Blight Head', behavior: 'shooter', w: 10, h: 10, hp: 20, damage: 4, damageType: 'magic', speed: 35, sight: 160, flying: true, projectile: 'magic_orb', attackCooldown: 2.2, xp: 15, gold: [2, 6], drops: [drop('voidshard', 0.15)], biomes: ['lair'], weight: 6, minDepth: 21, light: { radius: 20, color: 0xff40c0 } }),
   enemy({ id: 'blight_spawn', name: 'Blight Spawn', behavior: 'walker', w: 9, h: 9, hp: 18, damage: 4, speed: 34, sight: 120, xp: 12, gold: [1, 4], drops: [drop('voidshard', 0.08)], biomes: ['lair'], weight: 8, minDepth: 21 }),
 
+  // --- Boss minions (weight 0: never placed by level gen; bosses spawn them) ------------------------
+  enemy({ id: 'tadpole', name: 'Bog Tadpole', behavior: 'hopper', w: 6, h: 4, hp: 4, damage: 1, damageType: 'poison', speed: 50, sight: 160, xp: 1, biomes: ['fen'], weight: 0 }),
+  enemy({ id: 'spiderling', name: 'Spiderling', behavior: 'walker', w: 6, h: 4, hp: 5, damage: 1, damageType: 'poison', speed: 60, sight: 160, xp: 1, biomes: ['hollow'], weight: 0 }),
+
   // --- The Blight Wraith: run-flow hunter (src/sim/progression/wraith.ts moves it) ------------------
   {
     id: 'blight_wraith', name: 'Blight Wraith', sprite: 'enemy_blight_wraith', behavior: 'flyer', w: 12, h: 14, hp: 9999, damage: 4,

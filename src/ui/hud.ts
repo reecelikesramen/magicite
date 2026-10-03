@@ -18,6 +18,7 @@ import {
   runSummary,
 } from './format';
 import { type ClickResult, type InvState, clearSelection, invClick, newInvState, padPress, sanitize, stackAt } from './interaction';
+import { BossBar } from './bossbar';
 import { InventoryPanel } from './inventory';
 import { type Rect, type UiTarget, hitTestButtons, hitTestInventory, navNeighbor, navTargets, targetRect } from './layout';
 import { GAMEPLAY_PAD_BTNS, GamepadNav, HoldLatch, UiKeys } from './nav';
@@ -70,6 +71,7 @@ export class Hud {
   private readonly flash = new Flash();
   private readonly downed = new DownedOverlay();
   private readonly runOver = new RunOverScreen();
+  private readonly bossBar = new BossBar();
   private readonly state: InvState = newInvState();
   private readonly dur = new DurabilityMemory();
   private readonly keys = new UiKeys();
@@ -98,6 +100,7 @@ export class Hud {
   constructor() {
     this.root.addChild(
       this.flash,
+      this.bossBar,
       this.top,
       this.banner,
       this.levelUp,
@@ -120,6 +123,7 @@ export class Hud {
     this.viewH = Math.floor(screenH / this.scale);
     this.root.scale.set(this.scale);
     this.top.layout(this.viewW, this.viewH);
+    this.bossBar.layout(this.viewW, this.viewH);
     this.inv.layout(this.viewW, this.viewH);
     this.navRects = this.navList.map((t) => targetRect(this.inv.L, t)!);
     this.skills.layout(this.top.L.skillPanel.right, this.top.L.skillPanel.y);
@@ -308,6 +312,7 @@ export class Hud {
 
     // --- Views ------------------------------------------------------------------------------------
     this.top.update(world, p, e, dt, this.dur, this.inventoryOpen);
+    this.bossBar.update(world, playerIndex, dt);
     if (this.inventoryOpen) {
       if (p.knownRecipes.length !== this.recipesKey) {
         this.recipesKey = p.knownRecipes.length;

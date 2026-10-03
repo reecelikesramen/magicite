@@ -3,6 +3,7 @@ import { InputManager } from './engine/input';
 import { Game } from './game/game';
 import { App } from './game/app';
 import { LocalSession } from './game/session';
+import { enterLevel, requestFor } from './sim/run';
 import { GAME_TITLE } from './config';
 import { getIcon } from './render/sprites';
 import { resolveSpriteDef } from './render/sprites/registry';
@@ -29,7 +30,13 @@ async function boot(): Promise<void> {
   const input = new InputManager(app.canvas);
   // `?seed=N` skips the menus straight into a solo run (dev/testing); otherwise the title screen.
   const fixedSeed = params.get('seed');
-  const solo = () => new LocalSession(Number(fixedSeed), [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }]);
+  // Dev: `&level=5&biome=woods` jumps straight to that run level (boss arenas, towns, the lair).
+  const jumpLevel = Number(params.get('level') ?? 0);
+  const solo = () => {
+    const s = new LocalSession(Number(fixedSeed), [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }]);
+    if (jumpLevel > 1) enterLevel(s.world, requestFor(s.world, jumpLevel, params.get('biome') ?? undefined));
+    return s;
+  };
   const game = new Game(app, input, fixedSeed ? solo() : new LocalSession(1, [{ name: 'DEMO', race: 'drifter', hat: '', companion: '' }]), fixedSeed ? solo : undefined);
   if (!fixedSeed) (window as unknown as { app: App }).app = new App(app, game);
   game.start();

@@ -1,3 +1,4 @@
+import { spawnBoss } from './ai/bosses';
 import { scaleSpawnedEnemy } from './progression/difficulty';
 import { Content } from '../content';
 import type { SpawnSpec, World } from './world';
@@ -20,11 +21,7 @@ export function spawnFromSpec(world: World, s: SpawnSpec): void {
     }
     case 'boss': {
       const d = Content.bosses.get(s.def);
-      if (!d) return;
-      const e = world.spawnAt('boss', d.id, s.x, s.y, d.w, d.h, {
-        hp: d.hp, maxHp: d.hp, armor: d.def ?? 0, kbResist: d.knockbackResist ?? 0.8, gravityScale: d.flying ? 0 : 1,
-      });
-      scaleSpawnedEnemy(world, e);
+      if (d) spawnBoss(world, d, s.x, s.y, s.data);
       return;
     }
     case 'resource': {

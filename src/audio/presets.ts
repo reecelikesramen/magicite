@@ -208,6 +208,9 @@ export const SFX_ALIASES: Readonly<Record<string, string>> = {
   enemy_charge: 'dash',
   enemy_stun: 'clink',
   enemy_drop: 'land',
+  // Bosses (src/sim/ai/bosses.ts)
+  boss_slam: 'slam',
+  arena_lock: 'locked',
 };
 
 /** Id prefixes (for ids built at runtime, e.g. `skill_${def.id}`) → preset. Checked after aliases. */

@@ -4,7 +4,8 @@ import type { BiomeDef } from '../content/types';
 import { rectsOverlap } from '../engine/math';
 import { hashSeed, Rng } from '../engine/rng';
 import { secs } from './constants';
-import { generateLevel, type LevelRequest } from './gen';
+import { spawnBoss, unsealArenaDoor } from './ai/bosses';
+import { generateLevel, levelSpawnPoints, type LevelRequest } from './gen';
 import { spawnCompanions } from './progression/companions';
 import { applyDifficultyToLevel } from './progression/difficulty';
 import { resetSkillCooldowns } from './progression/skills';
@@ -165,11 +166,29 @@ export function unsealIfBossless(world: World): void {
 
 function onLevelLoaded(world: World): void {
   spawnLevelEntities(world);
+  spawnRoamingGiant(world);
   unsealIfBossless(world);
   applyDifficultyToLevel(world);
   reviveParty(world);
   resetSkillCooldowns(world);
   spawnCompanions(world);
+}
+
+/**
+ * GDD §2b.2: combat districts without an arena (not the first) have a ROAMING_BOSS_CHANCE of a
+ * roaming giant monster — the biome's boss, weaker, no arena lock — on the level's `giant` spot.
+ */
+export function spawnRoamingGiant(world: World, chance = ROAMING_BOSS_CHANCE): boolean {
+  const info = world.level.info;
+  if (info.isTown || info.isBoss || info.district <= 1 || info.district >= FINAL_DISTRICT) return false;
+  const spot = levelSpawnPoints(world.level).find((p) => p.kind === 'giant');
+  const def = Content.bosses.get(Content.biomes.get(info.biome)?.boss ?? '');
+  if (!spot || !def) return false;
+  // Own stream per level so the roll doesn't depend on how much `world.rng` was used before.
+  const rng = new Rng(hashSeed(`giant:${world.run.seed}:${info.district}:${info.biome}`));
+  if (!rng.chance(chance)) return false;
+  spawnBoss(world, def, spot.x, spot.y, { roaming: 1 });
+  return true;
 }
 
 /** Load a level from a request and reset all per-level run-flow state. */
@@ -263,6 +282,7 @@ function watchBosses(world: World): boolean {
   }
   if (lvl.locked && lvl.info.isBoss && run.bossSeen && alive === 0) {
     lvl.locked = false;
+    unsealArenaDoor(world);
     world.emit({ type: 'message', text: 'The guardian has fallen. The portals awaken!', color: 0x80ff80 });
     world.emit({ type: 'sfx', id: 'portal_unlock', x: 0, y: 0 });
   }

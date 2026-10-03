@@ -102,4 +102,22 @@ export const PROJECTILES: CombatProjectileDef[] = [
     id: 'web_shot', sprite: 'proj_web_shot', speed: 140, gravity: 120, size: 5, life: 2, pierce: 0, damageType: 'physical',
     trail: 'trail_web', knockback: 20, onHit: [{ id: 'slow', duration: 2.5, chance: 1, power: 0.55 }],
   },
+  // --- Boss attacks ----------------------------------------------------------------------------
+  {
+    id: 'acid_glob', sprite: 'proj_acid_glob', speed: 150, gravity: 380, size: 5, life: 2.2, pierce: 0, damageType: 'poison',
+    trail: 'trail_slime', light: { radius: 12, color: 0xc0ff40 }, knockback: 40,
+    onHit: [{ id: 'poison', duration: 3, chance: 0.6, power: 1 }],
+  },
+  {
+    id: 'shockwave', sprite: 'proj_shockwave', speed: 150, gravity: 0, size: 7, life: 1.1, pierce: 99, damageType: 'physical',
+    knockback: 140,
+  },
+  {
+    id: 'crystal_spike', sprite: 'proj_crystal_spike', speed: 420, gravity: 0, size: 5, life: 0.6, pierce: 99, damageType: 'physical',
+    trail: 'trail_spark', light: { radius: 18, color: 0xc070ff }, fromAbove: true, knockback: 40,
+  },
+  {
+    id: 'blight_bolt', sprite: 'proj_blight_bolt', speed: 95, gravity: 0, size: 6, life: 7, pierce: 0, damageType: 'magic',
+    homing: 1.4, light: { radius: 20, color: 0xff3cb4 }, ghost: true, knockback: 60,
+  },
 ];

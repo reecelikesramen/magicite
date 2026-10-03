@@ -5,15 +5,11 @@ import type { Entity } from '../types';
 import type { World } from '../world';
 import { charger, critter, dropper, flyer, hopper, shooter, turret, walker } from './behaviors';
 import { enemyDef } from './common';
+import { BOSS_UPDATERS } from './registry';
+import './bosses'; // registers boss patterns
 
 export { canSee, lineOfSight, nearestPlayer } from './common';
-
-/**
- * Boss pattern hook: src/sim/ai/bosses registers `(world, boss) => void` updaters by boss id.
- * Kept as a registry so the AI dispatcher has no hard dependency on boss content.
- */
-export type BossUpdater = (world: World, e: Entity) => void;
-export const BOSS_UPDATERS: Record<string, BossUpdater> = {};
+export { BOSS_UPDATERS, type BossUpdater } from './registry';
 
 /** Entities whose movement is owned by another system (the Blight Wraith: progression/wraith.ts). */
 function externallyDriven(e: Entity): boolean {
