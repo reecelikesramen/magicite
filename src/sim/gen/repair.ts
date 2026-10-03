@@ -157,7 +157,7 @@ function ladderOut(ctx: GenCtx, t: Traversal, group: number[]): boolean {
     const c = t.cells[k]!;
     const x = c % w;
     const y = (c - x) / w;
-    if (x <= 1 || x >= w - 2) continue;
+    if (x <= 0 || x >= w - 1) continue;
     const below = grid.get(x, y + 1);
     // Ladders start on firm ground (or at the surface of a liquid you're swimming in).
     if (!IS_SOLID[below] && below !== Tile.LADDER && !(IS_LIQUID[grid.get(x, y)] && !IS_LIQUID[grid.get(x, y - 1)])) continue;

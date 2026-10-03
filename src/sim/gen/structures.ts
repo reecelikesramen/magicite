@@ -36,7 +36,7 @@ export function buildExitTerraces(ctx: GenCtx, p: RouteProfile, biomes: string[]
   const { rng, w, h, flags } = ctx;
   const n = Math.max(1, biomes.length);
   const tw = 7;
-  const xEnd = w - 3;
+  const xEnd = w - 2;
   const xStart = xEnd - n * tw + 1;
   const lead = p.floor[xStart - 1]!;
   const rows: number[] = [];
