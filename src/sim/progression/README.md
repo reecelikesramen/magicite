@@ -29,7 +29,10 @@ the exit with most active players wins, ties → the portal that started it.
 2:00 Madcap). Never in towns or the lair; boss districts only on Madcap. Enemy entity
 `blight_wraith` (EnemyDef in `content/enemies.ts` gives contact damage) that this module moves
 itself (position integrated from `px/py`, so other movement is overridden). **AI dispatch should
-skip def `blight_wraith`.** Invulnerable (invuln refreshed every tick, statuses cleared).
+skip def `blight_wraith`.** It keeps its own velocity in `ai.n.wvx/wvy`, so velocity writes by AI,
+knockback or disabling statuses can't steer or stall it. Invulnerable: `invuln` refreshed every tick,
+statuses cleared, and `ai.n.invulnerable = 1` (combat's immunity hook, which also covers player
+attacks that ignore i-frames).
 
 ## Entities this workstream spawns (sprite keys for render)
 

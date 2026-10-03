@@ -84,7 +84,8 @@ export function spawnWraith(world: World): Entity {
     invuln: WRAITH.invuln,
     anim: 'fly',
     light: { radius: d?.light?.radius ?? 44, color: d?.light?.color ?? WRAITH.color, intensity: 1, flicker: 0.25 },
-    ai: { state: 'hunt', t: 0, target: 0, phase: 0, n: {} },
+    // `invulnerable` is combat's explicit immunity hook (player attacks may ignore i-frames).
+    ai: { state: 'hunt', t: 0, target: 0, phase: 0, n: { invulnerable: 1, wvx: 0, wvy: 0 } },
   });
   world.run.wraith = e.id;
   world.emit({ type: 'message', text: WRAITH.spawnText, color: WRAITH.color });
@@ -106,6 +107,12 @@ function moveWraith(world: World, w: Entity): void {
   w.hurt = 0;
   w.status.length = 0;
   const ai = (w.ai ??= { state: 'hunt', t: 0, target: 0, phase: 0, n: {} });
+  const n = ai.n;
+  n.invulnerable = 1;
+  // The wraith keeps its own velocity: AI dispatch, knockback or a freeze status writing vx/vy this
+  // tick can't steer or stall it.
+  let vx = n.wvx ?? w.vx;
+  let vy = n.wvy ?? w.vy;
   // Time alive comes from Entity.age (advanced only by World), not ai.t, which AI code may touch.
   const alive = w.age;
   const cx = w.x + w.w / 2;
@@ -130,13 +137,17 @@ function moveWraith(world: World, w: Entity): void {
     const dy = target.y + target.h / 2 - cy;
     const d = Math.sqrt(best) || 1;
     const speed = wraithSpeed(alive);
-    w.vx = approach(w.vx, (dx / d) * speed, WRAITH.steer * DT);
-    w.vy = approach(w.vy, (dy / d) * speed, WRAITH.steer * DT);
+    vx = approach(vx, (dx / d) * speed, WRAITH.steer * DT);
+    vy = approach(vy, (dy / d) * speed, WRAITH.steer * DT);
   } else {
     ai.target = 0;
-    w.vx *= 0.95;
-    w.vy *= 0.95;
+    vx *= 0.95;
+    vy *= 0.95;
   }
+  n.wvx = vx;
+  n.wvy = vy;
+  w.vx = vx;
+  w.vy = vy;
   // Authoritative integration from the start-of-tick position: overrides anything AI/physics did.
   w.x = w.px + w.vx * DT;
   w.y = w.py + w.vy * DT;

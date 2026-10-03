@@ -124,6 +124,25 @@ describe('Blight Wraith behaviour', () => {
     expect(Math.hypot(wr.x + wr.w / 2 - (pe.x + pe.w / 2), wr.y + wr.h / 2 - (pe.y + pe.h / 2))).toBeLessThan(16);
   });
 
+  it('keeps hunting even if other systems zero its velocity every tick (AI / freeze / knockback)', () => {
+    const meddle = (w: World) => {
+      const wr = wraithEntity(w);
+      if (wr) {
+        wr.vx = 0;
+        wr.vy = 0;
+        wr.status.push({ id: 'freeze', ticks: 60, power: 0, source: 0 });
+      }
+    };
+    const w = makeWorld({ systems: [physicsSystem, meddle, statusSystem, progressionSystem, exitSystem, playerInputLatchSystem], level: arenaLevel({ district: 2 }) });
+    const pe = placePlayer(w, 0, 400);
+    crossTick(w, secs(300));
+    const wr = wraithEntity(w)!;
+    const d0 = Math.hypot(wr.x - pe.x, wr.y - pe.y);
+    run(w, secs(4), inp());
+    expect(Math.hypot(wr.x - pe.x, wr.y - pe.y)).toBeLessThan(d0 - 40);
+    expect(wr.ai!.n.invulnerable).toBe(1); // combat's explicit immunity hook
+  });
+
   it('never spawns on top of a player lingering at the level edge', () => {
     const w = world({ district: 2 });
     const pe = placePlayer(w, 0, 20);
