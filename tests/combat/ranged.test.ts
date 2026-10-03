@@ -87,6 +87,17 @@ describe('cast (spells)', () => {
     expect(low.hp).toBe(100 - (3 + p.stats.mag));
     expect(high.hp).toBe(100 - (3 + p.stats.mag));
   });
+
+  it('lightning aimed at the ground under an enemy still strikes that surface', () => {
+    const { world, p } = makeWorld();
+    give(p, 't_storm');
+    p.mana = 4;
+    const d = spawnEnemy(world, 't_dummy', 150, FLOOR_Y, { kbResist: 1 });
+    step(world, 1, tap(150, FLOOR_Y + 3)); // cursor on the floor tile below its feet
+    expect(projectiles(world)).toHaveLength(1);
+    step(world, 40);
+    expect(d.hp).toBe(100 - (3 + p.stats.mag));
+  });
 });
 
 describe('throw', () => {

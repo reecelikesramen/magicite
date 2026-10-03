@@ -31,14 +31,22 @@ export interface FireOpts {
 
 /** Max distance a `fromAbove` strike searches upward for a ceiling. */
 const STRIKE_HEIGHT = 12 * TILE;
+/** Aiming this many tiles deep into the ground still strikes the surface above it. */
+const STRIKE_SURFACE_DEPTH = 3;
 
-/** y of the ceiling above (x, y) (first solid tile going up), capped at STRIKE_HEIGHT. */
+/**
+ * y of the ceiling above (x, y) (first solid tile going up), capped at STRIKE_HEIGHT. A point inside the
+ * ground (aiming at an enemy's feet) is first lifted to the open tile above it, so the strike still lands
+ * on that surface; only a point buried deeper than STRIKE_SURFACE_DEPTH tiles returns `y` (fizzles).
+ */
 export function ceilingAbove(world: World, x: number, y: number): number {
   const grid = world.level.grid;
   const tx = Math.floor(x / TILE);
   let ty = Math.floor(y / TILE);
-  if (grid.isSolid(tx, ty)) return y; // aimed into rock: strike from where we are
-  const top = Math.floor((y - STRIKE_HEIGHT) / TILE);
+  const deepest = ty - STRIKE_SURFACE_DEPTH;
+  while (grid.isSolid(tx, ty) && ty > deepest) ty--;
+  if (grid.isSolid(tx, ty)) return y; // buried in rock: strike from where we are
+  const top = Math.floor((Math.min(y, (ty + 1) * TILE - 1e-3) - STRIKE_HEIGHT) / TILE);
   while (ty > top && !grid.isSolid(tx, ty - 1)) ty--;
   return ty * TILE;
 }
