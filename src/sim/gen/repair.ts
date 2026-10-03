@@ -184,6 +184,12 @@ function walkway(ctx: GenCtx, t: Traversal, a: number, b: number): boolean {
     if (xx > 0 && yy > 0 && xx < w - 1 && yy < ctx.h - 1) flags[yy * w + xx]! |= F_NOHAZ;
   };
   let changed = false;
+  // Headroom above the start: the first hop rises before it moves sideways.
+  for (let k = 1; k <= 2; k++) {
+    const before = grid.get(x, y - k);
+    carve(ctx, x, y - k);
+    if (grid.get(x, y - k) !== before) changed = true;
+  }
   if (needUp > 0) {
     for (let yy = y; yy >= y - needUp; yy--) {
       carve(ctx, x, yy - 1);
