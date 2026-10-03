@@ -13,6 +13,6 @@ export {
   shopStock, buy, sell, buyPrice, sellPrice, npcBuys, peekShop, ensureShop, initShops, shopRng, nearestNpc, SHOP_RANGE, BLESSINGS,
 } from './shop';
 export { recalcStats, addMods, DEFAULT_BASE } from './stats';
-export { tierForDistrict, priceMul } from './tiers';
+export { tierForDistrict, priceMul, pricePercent } from './tiers';
 export { spawnPickup, spawnStackPickup, spawnDrops, spawnGold } from './drops';
 export { pickupSystem, goldValue } from './pickups';

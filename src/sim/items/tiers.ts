@@ -11,7 +11,12 @@ export function tierForDistrict(district: number): number {
   return 5;
 }
 
-/** Shop price inflation with depth (+3% per district): deeper towns, richer delvers. */
+/** Shop price inflation in percent of list price (+3% per district): deeper towns, richer delvers. */
+export function pricePercent(district: number): number {
+  return 100 + 3 * Math.max(0, Math.floor(district) - 1);
+}
+
+/** Shop price inflation as a multiplier (display only; prices use the integer `pricePercent`). */
 export function priceMul(district: number): number {
-  return 1 + 0.03 * Math.max(0, district - 1);
+  return pricePercent(district) / 100;
 }

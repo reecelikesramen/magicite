@@ -73,6 +73,35 @@ describe('shop stock', () => {
     expect(buyPrice(potion, 1)).toBe(potion.value);
     expect(buyPrice(potion, 11)).toBeGreaterThan(buyPrice(potion, 1));
   });
+
+  it('prices are exact: +3% per district, rounded up only when there is a remainder', () => {
+    // 100 g × 1.09 is 109.00000000000001 in floating point; a float formula would charge 110.
+    const helm = Content.items.get('gold_helm')!;
+    expect(helm.value).toBe(100);
+    expect(buyPrice(helm, 4)).toBe(109);
+    for (const d of Content.items.values()) {
+      for (let district = 1; district <= 21; district++) {
+        const pct = 100 + 3 * (district - 1);
+        const exact = Math.max(1, Math.floor((d.value * pct + 99) / 100));
+        expect(buyPrice(d, district), `${d.id}@${district}`).toBe(exact);
+      }
+    }
+  });
+
+  it('sell and repair prices use exact integer maths', () => {
+    const sword = Content.items.get('iron_sword')!; // value 64, durability 160
+    const worn = (dur: number) => ({ ...makeStack('iron_sword', 1), durability: dur });
+    for (let dur = 0; dur <= sword.durability!; dur++) {
+      expect(sellPrice(sword, worn(dur)), `sell@${dur}`).toBe(Math.floor((sword.value * dur) / (2 * sword.durability!)));
+      const missing = sword.durability! - dur;
+      const repair = missing === 0 ? 0 : Math.max(1, Math.floor((sword.value * missing + 2 * sword.durability! - 1) / (2 * sword.durability!)));
+      expect(repairCost(worn(dur)), `repair@${dur}`).toBe(repair);
+    }
+    // Repairing then selling never beats selling worn (no repair/sell arbitrage).
+    for (let dur = 0; dur < sword.durability!; dur++) {
+      expect(sellPrice(sword, worn(sword.durability!)) - repairCost(worn(dur))).toBeLessThanOrEqual(sellPrice(sword, worn(dur)));
+    }
+  });
 });
 
 describe('buying and selling', () => {
@@ -181,6 +210,31 @@ describe('repairs', () => {
     give(p, 5, 'repair_kit', 2);
     cmd(w, { type: 'repair', slot: { kind: 'inv', index: 0 } });
     expect(p.inventory[0]!.durability).toBe(1 + Math.ceil(max / 2));
+    expect(countItem(p, 'repair_kit')).toBe(1);
+  });
+
+  it('falls back to a repair kit when the smith is too expensive', () => {
+    const { w, p, e } = rig();
+    spawnNear(w, e, 'npc', 'npc_smith');
+    const max = Content.items.get('iron_sword')!.durability!;
+    give(p, 0, 'iron_sword');
+    p.inventory[0]!.durability = 10;
+    p.gold = 0;
+    cmd(w, { type: 'repair', slot: { kind: 'inv', index: 0 } });
+    expect(messages(w)).toContain(`Repair costs ${repairCost(p.inventory[0]!)} gold.`);
+    expect(p.inventory[0]!.durability).toBe(10);
+
+    give(p, 4, 'repair_kit', 1);
+    cmd(w, { type: 'repair', slot: { kind: 'inv', index: 0 } });
+    expect(p.inventory[0]!.durability).toBe(10 + Math.ceil(max / 2));
+    expect(countItem(p, 'repair_kit')).toBe(0);
+    expect(p.gold).toBe(0);
+
+    // With the gold in hand the smith wins and the kit is kept.
+    give(p, 4, 'repair_kit', 1);
+    p.gold = 1000;
+    cmd(w, { type: 'repair', slot: { kind: 'inv', index: 0 } });
+    expect(p.inventory[0]!.durability).toBe(max);
     expect(countItem(p, 'repair_kit')).toBe(1);
   });
 

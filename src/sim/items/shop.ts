@@ -6,7 +6,7 @@ import type { Entity, ItemStack, PlayerState, ShopComp, ShopEntry } from '../typ
 import type { World } from '../world';
 import { applyPermanent, healEntity } from './consume';
 import { makeStack, addStack, roomFor, validInv } from './inventory';
-import { priceMul, tierForDistrict } from './tiers';
+import { pricePercent, tierForDistrict } from './tiers';
 
 /** Max distance (px, centre to centre) to trade with an NPC. */
 export const SHOP_RANGE = 40;
@@ -17,17 +17,22 @@ export function shopDef(npcId: string): ShopDef | undefined {
   return SHOPS[npcId];
 }
 
-/** Gold to buy one `def` in a town at `district`. */
+/**
+ * Gold to buy one `def` in a town at `district`: ceil(value × (100 + 3 × (district − 1)) / 100).
+ * Integer arithmetic on purpose: `value * 1.06` is 106.00000000000001 in floating point, which
+ * would round a 100 g item up to 107 g.
+ */
 export function buyPrice(def: ItemDef, district: number): number {
-  return Math.max(1, Math.ceil(def.value * priceMul(district)));
+  return Math.max(1, Math.ceil((def.value * pricePercent(district)) / 100));
 }
 
-/** Gold paid for one unit when selling: floor(value / 2), scaled by remaining durability. */
+/** Gold paid for one unit when selling: floor(value / 2), scaled by remaining durability (integer math). */
 export function sellPrice(def: ItemDef | undefined, stack?: ItemStack | null): number {
   if (!def || def.value <= 0 || def.tags?.includes('currency')) return 0;
-  let v = def.value / 2;
-  if (stack?.durability !== undefined && def.durability) v *= Math.max(0, Math.min(1, stack.durability / def.durability));
-  return Math.floor(v);
+  const max = def.durability;
+  if (stack?.durability === undefined || !max) return Math.floor(def.value / 2);
+  const dur = Math.max(0, Math.min(max, stack.durability));
+  return Math.floor((def.value * dur) / (2 * max));
 }
 
 /** Does this NPC buy this item? (category / #tag lists; the fence buys anything). */
