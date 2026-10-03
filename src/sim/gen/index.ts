@@ -1,75 +1,148 @@
 import { Content } from '../../content';
+import type { BiomeDef } from '../../content/types';
+import { clamp, lerp } from '../../engine/math';
 import { hashSeed, Rng } from '../../engine/rng';
 import { TILE } from '../constants';
-import { Tile, TileGrid, Wall } from '../tiles';
-import type { Level, SpawnSpec } from '../world';
+import { TileGrid } from '../tiles';
+import type { Level } from '../world';
+import { buildCliffs, buildEntrance, buildProfile, carveCaverns, carveCorridors, carveRoute, connectPockets, ENTRANCE_W, initGrid } from './district';
+import { backWalls, cavernPools, platforms, rockPockets, routeBasins, secretPockets, specialTiles, spikes } from './features';
+import { levelName } from './names';
+import { populate } from './populate';
+import { repairTraversal } from './repair';
+import { arenaSize, buildArena, buildExitTerraces, buildLair, EXIT_W } from './structures';
+import { styleFor } from './styles';
+import { buildTown } from './town';
+import type { GenCtx, GeneratedLevel, LevelRequest, SpawnPoint, TRect } from './types';
 
-export interface LevelRequest {
-  seed: number;
-  /** 1-based district depth. */
-  district: number;
-  biome: string;
-  /** normal district · town before a district · boss district (arena at the end) · final lair (no exits). */
-  kind: 'normal' | 'town' | 'boss' | 'lair';
-  /** Destination biome per exit portal (normal/boss: up to 3 options; town: [] = single gate). */
-  nextBiomes: string[];
-}
+export type { GeneratedLevel, LevelRequest, SpawnPoint, SpawnPointKind } from './types';
+export { describeLevel } from './describe';
+export { analyzeTraversal, checkLevel, MOVE, softLockCount, type LevelReport, type Traversal } from './validate';
+export { gridHash } from './grid';
+
+/** Town level size (GDD §8: flat ≈ 90×30 street). */
+export const TOWN_SIZE = { w: [90, 100] as [number, number], h: 30 };
 
 /**
- * PLACEHOLDER generator (scaffold): a rolling cave floor with a few platforms. The level-gen
- * workstream replaces this with proper per-biome generation + traversability validation.
+ * Generate a level. PURE function of the request (and the static content tables): clients
+ * regenerate levels locally from the `LevelRequest` instead of downloading tiles.
  */
-export function generateLevel(req: LevelRequest): Level {
-  const rng = new Rng(hashSeed(`${req.seed}:${req.district}:${req.biome}:${req.kind}`));
-  const biome = Content.biomes.get(req.biome);
-  const w = 120;
-  const h = 48;
-  const g = new TileGrid(w, h);
-  g.fillWall(0, 0, w - 1, h - 1, Wall.CAVE);
-  let ground = 34;
-  const heights: number[] = [];
-  for (let x = 0; x < w; x++) {
-    if (x > 6 && x < w - 6 && rng.chance(0.18)) ground += rng.int(-2, 2);
-    ground = Math.max(22, Math.min(40, ground));
-    heights.push(ground);
-    g.fill(x, ground, x, h - 1, Tile.GROUND);
-    for (let y = ground + 3; y < h; y++) if (rng.chance(0.25)) g.set(x, y, Tile.ROCK);
+export function generateLevel(req: LevelRequest): GeneratedLevel {
+  const biome = Content.biomes.get(req.biome) ?? Content.biomes.get('woods') ?? [...Content.biomes.values()][0]!;
+  const rng = new Rng(hashSeed(`gen:${req.seed}:${req.district}:${req.biome}:${req.kind}`));
+  const nameRng = rng.fork('name');
+  const style = styleFor(biome);
+  let w: number;
+  let h: number;
+  if (req.kind === 'town') {
+    w = rng.int(TOWN_SIZE.w[0], TOWN_SIZE.w[1]);
+    h = TOWN_SIZE.h;
+  } else if (req.kind === 'lair') {
+    const lair = biome.id === 'lair' ? biome : Content.biomes.get('lair');
+    w = lair ? rng.int(lair.size.w[0], lair.size.w[1]) : 104;
+    h = lair ? rng.int(lair.size.h[0], lair.size.h[1]) : 36;
+  } else {
+    w = rng.int(biome.size.w[0], biome.size.w[1]);
+    h = rng.int(biome.size.h[0], biome.size.h[1]);
+    if (req.kind === 'boss') {
+      const a = arenaSize(biome.boss);
+      w = w - 30 + a.w + 4;
+      h = Math.max(h, a.h + 14);
+    }
   }
-  g.fill(0, 0, w - 1, 2, Tile.GROUND);
-  g.fill(0, 0, 1, h - 1, Tile.BEDROCK);
-  g.fill(w - 2, 0, w - 1, h - 1, Tile.BEDROCK);
-  g.fill(0, h - 1, w - 1, h - 1, Tile.BEDROCK);
-  for (let i = 0; i < 10; i++) {
-    const px = rng.int(8, w - 14);
-    const py = heights[px]! - rng.int(4, 7);
-    g.fill(px, py, px + rng.int(3, 6), py, Tile.PLATFORM);
-  }
-  const spawns: SpawnSpec[] = [];
-  for (let x = 10; x < w - 10; x += rng.int(5, 9)) {
-    const top = heights[x]! * TILE;
-    if (rng.chance(0.5)) spawns.push({ kind: 'resource', def: 'tree_forest', x: x * TILE + 4, y: top });
-    else if (rng.chance(0.4)) spawns.push({ kind: 'resource', def: 'rock_stone', x: x * TILE + 4, y: top });
-    else if (rng.chance(0.5)) spawns.push({ kind: 'enemy', def: 'green_slime', x: x * TILE + 4, y: top });
-  }
-  const sx = 5;
-  const exits = (req.kind === 'town' ? [''] : req.nextBiomes).map((biome, i) => {
-    const ex = w - 8 - i * 6;
-    return { x: ex * TILE - 8, y: heights[ex]! * TILE - 20, w: 24, h: 20, biome };
-  });
+  const ctx: GenCtx = {
+    req,
+    biome,
+    style,
+    rng,
+    grid: new TileGrid(w, h),
+    w,
+    h,
+    flags: new Uint8Array(w * h),
+    floor: new Int16Array(w).fill(-1),
+    spawnTx: 4,
+    spawnTy: h - 3,
+    exits: [],
+    spawns: [],
+    points: [],
+    lights: [],
+    depth: clamp((req.district - 1) / 20, 0, 1),
+  };
+  if (req.kind === 'town') buildTown(ctx);
+  else if (req.kind === 'lair') buildLairLevel(ctx);
+  else buildDistrictLevel(ctx, req.kind === 'boss');
+
+  const arena = ctx.arena ? tileRectToPx(ctx.arena) : undefined;
   return {
     info: {
       district: req.district,
-      biome: req.biome,
-      name: `District ${req.district}: ${biome?.name ?? req.biome}`,
+      biome: biome.id,
+      name: levelName(req, biome, nameRng),
       isTown: req.kind === 'town',
-      isBoss: req.kind === 'boss',
+      isBoss: req.kind === 'boss' || req.kind === 'lair',
       seed: req.seed,
     },
-    grid: g,
-    spawn: { x: sx * TILE + 4, y: heights[sx]! * TILE },
-    exits: req.kind === 'lair' ? [] : exits,
-    locked: req.kind === 'boss',
-    spawns,
-    lights: [],
+    grid: ctx.grid,
+    spawn: { x: ctx.spawnTx * TILE + TILE / 2, y: (ctx.spawnTy + 1) * TILE },
+    exits: ctx.exits,
+    locked: req.kind === 'boss' || req.kind === 'lair',
+    ...(arena ? { arena } : {}),
+    spawns: ctx.spawns,
+    lights: ctx.lights,
+    spawnPoints: ctx.points,
   };
+}
+
+/** Spawn points of a generated level (empty for levels from elsewhere). */
+export function levelSpawnPoints(level: Level): readonly SpawnPoint[] {
+  return (level as Partial<GeneratedLevel>).spawnPoints ?? [];
+}
+
+function tileRectToPx(r: TRect): { x: number; y: number; w: number; h: number } {
+  return { x: r.x0 * TILE, y: r.y0 * TILE, w: (r.x1 - r.x0 + 1) * TILE, h: (r.y1 - r.y0 + 1) * TILE };
+}
+
+function buildDistrictLevel(ctx: GenCtx, boss: boolean): void {
+  const { rng, w, h, req, biome } = ctx;
+  initGrid(ctx);
+  const a = boss ? arenaSize(biome.boss) : null;
+  const arenaX0 = a ? w - 1 - (a.w + 4) : w - 1;
+  const routeEnd = a ? arenaX0 : w - 1;
+  let endFloor: number | undefined;
+  if (a) endFloor = clamp(Math.round(lerp(a.h + 4, h - 6, rng.range(0.25, 0.75))), a.h + 4, h - 6);
+  const profile = buildProfile(ctx, routeEnd, a ? 6 : EXIT_W + 8, endFloor);
+  const cavEnd = a ? routeEnd - 3 : w - EXIT_W - 6;
+  carveCaverns(ctx, ENTRANCE_W + 2, cavEnd);
+  carveRoute(ctx, profile);
+  buildEntrance(ctx, profile);
+  buildCliffs(ctx, profile);
+  carveCorridors(ctx, profile, ENTRANCE_W + 6, cavEnd - 4);
+  if (a) ctx.arena = buildArena(ctx, arenaX0, profile.floor[routeEnd - 1]!, a, req.nextBiomes);
+  else buildExitTerraces(ctx, profile, req.nextBiomes);
+  connectPockets(ctx);
+  routeBasins(ctx, ENTRANCE_W + 8, cavEnd - 6);
+  cavernPools(ctx);
+  specialTiles(ctx);
+  platforms(ctx);
+  spikes(ctx);
+  rockPockets(ctx);
+  const secrets = secretPockets(ctx);
+  backWalls(ctx);
+  const t = repairTraversal(ctx);
+  populate(ctx, t, secrets);
+  if (ctx.arena) bossSpawn(ctx, biome, ctx.arena, 0.4);
+}
+
+function buildLairLevel(ctx: GenCtx): void {
+  ctx.arena = buildLair(ctx);
+  specialTiles(ctx);
+  const t = repairTraversal(ctx, 2);
+  populate(ctx, t, []);
+  bossSpawn(ctx, ctx.biome.id === 'lair' ? ctx.biome : (Content.biomes.get('lair') ?? ctx.biome), ctx.arena, 0.82);
+}
+
+function bossSpawn(ctx: GenCtx, biome: BiomeDef, a: TRect, at: number): void {
+  const exitsLeft = ctx.exits.length ? Math.min(...ctx.exits.map((e) => e.x / TILE)) - 3 : a.x1;
+  const x = Math.round(lerp(a.x0 + 4, Math.min(a.x1, exitsLeft) - 4, at));
+  ctx.spawns.push({ kind: 'boss', def: biome.boss, x: x * TILE + TILE / 2, y: (a.y1 + 1) * TILE, data: { arena: 1 } });
 }
