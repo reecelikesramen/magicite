@@ -120,21 +120,57 @@ export function rollChestLoot(world: World, tier: number, opts: ChestOpts = {}):
   return { items, gold };
 }
 
+/** Pots only hold cheap consumables (snacks, basic potions, torches), never elixirs. */
+const POT_MAX_VALUE = 30;
+const POT_POOLS = new Map<number, readonly string[]>();
+
+function potPool(tier: number): readonly string[] {
+  let pool = POT_POOLS.get(tier);
+  if (!pool) {
+    pool = (lootPool(tier).get('consumable') ?? []).filter((id) => (Content.items.get(id)?.value ?? 0) <= POT_MAX_VALUE);
+    POT_POOLS.set(tier, pool);
+  }
+  return pool;
+}
+
 /** Breakable pots: a few coins and sometimes a snack or potion. */
 export function rollPotLoot(world: World, tier: number): LootRoll {
   const t = Math.max(1, Math.min(5, Math.floor(tier)));
   const items: ItemStack[] = [];
   if (world.rng.chance(0.25)) {
-    const pool = lootPool(t).get('consumable') ?? [];
+    const pool = potPool(t);
     if (pool.length) items.push(makeStack(world.rng.pick(pool), 1));
   }
   return { items, gold: world.rng.chance(0.6) ? world.rng.int(1, 2 + t) : 0 };
 }
 
+/** What a container resource rolls: pot loot, or a chest's item tier and extra rolls. */
+export interface ContainerRoll {
+  pot: boolean;
+  /** Item tier 1..5 for rollChestLoot. */
+  tier: number;
+  bonusRolls: number;
+}
+
+/**
+ * Decide a container's loot. Chest grade: 0 wooden · 1 iron · 2 secret-pocket chest. Item tier = the
+ * district's tier (+1 for iron/secret chests, max 5); each grade adds one item roll.
+ * `lootTier` is level gen's `SpawnSpec.data.lootTier` convention (0 pot · 1 wooden · 2 iron · 3 secret,
+ * each + floor(district / 6)); without it the grade comes from the resource id.
+ */
+export function containerRoll(resourceId: string, district: number, lootTier?: number): ContainerRoll {
+  const base = tierForDistrict(district);
+  if (resourceId === 'pot' || lootTier === 0) return { pot: true, tier: base, bonusRolls: 0 };
+  const grade =
+    typeof lootTier === 'number' && Number.isFinite(lootTier)
+      ? Math.max(0, Math.min(2, Math.floor(lootTier) - Math.floor(district / 6) - 1))
+      : resourceId === 'chest_iron' || resourceId === 'chest_gold' ? 1 : 0;
+  return { pot: false, tier: Math.min(5, base + (grade >= 1 ? 1 : 0)), bonusRolls: grade };
+}
+
 /** Loot tier of a chest resource in a district: iron (and golden) chests are one tier richer. */
 export function chestTier(resourceId: string, district: number): number {
-  const base = tierForDistrict(district);
-  return Math.min(5, base + (resourceId === 'chest_iron' || resourceId === 'chest_gold' ? 1 : 0));
+  return containerRoll(resourceId, district).tier;
 }
 
 /** Spawn a loot roll as pickups popping out of (x, y) (bottom-centre of the chest). */
@@ -143,17 +179,29 @@ export function spawnLoot(world: World, loot: LootRoll, x: number, y: number): v
   if (loot.gold > 0) spawnGold(world, loot.gold, x, y - 4);
 }
 
+export interface OpenOpts {
+  /** Player who opened it (for run stats). */
+  player?: number;
+  /** Level gen's `SpawnSpec.data.lootTier`, if the entity kept it. */
+  lootTier?: number;
+}
+
 /**
- * Open a chest resource entity: roll by its def + the current district, spawn the loot, count it.
- * (Lead: call from the resource-break path for defs starting with `chest_`, instead of `drops`.)
+ * Open (break) a container resource — `chest_wood`, `chest_iron`, `pot` — at (x, y) bottom-centre:
+ * roll by its def, the current district and gen's lootTier, spawn the loot, count it.
+ * (Lead: call from the resource-break path for containers instead of their empty `drops`.)
  */
-export function openChest(world: World, chestDef: string, x: number, y: number, playerIndex?: number): LootRoll {
-  const tier = chestTier(chestDef, world.level?.info.district ?? 1);
-  const loot = rollChestLoot(world, tier, { bonusRolls: chestDef === 'chest_wood' ? 0 : 1 });
+export function openChest(world: World, chestDef: string, x: number, y: number, opts: OpenOpts = {}): LootRoll {
+  const district = world.level?.info.district ?? 1;
+  const c = containerRoll(chestDef, district, opts.lootTier);
+  const loot = c.pot ? rollPotLoot(world, c.tier) : rollChestLoot(world, c.tier, { bonusRolls: c.bonusRolls });
   spawnLoot(world, loot, x, y);
-  world.emit({ type: 'particles', preset: 'chest_open', x, y: y - 6, count: 12 });
-  world.emit({ type: 'sfx', id: 'chest_open', x, y });
-  const p = playerIndex !== undefined ? world.players[playerIndex] : undefined;
-  if (p) p.runStats.chestsOpened = (p.runStats.chestsOpened ?? 0) + 1;
+  world.emit({ type: 'particles', preset: c.pot ? 'pot_break' : 'chest_open', x, y: y - 6, count: c.pot ? 6 : 12 });
+  world.emit({ type: 'sfx', id: c.pot ? 'pot_break' : 'chest_open', x, y });
+  const p = opts.player !== undefined ? world.players[opts.player] : undefined;
+  if (p) {
+    const key = c.pot ? 'potsBroken' : 'chestsOpened';
+    p.runStats[key] = (p.runStats[key] ?? 0) + 1;
+  }
   return loot;
 }

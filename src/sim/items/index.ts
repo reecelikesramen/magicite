@@ -7,7 +7,7 @@ export {
   addItem, addStack, makeStack, cloneStack, canMerge, countItem, removeItem, roomFor, firstEmpty, takeFromSlot, heldStack,
   maxStackOf, maxDurabilityOf, isBatch, sortBackpack,
 } from './inventory';
-export { rollChestLoot, rollPotLoot, openChest, spawnLoot, chestTier, lootPool, type LootRoll } from './loot';
+export { rollChestLoot, rollPotLoot, openChest, spawnLoot, chestTier, containerRoll, lootPool, type LootRoll, type ContainerRoll, type OpenOpts } from './loot';
 export { repairItem, repairCost } from './repair';
 export {
   shopStock, buy, sell, buyPrice, sellPrice, npcBuys, peekShop, ensureShop, initShops, shopRng, nearestNpc, SHOP_RANGE, BLESSINGS,
