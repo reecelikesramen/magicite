@@ -231,7 +231,6 @@ function resolveSwing(world: World, e: Entity, s: MeleeSwing): void {
       p.ctl.airJumpsUsed = 0;
       world.emit({ type: 'particles', preset: 'pogo', x: cx, y: e.y + e.h, count: 5 });
     }
-    if (world.freeze > 0 && t.dead) break;
   }
 }
 

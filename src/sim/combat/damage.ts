@@ -80,9 +80,9 @@ export function scaleStatFor(item: ItemDef | null | undefined): ScaleStat {
   }
 }
 
-/** Crit chance of a player: base + LCK + StatMods.critChance. */
+/** Crit chance of a player: (base + LCK) × (1 + StatMods.luck) + StatMods.critChance. */
 export function critChance(p: PlayerState): number {
-  return COMBAT.crit.base + COMBAT.crit.perLck * p.stats.lck + (p.mods.critChance ?? 0);
+  return (COMBAT.crit.base + COMBAT.crit.perLck * p.stats.lck) * (1 + (p.mods.luck ?? 0)) + (p.mods.critChance ?? 0);
 }
 
 /**

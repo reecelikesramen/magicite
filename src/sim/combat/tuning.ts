@@ -20,8 +20,7 @@ export const COMBAT = {
     maxTicks: 45,
     /** Inner radius of the blade from the attacker's centre. */
     innerRadius: 2,
-    /** Sample spacing along the blade / between swept angles. */
-    sampleStep: 2.5,
+    /** Max angle (radians) between blade samples when sweeping an arc within one tick. */
     angleStep: 0.3,
     defaultRange: 10,
     defaultKnockback: 80,

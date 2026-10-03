@@ -316,6 +316,8 @@ function hitTarget(world: World, e: Entity, pc: ProjectileComp, def: CombatProje
     return true;
   }
   pc.hit.push(t.id);
+  // Enemy shots pass through players in i-frames (dash dodges arrows instead of eating them).
+  if (pc.team !== 'player' && t.kind === 'player' && t.invuln > 0) return false;
   let amount = pc.damage;
   let crit = false;
   const op = playerOf(world, e);
