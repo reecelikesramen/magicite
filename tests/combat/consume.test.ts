@@ -23,9 +23,12 @@ describe('consume', () => {
     give(p, 't_food', 3);
     p.hunger = 1;
     p.stamina = 0;
-    step(world, 120, { attack: true, aimX: 0, aimY: 0 });
+    const hold = { attack: true, aimX: 0, aimY: 0 };
+    step(world, 1, hold);
     expect(p.hunger).toBe(4);
-    expect(p.stamina).toBe(1);
+    expect(p.stamina).toBe(1); // checked right away: meters regenerate stamina over time
+    step(world, 119, hold);
+    expect(p.hunger).toBe(4);
     expect(p.inventory[0]?.count).toBe(2);
   });
 

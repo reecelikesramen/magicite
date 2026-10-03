@@ -104,13 +104,15 @@ describe('damage formula', () => {
     e.facing = 1;
     const biter = spawnEnemy(world, 't_biter', 86, FLOOR_Y, { kbResist: 1 });
     const hp = e.hp;
-    step(world, 1, { alt: true });
+    // Guarding toward the cursor on the right (controllers face the aim while Secondary is held).
+    const guard = { alt: true, aimX: e.x + 60, aimY: e.y + 4 };
+    step(world, 1, guard);
     expect(e.hp).toBe(hp);
     expect(p.stamina).toBe(1);
     // From behind: no block.
     e.invuln = 0;
     biter.x = e.x - 6;
-    step(world, 1, { alt: true });
+    step(world, 1, guard);
     expect(e.hp).toBe(hp - 1);
   });
 
@@ -120,7 +122,7 @@ describe('damage formula', () => {
     p.stamina = 2;
     e.facing = 1;
     spawnEnemy(world, 't_biter', 86, FLOOR_Y, { kbResist: 1 });
-    step(world, 1, { alt: true });
+    step(world, 1, { alt: true, aimX: e.x + 60, aimY: e.y + 4 });
     expect(p.equipment.trinket?.durability).toBe(1);
   });
 
