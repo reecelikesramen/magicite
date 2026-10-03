@@ -1,10 +1,12 @@
+import type { LevelRequest } from '../sim/gen';
 import type { PlayerCommand, PlayerInput } from '../sim/types';
 import { emptyInput } from '../sim/types';
-import type { PlayerSetup } from '../sim/world';
+import type { Level, PlayerSetup, RunState } from '../sim/world';
 import {
-  type ByteReader, ByteWriter, CollectingSink, StaticSink, type StringTable, readStringDefs, readValue, writeStringDefs,
-  writeValue,
+  type ByteReader, ByteWriter, CollectingSink, StaticSink, type StringSink, type StringTable, readStrId, readStringDefs,
+  readValue, writeStrId, writeStringDefs, writeValue,
 } from './codec';
+import { type TileEdits, readEdits, readLevelFull, writeEdits, writeLevelFull } from './levelsync';
 import type { OwnerLayout } from './predict';
 
 /**
@@ -382,4 +384,198 @@ export function decodeInputPacket(r: ByteReader, table: StringTable, scratch: [P
     prev = out;
   }
   return { ackTick, newestTick, count };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Snapshot header (host → client, unreliable; a full snapshot without baseline goes reliable)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Snapshot body layout (after the host envelope):
+ *   header · players section · owner block · entity delta section · events section
+ * The sections are written by host.ts and read by client.ts; this is the header.
+ */
+export interface SnapshotHeader {
+  /** world.tick after the step (state after inputs up to tick − 1). */
+  tick: number;
+  /** Level epoch (bumps on every level change; snapshots of another epoch are discarded). */
+  epoch: number;
+  /** Tick of the baseline this snapshot is a delta against (0 = full snapshot). */
+  baseTick: number;
+  /** Min over a short window of (newest input tick received − host tick when received). */
+  slack: number;
+  /** Cumulative count of ticks for which this client's input was missing (repeated). */
+  misses: number;
+  /** Newest input tick the host has received from this client (−1 = none). */
+  inputTick: number;
+  /** Host hit-stop ticks remaining. */
+  freeze: number;
+}
+
+export function emptySnapshotHeader(): SnapshotHeader {
+  return { tick: 0, epoch: 0, baseTick: 0, slack: 0, misses: 0, inputTick: -1, freeze: 0 };
+}
+
+export function writeSnapshotHeader(w: ByteWriter, h: SnapshotHeader): void {
+  w.uvar(h.tick);
+  w.uvar(h.epoch);
+  w.uvar(h.baseTick);
+  w.svar(h.slack);
+  w.uvar(h.misses);
+  w.svar(h.inputTick);
+  w.uvar(h.freeze);
+}
+
+export function readSnapshotHeader(r: ByteReader, out: SnapshotHeader): SnapshotHeader {
+  out.tick = r.uvar();
+  out.epoch = r.uvar();
+  out.baseTick = r.uvar();
+  out.slack = r.svar();
+  out.misses = r.uvar();
+  out.inputTick = r.svar();
+  out.freeze = r.uvar();
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Level change / tile edits / world state
+// ---------------------------------------------------------------------------------------------
+
+export interface LevelChangeMsg {
+  epoch: number;
+  /** Host tick at which the level was entered. */
+  tick: number;
+  /** Clients regenerate the level from this (preferred) … */
+  request: LevelRequest | null;
+  /** … or receive it whole when the run flow did not record a request. */
+  level: Level | null;
+  /** Edits on top of the generated level (late join: compacted log of every changed tile). */
+  edits: TileEdits;
+}
+
+export function writeLevelChange(w: ByteWriter, m: LevelChangeMsg, sink: StringSink): void {
+  w.uvar(m.epoch);
+  w.uvar(m.tick);
+  if (m.request) {
+    w.u8(0);
+    writeValue(w, m.request, sink);
+  } else if (m.level) {
+    w.u8(1);
+    writeLevelFull(w, m.level, sink);
+  } else throw new Error('LevelChange needs a request or a level');
+  writeEdits(w, m.edits);
+}
+
+export function readLevelChange(r: ByteReader, table: StringTable): LevelChangeMsg {
+  const epoch = r.uvar();
+  const tick = r.uvar();
+  const mode = r.u8();
+  let request: LevelRequest | null = null;
+  let level: Level | null = null;
+  if (mode === 0) request = sanitizeRequest(readValue(r, table));
+  else if (mode === 1) level = readLevelFull(r, table);
+  else throw new RangeError('LevelChange: bad mode');
+  const edits = readEdits(r);
+  return { epoch, tick, request, level, edits };
+}
+
+/** A LevelRequest from the wire (unknown extra fields are kept for forward compatibility). */
+export function sanitizeRequest(v: unknown): LevelRequest {
+  const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  if (typeof o.seed !== 'number' || typeof o.district !== 'number' || typeof o.biome !== 'string' || typeof o.kind !== 'string') {
+    throw new RangeError('LevelChange: bad request');
+  }
+  const next = Array.isArray(o.nextBiomes) ? o.nextBiomes.filter((b): b is string => typeof b === 'string') : [];
+  return { ...(o as unknown as LevelRequest), nextBiomes: next };
+}
+
+export function writeTileEdits(w: ByteWriter, epoch: number, edits: TileEdits): void {
+  w.uvar(epoch);
+  writeEdits(w, edits);
+}
+
+export function readTileEdits(r: ByteReader): { epoch: number; edits: TileEdits } {
+  const epoch = r.uvar();
+  return { epoch, edits: readEdits(r) };
+}
+
+/** Run-level state the client mirrors (sent reliably when it changes). */
+export interface WorldStateMsg {
+  epoch: number;
+  locked: boolean;
+  run: RunState;
+}
+
+export function writeWorldState(w: ByteWriter, m: WorldStateMsg, sink: StringSink): void {
+  w.uvar(m.epoch);
+  w.bool(m.locked);
+  writeValue(w, m.run, sink);
+}
+
+export function readWorldState(r: ByteReader, table: StringTable): WorldStateMsg {
+  const epoch = r.uvar();
+  const locked = r.bool();
+  const run = readValue(r, table);
+  if (!run || typeof run !== 'object') throw new RangeError('WorldState: bad run');
+  return { epoch, locked, run: run as RunState };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pre-encoded value lists (events, private state, public player views)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Event list: uvar baseTick, uvar n, (uvar tick − baseTick, value)*. `items` are values
+ * pre-encoded with writeValue (the host encodes each event once for all clients).
+ */
+export function writeEventList(w: ByteWriter, baseTick: number, ticks: readonly number[], items: readonly Uint8Array[], n = items.length): void {
+  w.uvar(baseTick);
+  w.uvar(n);
+  for (let i = 0; i < n; i++) {
+    w.uvar(Math.max(0, ticks[i]! - baseTick));
+    w.bytes(items[i]!);
+  }
+}
+
+export function readEventList(r: ByteReader, table: StringTable, visit: (tick: number, ev: unknown) => void): void {
+  const base = r.uvar();
+  const n = r.uvar();
+  if (n > r.remaining) throw new RangeError('events: bad count');
+  for (let i = 0; i < n; i++) {
+    const t = base + r.uvar();
+    visit(t, readValue(r, table));
+  }
+}
+
+/** PrivateState body: u8 player index, uvar n, (strId key, value)*; values pre-encoded. */
+export function writePrivateState(w: ByteWriter, index: number, keys: readonly string[], values: readonly Uint8Array[], sink: StringSink): void {
+  w.u8(index);
+  w.uvar(keys.length);
+  for (let i = 0; i < keys.length; i++) {
+    writeStrId(w, keys[i]!, sink);
+    w.bytes(values[i]!);
+  }
+}
+
+export function readPrivateState(r: ByteReader, table: StringTable): { index: number; values: Record<string, unknown> } {
+  const index = r.u8();
+  const n = r.uvar();
+  if (n > r.remaining) throw new RangeError('private: bad count');
+  const values: Record<string, unknown> = {};
+  for (let i = 0; i < n; i++) {
+    const k = readStrId(r, table);
+    const v = readValue(r, table);
+    if (k !== '__proto__' && k !== 'constructor') values[k] = v;
+  }
+  return { index, values };
+}
+
+/** Public player views (snapshot section): u8 n, (u8 index, uvar version, value)*. */
+export function readPlayersSection(r: ByteReader, table: StringTable, visit: (index: number, version: number, view: unknown) => void): void {
+  const n = r.u8();
+  for (let i = 0; i < n; i++) {
+    const index = r.u8();
+    const version = r.uvar();
+    visit(index, version, readValue(r, table));
+  }
 }
