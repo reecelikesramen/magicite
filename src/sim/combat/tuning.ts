@@ -25,11 +25,14 @@ export const COMBAT = {
     angleStep: 0.3,
     defaultRange: 10,
     defaultKnockback: 80,
-    /** Arc up/behind and down/forward of the aim, radians; heavy weapons sweep wider. */
+    /**
+     * Hitting arc above (up) and below (down) the aim, radians; heavy weapons sweep wider and slower.
+     * (Renderers draw the windup with the weapon raised overhead; the hitbox only sweeps the active arc.)
+     */
     arc: {
-      light: { up: 1.35, down: 0.75, thickness: 3, windup: 0.15, active: 0.45 },
-      normal: { up: 1.57, down: 0.8, thickness: 4, windup: 0.2, active: 0.4 },
-      heavy: { up: 1.75, down: 1.0, thickness: 6, windup: 0.32, active: 0.36 },
+      light: { up: 1.0, down: 0.7, thickness: 3, windup: 0.15, active: 0.45 },
+      normal: { up: 1.2, down: 0.8, thickness: 4, windup: 0.2, active: 0.4 },
+      heavy: { up: 1.45, down: 1.0, thickness: 6, windup: 0.32, active: 0.36 },
     },
     /** Thrust: thin box that extends from `thrustStart` to full reach during the active frames. */
     thrustStart: 0.45,

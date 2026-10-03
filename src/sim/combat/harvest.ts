@@ -62,14 +62,29 @@ export interface MineTarget {
   ty: number;
 }
 
+/** Distance from (cx, cy) to the nearest point of tile (tx, ty). */
+function tileDist(cx: number, cy: number, tx: number, ty: number): number {
+  const nx = Math.max(tx * TILE, Math.min(cx, tx * TILE + TILE));
+  const ny = Math.max(ty * TILE, Math.min(cy, ty * TILE + TILE));
+  return Math.hypot(nx - cx, ny - cy);
+}
+
 /**
- * The tile a mining swing targets: march from the user's centre toward the aim point and take the
- * first non-air tile within COMBAT.mining.reach. Writes into `out`; returns false if none.
+ * The tile a mining swing targets: the tile under the aim point if it's diggable-looking and within
+ * COMBAT.mining.reach (measured to its nearest point); otherwise the first non-air tile on the line from
+ * the user's centre toward the aim, within reach. Writes into `out`; returns false if none.
  */
 export function findMineTarget(world: World, e: Entity, aimX: number, aimY: number, out: MineTarget): boolean {
   const grid = world.level.grid;
   const cx = e.x + e.w / 2;
   const cy = e.y + e.h / 2;
+  const ax = Math.floor(aimX / TILE);
+  const ay = Math.floor(aimY / TILE);
+  if (blocksRay(grid.get(ax, ay)) && tileDist(cx, cy, ax, ay) <= COMBAT.mining.reach) {
+    out.tx = ax;
+    out.ty = ay;
+    return true;
+  }
   const dx = aimX - cx;
   const dy = aimY - cy;
   const d = Math.hypot(dx, dy);
@@ -81,10 +96,7 @@ export function findMineTarget(world: World, e: Entity, aimX: number, aimY: numb
     const tx = Math.floor((cx + ux * s) / TILE);
     const ty = Math.floor((cy + uy * s) / TILE);
     if (!blocksRay(grid.get(tx, ty))) continue;
-    // Reach is measured to the tile's nearest point, so tiles diagonal to the player stay diggable.
-    const nx = Math.max(tx * TILE, Math.min(cx, tx * TILE + TILE));
-    const ny = Math.max(ty * TILE, Math.min(cy, ty * TILE + TILE));
-    if (Math.hypot(nx - cx, ny - cy) > COMBAT.mining.reach) return false;
+    if (tileDist(cx, cy, tx, ty) > COMBAT.mining.reach) return false;
     out.tx = tx;
     out.ty = ty;
     return true;
