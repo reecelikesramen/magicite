@@ -223,13 +223,23 @@ function fizzle(world: World, e: Entity, def: CombatProjectileDef): void {
 /** Arrow/knife sticks where it stopped: maybe leaves a recoverable pickup stuck in place. */
 function stick(world: World, e: Entity, pc: ProjectileComp, def: CombatProjectileDef): void {
   const id = pc.sourceItem && Content.items.has(pc.sourceItem) ? pc.sourceItem : def.recoverItem;
-  const cx = e.x + e.w / 2;
-  const cy = e.y + e.h / 2;
+  let cx = e.x + e.w / 2;
+  let cy = e.y + e.h / 2;
   world.kill(e);
   world.emit({ type: 'sfx', id: 'arrow_stick', x: cx, y: cy });
   if (!id || !Content.items.has(id) || !world.rng.chance(def.recoverChance ?? 0.5)) {
     world.emit({ type: 'particles', preset: 'arrow_break', x: cx, y: cy, count: 3 });
     return;
+  }
+  // The pickup box (6 px) is bigger than the shaft: back it out of the wall along the flight path.
+  const sp = Math.hypot(e.vx, e.vy) || 1;
+  const bx = -e.vx / sp;
+  const by = -e.vy / sp;
+  const grid = world.level.grid;
+  for (let i = 0; i < 8; i++) {
+    if (!grid.solidAt(cx - 3, cy - 3) && !grid.solidAt(cx + 2.99, cy - 3) && !grid.solidAt(cx - 3, cy + 2.99) && !grid.solidAt(cx + 2.99, cy + 2.99)) break;
+    cx += bx;
+    cy += by;
   }
   world.spawn('pickup', id, cx - 3, cy - 3, {
     w: 6, h: 6, gravityScale: 0, facing: e.facing, anim: 'stuck', pickup: { item: { id, count: 1 }, delay: 12, gold: 0 },
