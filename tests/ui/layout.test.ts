@@ -4,6 +4,7 @@ import { GLYPH_H, measureText } from '../../src/render/pixelfont';
 import { BACKPACK_SIZE, HOTBAR_SIZE } from '../../src/sim/constants';
 import {
   BACKPACK_COLS,
+  BOOK_MAX_ROWS,
   EQUIP_LEFT,
   EQUIP_RIGHT,
   EQUIP_SLOTS,
@@ -32,6 +33,7 @@ const centre = (r: Rect) => [r.x + Math.floor(r.w / 2), r.y + Math.floor(r.h / 2
 const VIEWS: [number, number][] = [
   [320, 180],
   [341, 192],
+  [400, 300],
   [480, 270],
 ];
 
@@ -117,6 +119,9 @@ describe('inventory layout', () => {
       for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) expect(rectsOverlap(all[i]!, all[j]!)).toBe(false);
       expect(inside(L.panel, { x: 0, y: 0, w, h })).toBe(true);
       expect(inside(L.book.panel, { x: 0, y: 0, w, h })).toBe(true);
+      expect(L.book.rowsPerPage).toBeGreaterThanOrEqual(1);
+      expect(L.book.rowsPerPage).toBeLessThanOrEqual(BOOK_MAX_ROWS);
+      expect(L.book.rowsY + L.book.rowsPerPage * L.book.rowH).toBeLessThanOrEqual(L.book.prev.y);
       expect(L.tip.y + GLYPH_H).toBeLessThanOrEqual(h);
       expect(L.feedback.y).toBeGreaterThanOrEqual(L.panel.y + L.panel.h);
     });

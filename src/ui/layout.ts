@@ -165,6 +165,7 @@ export interface BookLayout {
 }
 
 const EQUIP_PITCH = 22;
+export const BOOK_MAX_ROWS = 10;
 const CARD_W = 64;
 
 export function inventoryLayout(viewW: number, viewH: number): InvLayout {
@@ -190,9 +191,10 @@ export function inventoryLayout(viewW: number, viewH: number): InvLayout {
   const bookX = panel.x + panel.w + 3;
   const bookY = 2 + 2 * METER_ROW_H + 2;
   const bookW = Math.max(120, Math.min(176, viewW - bookX - MARGIN));
-  const bookH = Math.max(60, viewH - bookY - 14);
-  const rowsY = bookY + 13;
   const rowH = 12;
+  // Up to BOOK_MAX_ROWS rows per page; shorter on small views.
+  const bookH = Math.max(60, Math.min(viewH - bookY - 14, 13 + BOOK_MAX_ROWS * rowH + 13));
+  const rowsY = bookY + 13;
   const rowsPerPage = Math.max(1, Math.floor((bookY + bookH - 13 - rowsY) / rowH));
   const book: BookLayout = {
     panel: rect(bookX, bookY, bookW, bookH),
