@@ -35,7 +35,14 @@ export const DEFAULT_KEYS: Record<Action, string[]> = {
  */
 export class InputManager {
   private down = new Set<string>();
+  /** Presses since the last rendered frame (UI edge detection; cleared by endFrame). */
   private pressedQ = new Set<string>();
+  /**
+   * Presses since the last sim tick (cleared by sample). Kept separate from pressedQ because the
+   * sim samples at a fixed 60 Hz while frames run at the display rate: on a 120/144 Hz display many
+   * frames run no tick, and a press cleared by endFrame() would never reach the sim.
+   */
+  private tickPressedQ = new Set<string>();
   mouseX = 0;
   mouseY = 0;
   mouseLeft = false;
@@ -57,7 +64,10 @@ export class InputManager {
   constructor(target: HTMLElement) {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
-      if (!this.down.has(e.code)) this.pressedQ.add(e.code);
+      if (!this.down.has(e.code)) {
+        this.pressedQ.add(e.code);
+        this.tickPressedQ.add(e.code);
+      }
       this.down.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
@@ -75,6 +85,7 @@ export class InputManager {
       if (e.button === 0) this.mouseLeft = true;
       if (e.button === 2) this.mouseRight = true;
       this.pressedQ.add(`Mouse${e.button}`);
+      this.tickPressedQ.add(`Mouse${e.button}`);
     });
     window.addEventListener('pointerup', (e) => {
       if (e.button === 0) this.mouseLeft = false;
@@ -93,6 +104,11 @@ export class InputManager {
   /** Edge-triggered: true once per physical press (cleared by `endFrame`). */
   pressed(a: Action): boolean {
     return this.keys[a].some((k) => this.pressedQ.has(k));
+  }
+
+  /** Pressed since the last sim tick (survives frames that run no tick). */
+  private tickPressed(a: Action): boolean {
+    return this.keys[a].some((k) => this.tickPressedQ.has(k));
   }
 
   mousePressed(button: number): boolean {
@@ -122,10 +138,11 @@ export class InputManager {
     const inp = emptyInput();
     inp.moveX = (this.held('right') ? 1 : 0) - (this.held('left') ? 1 : 0);
     inp.moveY = (this.held('down') ? 1 : 0) - (this.held('up') ? 1 : 0);
-    inp.jump = this.held('jump');
-    inp.attack = this.held('attack') || (this.mouseLeft && !this.pointerCaptured);
-    inp.alt = this.held('alt') || (this.mouseRight && !this.pointerCaptured);
-    inp.interact = this.held('interact');
+    // `|| tickPressed`: a tap shorter than one tick still registers for one tick.
+    inp.jump = this.held('jump') || this.tickPressed('jump');
+    inp.attack = this.held('attack') || this.tickPressed('attack') || ((this.mouseLeft || this.tickPressedQ.has('Mouse0')) && !this.pointerCaptured);
+    inp.alt = this.held('alt') || this.tickPressed('alt') || ((this.mouseRight || this.tickPressedQ.has('Mouse2')) && !this.pointerCaptured);
+    inp.interact = this.held('interact') || this.tickPressed('interact');
     const w = this.screenToWorld(this.mouseX, this.mouseY);
     inp.aimX = w.x;
     inp.aimY = w.y;
@@ -150,8 +167,9 @@ export class InputManager {
         inp.aimY = playerCenter.y + inp.moveY * 20;
       }
     }
-    for (let i = 0; i < 5; i++) if (this.pressed(`slot${i + 1}` as Action)) inp.select = i;
-    for (let i = 0; i < 3; i++) if (this.pressed(`skill${i + 1}` as Action)) inp.skill = i;
+    for (let i = 0; i < 5; i++) if (this.tickPressed(`slot${i + 1}` as Action)) inp.select = i;
+    for (let i = 0; i < 3; i++) if (this.tickPressed(`skill${i + 1}` as Action)) inp.skill = i;
+    this.tickPressedQ.clear();
     if (this.uiFocus) {
       inp.moveX = inp.moveY = 0;
       inp.jump = inp.attack = inp.alt = inp.interact = false;
