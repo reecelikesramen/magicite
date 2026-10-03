@@ -283,3 +283,29 @@ describe('pickups', () => {
     expect(countItem(p, 'gold')).toBe(0);
   });
 });
+
+describe('personal item sounds', () => {
+  it('equip / unequip / denied are positioned at the player (x = y = 0 means "everyone hears it")', () => {
+    const { w, p, e } = rig();
+    give(p, 0, 'leather_cap');
+    give(p, 1, 'wood', 2);
+    cmd(w, { type: 'equip', slot: 0 }, { type: 'equip', slot: 1 });
+    cmd(w, { type: 'unequip', slot: 'head' });
+    const all: { id: string; x: number; y: number }[] = [];
+    for (const step of [
+      () => cmd(w, { type: 'equip', slot: 0 }),
+      () => cmd(w, { type: 'unequip', slot: 'head' }),
+      () => cmd(w, { type: 'equip', slot: 1 }),
+    ]) {
+      step();
+      for (const ev of w.events) if (ev.type === 'sfx') all.push(ev);
+    }
+    const ids = all.map((s) => s.id);
+    expect(ids).toEqual(expect.arrayContaining(['equip', 'unequip', 'denied']));
+    for (const s of all) {
+      if (!['equip', 'unequip', 'denied'].includes(s.id)) continue;
+      expect(Math.abs(s.x - (e.x + e.w / 2)), s.id).toBeLessThan(16);
+      expect(Math.abs(s.y - (e.y + e.h / 2)), s.id).toBeLessThan(16);
+    }
+  });
+});

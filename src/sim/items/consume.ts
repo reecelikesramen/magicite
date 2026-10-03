@@ -4,6 +4,7 @@ import { secs } from '../constants';
 import type { Entity, ItemStack, PlayerState } from '../types';
 import type { World } from '../world';
 import { EQUIP_SLOTS, equipFromInventory, naturalSlot } from './equip';
+import { deny } from './fx';
 import { takeFromSlot } from './inventory';
 import { recalcStats } from './stats';
 import { tierForDistrict } from './tiers';
@@ -242,20 +243,20 @@ export function applyConsume(world: World, p: PlayerState, e: Entity, def: ItemD
   const omnivore = hasSpecial(p, 'eats_anything');
   if (!c) {
     if (!(omnivore && def.category === 'material')) return false;
-    if (p.hunger >= p.stats.maxHunger) return refuse(world, p, "You're full.");
+    if (p.hunger >= p.stats.maxHunger) return deny(world, p, "You're full.");
     p.hunger = Math.min(p.stats.maxHunger, p.hunger + 1);
     return true;
   }
   const isFood = !!def.tags?.includes('food');
   if (foodOnly(def) && c.food && p.hunger >= p.stats.maxHunger && !(def.id === 'herb' && hasSpecial(p, 'herb_heal'))) {
-    return refuse(world, p, "You're full.");
+    return deny(world, p, "You're full.");
   }
   // Specials that can refuse go first so nothing else is applied on refusal.
   if (c.special === 'reveal_recipe') {
-    if (!revealRecipe(world, p)) return refuse(world, p, 'You already know every recipe.');
+    if (!revealRecipe(world, p)) return deny(world, p, 'You already know every recipe.');
   } else if (c.special === 'repair') {
     const w = mostWorn(p);
-    if (!w) return refuse(world, p, 'Nothing needs repairing.');
+    if (!w) return deny(world, p, 'Nothing needs repairing.');
     restoreDurability(w.stack, KIT_REPAIR);
     say(world, p, `Repaired ${Content.items.get(w.stack.id)?.name ?? w.stack.id}.`, INFO);
     world.emit({ type: 'sfx', id: 'repair', x: e.x + e.w / 2, y: e.y });
@@ -293,12 +294,6 @@ export function applyConsume(world: World, p: PlayerState, e: Entity, def: ItemD
   if (isFood) p.runStats.foodsEaten = (p.runStats.foodsEaten ?? 0) + 1;
   if (def.tags?.includes('potion')) p.runStats.potionsDrunk = (p.runStats.potionsDrunk ?? 0) + 1;
   return true;
-}
-
-function refuse(world: World, p: PlayerState, text: string): false {
-  say(world, p, text);
-  world.emit({ type: 'sfx', id: 'denied', x: 0, y: 0 });
-  return false;
 }
 
 /**

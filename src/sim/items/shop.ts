@@ -5,6 +5,7 @@ import { hashSeed, Rng } from '../../engine/rng';
 import type { Entity, ItemStack, PlayerState, ShopComp, ShopEntry } from '../types';
 import type { World } from '../world';
 import { applyPermanent, healEntity } from './consume';
+import { deny } from './fx';
 import { makeStack, addStack, roomFor, validInv } from './inventory';
 import { pricePercent, tierForDistrict } from './tiers';
 
@@ -157,12 +158,6 @@ export function nearestNpc(world: World, e: Entity, pred: (npc: Entity, def: Sho
     }
   }
   return best;
-}
-
-function deny(world: World, p: PlayerState, text: string): false {
-  world.emit({ type: 'message', text, player: p.index });
-  world.emit({ type: 'sfx', id: 'denied', x: 0, y: 0 });
-  return false;
 }
 
 function bump(p: PlayerState, key: string, n: number): void {

@@ -2,6 +2,7 @@ import { Content } from '../../content';
 import type { ItemStack, PlayerState, SlotRef } from '../types';
 import type { World } from '../world';
 import { KIT_REPAIR, restoreDurability } from './consume';
+import { deny } from './fx';
 import { removeItem, countItem } from './inventory';
 import { nearestNpc } from './shop';
 
@@ -16,12 +17,6 @@ export function repairCost(stack: ItemStack): number {
 
 function stackAt(p: PlayerState, ref: SlotRef): ItemStack | null {
   return ref.kind === 'inv' ? (p.inventory[ref.index] ?? null) : (p.equipment[ref.slot] ?? null);
-}
-
-function deny(world: World, p: PlayerState, text: string): false {
-  world.emit({ type: 'message', text, player: p.index });
-  world.emit({ type: 'sfx', id: 'denied', x: 0, y: 0 });
-  return false;
 }
 
 /**

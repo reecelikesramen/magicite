@@ -2,6 +2,7 @@ import { Content } from '../../content';
 import type { EquipSlot, ItemDef } from '../../content/types';
 import type { ItemStack, PlayerState, SlotRef } from '../types';
 import type { World } from '../world';
+import { deny, playerSfx } from './fx';
 import { addStack, canMerge, maxStackOf, validInv } from './inventory';
 import { recalcStats } from './stats';
 
@@ -38,12 +39,6 @@ function defOf(s: ItemStack | null | undefined): ItemDef | undefined {
 
 function refresh(world: World, p: PlayerState): void {
   recalcStats(p, world.get(p.entityId));
-}
-
-function deny(world: World, p: PlayerState, text: string): false {
-  world.emit({ type: 'message', text, player: p.index });
-  world.emit({ type: 'sfx', id: 'denied', x: 0, y: 0 });
-  return false;
 }
 
 function stackAt(p: PlayerState, ref: SlotRef): ItemStack | null {
@@ -83,7 +78,7 @@ export function equipFromInventory(world: World, p: PlayerState, index: number):
     p.inventory[index] = cur ?? null;
   }
   refresh(world, p);
-  world.emit({ type: 'sfx', id: 'equip', x: 0, y: 0 });
+  playerSfx(world, p, 'equip');
   return true;
 }
 
@@ -96,7 +91,7 @@ export function unequip(world: World, p: PlayerState, slot: EquipSlot): boolean 
   if (left > 0) s.count = left;
   else p.equipment[slot] = null;
   refresh(world, p);
-  world.emit({ type: 'sfx', id: 'unequip', x: 0, y: 0 });
+  playerSfx(world, p, 'unequip');
   return true;
 }
 
