@@ -27,8 +27,10 @@ export class LocalSession implements Session {
   private pending: GameEvent[] = [];
   private inputs: PlayerInput[] = [];
 
-  constructor(seed: number, setups: PlayerSetup[]) {
+  /** `prepare` runs on the new world before its first events are captured (dev level jumps). */
+  constructor(seed: number, setups: PlayerSetup[], prepare?: (world: World) => void) {
     this.world = createRun(seed, setups);
+    prepare?.(this.world);
     this.localPlayers = setups.map((_, i) => i);
     // Level-enter events fired during createRun are useful to the UI too.
     this.pending.push(...this.world.events);

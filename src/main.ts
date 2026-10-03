@@ -32,11 +32,10 @@ async function boot(): Promise<void> {
   const fixedSeed = params.get('seed');
   // Dev: `&level=5&biome=woods` jumps straight to that run level (boss arenas, towns, the lair).
   const jumpLevel = Number(params.get('level') ?? 0);
-  const solo = () => {
-    const s = new LocalSession(Number(fixedSeed), [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }]);
-    if (jumpLevel > 1) enterLevel(s.world, requestFor(s.world, jumpLevel, params.get('biome') ?? undefined));
-    return s;
-  };
+  const solo = () =>
+    new LocalSession(Number(fixedSeed), [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }], (w) => {
+      if (jumpLevel > 1) enterLevel(w, requestFor(w, jumpLevel, params.get('biome') ?? undefined));
+    });
   const game = new Game(app, input, fixedSeed ? solo() : new LocalSession(1, [{ name: 'DEMO', race: 'drifter', hat: '', companion: '' }]), fixedSeed ? solo : undefined);
   if (!fixedSeed) (window as unknown as { app: App }).app = new App(app, game);
   game.start();

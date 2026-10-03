@@ -4,6 +4,7 @@
  * Built-in generators (player, held items, item icons, slime, rock/ore, trees, plants, portal,
  * coin, gem, projectiles) are registered at BUILTIN_PRIORITY so any real art overrides them.
  */
+import { registerBestiarySprites } from './builtin/bestiary';
 import { registerCreatureSprites } from './builtin/creatures';
 import { registerItemSprites } from './builtin/items';
 import { registerMiscSprites } from './builtin/misc';
@@ -36,6 +37,7 @@ export function registerBuiltinSprites(): void {
   registerMiscSprites();
   registerPlayerSprites();
   registerCreatureSprites();
+  registerBestiarySprites();
   registerNatureSprites();
 }
 
