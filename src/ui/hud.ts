@@ -120,6 +120,9 @@ export class Hud {
   }
 
   handleEvents(events: readonly GameEvent[], world: World, playerIndex: number): void {
+    // Game calls handleEvents before update: reset for a new run here, or the reset in update()
+    // would wipe the toasts/pickups this first batch of the new world just queued.
+    if (world !== this.lastWorld) this.resetForWorld(world, playerIndex);
     const me = playerIndex;
     const nameOf = (i: number) => world.players[i]?.name ?? 'Someone';
     for (const ev of events) {

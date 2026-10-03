@@ -40,6 +40,8 @@ export class RecipeBook extends Container {
   private rows: Row[] = [];
   private L: BookLayout | null = null;
   private key = '';
+  /** Entries the rows were last built from (a new list with the same length must still rebuild). */
+  private shown: readonly RecipeEntry[] | null = null;
 
   constructor() {
     super();
@@ -83,8 +85,9 @@ export class RecipeBook extends Container {
     this.page = clampPage(this.page, entries.length, L.rowsPerPage);
     const pages = pageCount(entries.length, L.rowsPerPage);
     const key = `${this.page}|${entries.length}`;
-    if (key !== this.key) {
+    if (key !== this.key || entries !== this.shown) {
       this.key = key;
+      this.shown = entries;
       this.title.text = `Recipes (${entries.length})`;
       this.pageText.text = `${this.page + 1}/${pages}`;
       this.pageText.position.set(L.pageText.x - Math.floor(this.pageText.textWidth / 2), L.pageText.y);
