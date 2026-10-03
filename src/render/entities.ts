@@ -5,6 +5,7 @@ import { hash3 } from '../engine/rng';
 import type { Entity, PlayerState } from '../sim/types';
 import type { World } from '../sim/world';
 import { animFrame, heldRestAngle, heldSpriteKey, spriteKeyFor, swingAngle } from './entity-keys';
+import { HAT_ANCHOR_Y, HAT_H, HAT_W, headBob } from './sprites/builtin/hats';
 import { flicker, type LightPool } from './lights';
 import { emitOpts, emitPreset } from './particles/presets';
 import type { ParticleSystem } from './particles/system';
@@ -20,6 +21,9 @@ interface View {
   sprite: Sprite;
   held: Sprite | null;
   heldKey: string;
+  /** Player hat overlay (hat_<id>), drawn over the head. */
+  hat: Sprite | null;
+  hatKey: string;
   /** Resting angle of the held item's silhouette (facing right). */
   heldRest: number;
   anim: string;
@@ -125,6 +129,7 @@ export class EntityViews {
         if (v) v.seen = frame;
         if (v) v.sprite.visible = false;
         if (v?.held) v.held.visible = false;
+        if (v?.hat) v.hat.visible = false;
         continue;
       }
       if (!v) v = this.create(e, players);
@@ -196,7 +201,7 @@ export class EntityViews {
     sprite.scale.set(1);
     sprite.tint = 0xffffff;
     const v: View = {
-      id: e.id, seen: 0, key, set, sprite, held: null, heldKey: '', heldRest: 0, anim: '', t: 0, shake: 0,
+      id: e.id, seen: 0, key, set, sprite, held: null, heldKey: '', hat: null, hatKey: '', heldRest: 0, anim: '', t: 0, shake: 0,
       prevGround: e.onGround, prevVy: e.vy, trailX: e.x, trailY: e.y, emissive: false, home: null, flashing: false,
       variant: hash3(e.id, 17, 3), ax: 0, ay: 0,
     };
@@ -234,6 +239,13 @@ export class EntityViews {
       this.freeSprites.push(v.held);
       v.held = null;
       v.heldKey = '';
+    }
+    if (v.hat) {
+      v.hat.visible = false;
+      v.hat.removeFromParent();
+      this.freeSprites.push(v.hat);
+      v.hat = null;
+      v.hatKey = '';
     }
   }
 
@@ -311,6 +323,34 @@ export class EntityViews {
     }
     if (e.kind === 'projectile') this.projectileTrail(v, e, ax, ay, ps);
     this.updateHeld(v, e, p, ax, ay);
+    if (e.kind === 'player') this.updateHat(v, p, anim, fi, s.alpha);
+  }
+
+  /** Hat overlay riding the head (bob follows the body frame); hidden while downed or hatless. */
+  private updateHat(v: View, p: PlayerState | undefined, anim: string, frame: number, alpha: number): void {
+    const key = p?.hat && !p.downed ? `hat_${p.hat}` : '';
+    if (!key) {
+      if (v.hat) v.hat.visible = false;
+      return;
+    }
+    if (!v.hat) {
+      v.hat = this.freeSprites.pop() ?? new Sprite();
+      v.hat.rotation = 0;
+      v.hat.tint = 0xffffff;
+    }
+    const h = v.hat;
+    const home = v.sprite.parent;
+    if (home && h.parent !== home) home.addChild(h);
+    if (v.hatKey !== key) {
+      v.hatKey = key;
+      const set = spriteSet(key, { kind: 'prop', w: HAT_W, h: HAT_H, label: key });
+      h.texture = setFrames(set, 'idle')[0]!;
+      h.anchor.set(set.ox / set.w, set.oy / set.h);
+    }
+    h.visible = true;
+    h.alpha = alpha;
+    h.scale.set(v.sprite.scale.x, 1);
+    h.position.set(Math.round(v.ax), Math.round(v.ay) - HAT_ANCHOR_Y + headBob(anim, frame));
   }
 
   private projectileTrail(v: View, e: Entity, ax: number, ay: number, ps: ParticleSystem): void {

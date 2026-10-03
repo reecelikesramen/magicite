@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { Content } from '../src/content';
 import { registerBestiarySprites } from '../src/render/sprites/builtin/bestiary';
 import { registerCreatureSprites } from '../src/render/sprites/builtin/creatures';
+import { registerHatSprites } from '../src/render/sprites/builtin/hats';
 import { registerItemSprites } from '../src/render/sprites/builtin/items';
 import { registerMiscSprites } from '../src/render/sprites/builtin/misc';
 import { registerNatureSprites } from '../src/render/sprites/builtin/nature';
@@ -19,6 +20,7 @@ registerMiscSprites();
 registerPlayerSprites();
 registerCreatureSprites();
 registerBestiarySprites();
+registerHatSprites();
 registerNatureSprites();
 
 const [out = 'sheet.png', ...prefixes] = process.argv.slice(2);
@@ -27,6 +29,7 @@ for (const e of Content.enemies.values()) keys.add(e.sprite);
 for (const b of Content.bosses.values()) keys.add(b.sprite);
 for (const n of Content.npcs.values()) keys.add((n as { sprite: string }).sprite);
 for (const c of Content.companions.values()) keys.add((c as { sprite: string }).sprite);
+for (const h of Content.hats.values()) keys.add((h as { sprite: string }).sprite);
 const wanted = [...keys].filter((k) => !prefixes.length || prefixes.some((p) => k.startsWith(p)));
 
 const SCALE = 3;

@@ -86,6 +86,24 @@ describe('boss arenas', () => {
     expect(doorTiles(w).every((t) => t === Tile.AIR)).toBe(true);
   });
 
+  it('a straggler left outside after the grace period is pulled into the sealed arena', () => {
+    const { w, boss } = bossWorld('woods', 5, 2);
+    const ar = w.level.arena!;
+    const p0 = w.playerEntity(0)!;
+    const p1 = w.playerEntity(1)!;
+    p0.x = ar.x + 5 * TILE;
+    p0.y = ar.y + ar.h - p0.h - 1;
+    step(w, secs(9));
+    expect(boss.ai!.n.locked).toBe(1);
+    step(w, 2);
+    expect(p1.x).toBeGreaterThanOrEqual(ar.x);
+    expect(p1.x + p1.w).toBeLessThanOrEqual(ar.x + ar.w);
+    // Not stuck in the sealed door or any wall.
+    const g = w.level.grid;
+    for (let ty = Math.floor(p1.y / TILE); ty <= Math.floor((p1.y + p1.h - 1) / TILE); ty++)
+      for (let tx = Math.floor(p1.x / TILE); tx <= Math.floor((p1.x + p1.w - 1) / TILE); tx++) expect(g.isSolid(tx, ty)).toBe(false);
+  });
+
   it('phases advance at HP thresholds with a brief invulnerability', () => {
     const { w, boss } = bossWorld('fen');
     enterArena(w);

@@ -128,9 +128,23 @@ function frame(world: World, e: Entity, def: BossDef): Ctx | null {
   return { world, e, a, n, def, target, phase: a.phase };
 }
 
-/** Seal the arena door once every active player is inside (or after a grace period). */
+/**
+ * Seal the arena door once every active player is inside (or after a grace period). While sealed,
+ * anyone still outside (stragglers, late joiners, reconnects) is pulled in just past the door.
+ */
 function lockArena(world: World, n: Record<string, number>): void {
-  if (n.locked || n.doorX0 === undefined || n.roaming) return;
+  if (n.doorX0 === undefined || n.roaming) return;
+  if (n.locked) {
+    for (const p of world.activePlayers()) {
+      if (insideArena(world, p)) continue;
+      p.x = (n.doorX1! + 2) * TILE;
+      p.y = (n.doorY1! + 1) * TILE - p.h - 0.01;
+      p.vx = p.vy = 0;
+      world.emit({ type: 'particles', preset: 'burst', x: p.x + p.w / 2, y: p.y + p.h / 2, count: 12, color: 0xc0a0ff });
+      world.emit({ type: 'sfx', id: 'portal_enter', x: p.x, y: p.y });
+    }
+    return;
+  }
   const players = world.activePlayers();
   const allIn = players.length > 0 && players.every((p) => insideArena(world, p));
   if (!allIn && world.tick - (n.activeAt ?? world.tick) < secs(LOCK_GRACE)) return;

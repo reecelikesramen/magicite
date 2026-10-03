@@ -6,6 +6,7 @@
  */
 import { registerBestiarySprites } from './builtin/bestiary';
 import { registerCreatureSprites } from './builtin/creatures';
+import { registerHatSprites } from './builtin/hats';
 import { registerItemSprites } from './builtin/items';
 import { registerMiscSprites } from './builtin/misc';
 import { registerNatureSprites } from './builtin/nature';
@@ -38,6 +39,7 @@ export function registerBuiltinSprites(): void {
   registerPlayerSprites();
   registerCreatureSprites();
   registerBestiarySprites();
+  registerHatSprites();
   registerNatureSprites();
 }
 
