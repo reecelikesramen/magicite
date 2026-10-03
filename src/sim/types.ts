@@ -157,6 +157,51 @@ export interface Entity {
   owner?: number;
 }
 
+/**
+ * Per-player controller + meter scratch (plain numbers so it snapshots/predicts cleanly).
+ * Owned by src/sim/player (controller, meters, downed); see createCtl() in player/create.ts.
+ */
+export interface PlayerCtl {
+  coyote: number;
+  jumpBuffer: number;
+  airJumpsUsed: number;
+  dropThrough: number;
+  climbing: boolean;
+  mineX: number;
+  mineY: number;
+  mineTicks: number;
+  /** Rising from a player jump: releasing jump applies jump-cut gravity. */
+  jumping: boolean;
+  /** Ticks left in the current dash (0 = not dashing). */
+  dashT: number;
+  /** Direction of the active dash (-1 / 1); 0 = no dash pending finalisation. */
+  dashDir: number;
+  /** The current dash started in the air (faster, longer, no gravity). */
+  dashAir: boolean;
+  /** Ticks until the next dash is allowed. */
+  dashCd: number;
+  /** Buffered dash press (pressed during cooldown): sign = direction, magnitude = ticks left. */
+  dashBuf: number;
+  /** Fast-fall dive (Down + Jump in mid-air) in progress. */
+  diving: boolean;
+  /** Ticks since last grounded/climbing/swimming (landing detection). */
+  airT: number;
+  /** Fastest downward speed reached this airtime (px/s). */
+  fallPeak: number;
+  /** Last safe standing position (hitbox top-left px) for crush / out-of-bounds recovery. */
+  safeX: number;
+  safeY: number;
+  /** Meter timers in ticks (see player/meters.ts). */
+  staminaT: number;
+  manaT: number;
+  hungerT: number;
+  starveT: number;
+  /** Ticks spent downed without being revived (bleed-out at 30 s in co-op). */
+  downedT: number;
+  /** Identity of the level the meters system last saw (auto-revive on level entry). */
+  levelKey: number;
+}
+
 /** Rolled at character creation (15 points; HP 4–6, others 2–4) and raised by level-ups. */
 export interface BaseStats {
   hp: number;
@@ -242,9 +287,9 @@ export interface PlayerState {
   /** Fully dead for the rest of the level (solo death or bled out). */
   out: boolean;
   /** Controller scratch (coyote, jump buffer, air jumps used, drop-through). */
-  ctl: { coyote: number; jumpBuffer: number; airJumpsUsed: number; dropThrough: number; climbing: boolean; mineX: number; mineY: number; mineTicks: number };
+  ctl: PlayerCtl;
   /** Previous-tick button states for edge detection. */
-  prev: { jump: boolean; attack: boolean; interact: boolean; alt: boolean };
+  prev: { jump: boolean; attack: boolean; interact: boolean; alt: boolean; dash: number };
   knownRecipes: string[];
   runStats: RunStats;
   /** Pending crafting selection (first Shift+Click). */
@@ -286,11 +331,13 @@ export interface PlayerInput {
   select: number;
   /** Skill slot (0..2 = Z/X/C) to activate this tick, -1 = none. */
   skill: number;
+  /** Dash button held: -1 = dash left (Q / LB), 1 = dash right (E / RB), 0 = none. Edge derived in the sim. */
+  dash: -1 | 0 | 1;
   commands: PlayerCommand[];
 }
 
 export function emptyInput(): PlayerInput {
-  return { moveX: 0, moveY: 0, jump: false, attack: false, alt: false, interact: false, aimX: 0, aimY: 0, select: -1, skill: -1, commands: [] };
+  return { moveX: 0, moveY: 0, jump: false, attack: false, alt: false, interact: false, aimX: 0, aimY: 0, select: -1, skill: -1, dash: 0, commands: [] };
 }
 
 /**
