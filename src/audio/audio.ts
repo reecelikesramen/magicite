@@ -23,7 +23,7 @@ export interface AudioManagerOptions {
 }
 
 /** Bus trims so 1.0 user volumes are comfortable (pulse waves are loud). */
-const MUSIC_TRIM = 0.42;
+const MUSIC_TRIM = 0.55;
 const SFX_TRIM = 0.75;
 const TIMER_MS = 50;
 
@@ -85,7 +85,8 @@ export class AudioManager {
     if (this.failed) return;
     if (!this.ctx && !this.init()) return;
     const ctx = this.ctx!;
-    if (ctx.state === 'suspended' && !this.hidden()) {
+    // 'suspended' (autoplay policy / tab hidden) or Safari's 'interrupted' (phone call, other app).
+    if (ctx.state !== 'running' && ctx.state !== 'closed' && !this.hidden()) {
       try {
         void ctx.resume().catch(() => undefined);
       } catch {
