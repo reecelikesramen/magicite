@@ -77,8 +77,8 @@ let halo: Texture | null = null;
 export function lightTexture(): Texture {
   if (grad) return grad;
   grad = radialTexture(128, (t) => {
-    const k = 1 - t;
-    return k <= 0 ? 0 : k * k * (0.6 + 0.4 * k);
+    const k = 1 - t * t;
+    return k <= 0 ? 0 : k * k;
   });
   return grad;
 }

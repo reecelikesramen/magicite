@@ -106,7 +106,7 @@ export class Compositor {
     this.bloomRT = rt(8, 8, true);
     // Blurred emissive copy sits in bloom.root (screen-aligned, not in world space).
     this.bloomSrc = new Sprite(this.emissiveRT);
-    const blur = new BlurFilter({ strength: 3, quality: 2, kernelSize: 7 });
+    const blur = new BlurFilter({ strength: 6, quality: 3, kernelSize: 9 });
     blur.resolution = 1;
     this.bloomSrc.filters = [blur];
     this.bloom.root.addChildAt(this.bloomSrc, 0);

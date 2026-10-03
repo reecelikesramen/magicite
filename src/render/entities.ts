@@ -45,8 +45,8 @@ export interface ViewRect {
 /** Tunables of how entities light the world. */
 export const ENTITY_LIGHT = {
   /** Player light radius multiplier and centre over-exposure. */
-  playerRadius: 1.2,
-  playerIntensity: 1.35,
+  playerRadius: 1.35,
+  playerIntensity: 1.6,
   /** Other entity lights. */
   radius: 1.1,
   intensity: 1.0,

@@ -56,9 +56,9 @@ function crystal(p: Pen, cx: number, cy: number, s: number, l: number[]): void {
 }
 
 export function treeDef(hitH: number, look: TreeLook): SpriteDef {
-  const W = 28;
-  const H = Math.max(24, hitH) + 22;
-  const cx = 14;
+  const W = 34;
+  const H = Math.max(24, hitH) + 24;
+  const cx = 17;
   return {
     w: W,
     h: H,
@@ -96,6 +96,7 @@ export function treeDef(hitH: number, look: TreeLook): SpriteDef {
         const x = xs[y] ?? cx;
         const reach = 3 + rng.int(0, 2);
         const by = y - 1;
+        if (look.kind === 'puff' || look.kind === 'fen' || look.kind === 'pine') p.px(x + (side > 0 ? 3 : -4), by - 1, t[0]!);
         // Branch.
         p.px(x + (side > 0 ? 1 : -2), by, t[1]!);
         p.px(x + (side > 0 ? 2 : -3), by - 1, t[1]!);
@@ -114,7 +115,7 @@ export function treeDef(hitH: number, look: TreeLook): SpriteDef {
             p.hline(px - 1, px + 1, py - 1, l[2]!);
             break;
           default:
-            puff(p, px, py, 3.2 + rng.range(0, 1.4), 2.2 + rng.range(0, 0.7), l, look.kind);
+            puff(p, px + side, py, 4.3 + rng.range(0, 1.6), 2.7 + rng.range(0, 0.8), l, look.kind);
         }
         side = -side;
       }
@@ -137,8 +138,8 @@ export function treeDef(hitH: number, look: TreeLook): SpriteDef {
           for (let i = 0; i < 4; i++) p.px(tx + rng.int(-5, 5), top - 2 + rng.int(-1, 0), l[3]!);
           break;
         default:
-          puff(p, tx, top - 2, 5.5 + rng.range(0, 1.5), 3.8 + rng.range(0, 0.6), l, look.kind);
-          puff(p, tx + rng.int(-1, 1), top - 5, 3.2, 2.2, l, look.kind);
+          puff(p, tx, top - 2, 7 + rng.range(0, 1.5), 4.4 + rng.range(0, 0.6), l, look.kind);
+          puff(p, tx + rng.int(-1, 1), top - 6, 4.4, 2.8, l, look.kind);
       }
     },
   };

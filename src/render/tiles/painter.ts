@@ -92,6 +92,9 @@ const isNatural = (id: number): boolean => id === Tile.GROUND || id === Tile.ROC
 const fringeOpen = (id: number): boolean => id === Tile.AIR || id === Tile.LADDER;
 const isLiquid = (id: number): boolean => id === Tile.WATER || id === Tile.LAVA;
 
+/** Emissive alpha of grass blade tips (0..255). */
+export const GRASS_TIP_GLOW = 64;
+
 // Scratch outputs (avoid allocations in the hot loop).
 let outA = 255;
 let outGlow = 0;
@@ -135,6 +138,8 @@ function bladeColor(st: BiomeStyle, gx: number, k: number, h: number): number {
   outGlow = 0;
   switch (st.fringe) {
     case 'grass':
+      // Blade tips faintly self-lit so distant ledges stay readable in the dark (like the original).
+      outGlow = k === 0 ? GRASS_TIP_GLOW : 0;
       if (k === 0) return h >= 2 ? ramp(f, 3) : ramp(f, 2);
       return k === 1 ? ramp(f, 2) : ramp(f, 1);
     case 'snow':
@@ -231,6 +236,7 @@ function solidColor(
         case 'grass': {
           let depth = 2 + (hash01(gx, 4, 90) < 0.45 ? 1 : 0);
           if (hash01(gx >> 1, 9, 91) < 0.14) depth += 2;
+          if (py === 0) outGlow = GRASS_TIP_GLOW >> 1;
           if (py < depth) return py === 0 ? (hash01(gx, 1, 92) < 0.35 ? ramp(f, 3) : ramp(f, 2)) : py === 1 ? ramp(f, 1) : ramp(f, 0);
           break;
         }
@@ -303,8 +309,10 @@ function solidColor(
     let i = lv === 0 ? 0 : lv === 1 ? 1 : lv === 3 ? 3 : (cv & 7) === 1 ? 3 : (cv & 3) === 0 ? 1 : 2;
     if (id === Tile.ROCK && lv === 3) i = 3;
     c = ramp(rmp, i);
-    if (id === Tile.GROUND && lv === 0 && st.crackGlow && (cv & 3) !== 3 && dEdge > 0) {
-      outGlow = (cv & 4) ? 210 : 150;
+    // Glowing crack network (cinder/lair): only some crevices glow, brighter near exposed faces.
+    if (id === Tile.GROUND && lv === 0 && st.crackGlow && (cv & 7) < 3 && dEdge > 0) {
+      const exposed = eT || eB || eL || eR;
+      outGlow = exposed ? ((cv & 8) ? 220 : 170) : (cv & 8) ? 110 : 70;
       return st.crackGlow[(cv >> 3) & 1] ?? st.crackGlow[0]!;
     }
   }
@@ -496,12 +504,23 @@ function paintTile(g: GridView, st: BiomeStyle, pat: PatternSet, tx: number, ty:
             const p = pat.lava;
             const po = (gy & p.mask) * p.size + ((gx + (gy >> 1)) & p.mask);
             const l = p.level[po]!;
-            if (surf && py === 0) c = ramp(lv.glow, 3);
-            else if (surf && py === 1) c = ramp(lv.glow, 2);
-            else if (l === 0) c = ramp(lv.glow, surf && py < 4 ? 2 : 1);
-            else if (l === 3) c = ramp(lv.crust, 3);
-            else c = ramp(lv.crust, l === 1 ? 1 : 2);
-            glow = 255;
+            // Bright surface + glowing seams; the crust between seams only smoulders.
+            if (surf && py === 0) {
+              c = ramp(lv.glow, 3);
+              glow = 255;
+            } else if (surf && py === 1) {
+              c = ramp(lv.glow, 2);
+              glow = 255;
+            } else if (l === 0) {
+              c = ramp(lv.glow, surf && py < 4 ? 2 : 1);
+              glow = 255;
+            } else if (l === 3) {
+              c = ramp(lv.crust, 3);
+              glow = surf && py < 4 ? 200 : 140;
+            } else {
+              c = ramp(lv.crust, l === 1 ? 1 : 2);
+              glow = surf && py < 4 ? 160 : l === 1 ? 70 : 100;
+            }
             break;
           }
         }

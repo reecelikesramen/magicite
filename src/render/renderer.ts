@@ -31,8 +31,8 @@ export const LOOK = {
   /** Multiplier on palette.ambient·ambientLevel (the darkness of everything outside lights). */
   ambientBoost: 1.0,
   /** Minimum light on creatures/items (0 = as dark as terrain, 1 = unlit). */
-  entityFloor: 0.5,
-  bloom: 0.85,
+  entityFloor: 0.6,
+  bloom: 1.4,
   /** Static/level lights and portal lights. */
   portalLight: { radius: 44, intensity: 0.9 },
   lavaFlicker: 0.15,
