@@ -7,7 +7,7 @@ import type { ItemStack } from '../sim/types';
 import type { Rect } from './layout';
 import { ICON, SLOT } from './layout';
 import { countLabel, MINI_H, MiniText } from './minifont';
-import { itemIcon } from './icons';
+import { itemIcon, itemIconEpoch } from './icons';
 import { UI, mix } from './theme';
 
 /** A solid-colour rectangle sprite (1×1 white texture, scaled). Cheap to move/resize per frame. */
@@ -129,7 +129,7 @@ export class SlotView extends Container {
 
   /** Update the shown stack; `durFrac` = 0..1 or null when the item has no durability. */
   setItem(stack: ItemStack | null, durFrac: number | null): void {
-    const key = stack ? `${stack.id}|${stack.count}|${durFrac === null ? '' : Math.round(durFrac * 10)}` : '';
+    const key = stack ? `${stack.id}|${stack.count}|${durFrac === null ? '' : Math.round(durFrac * 10)}|${itemIconEpoch()}` : '';
     if (key === this.itemKey) return;
     this.itemKey = key;
     if (!stack) {

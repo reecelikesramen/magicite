@@ -102,3 +102,14 @@ describe('HUD glyphs, ghosts and skill pictograms', () => {
     expect(getPx(b, 1, 1) & 0xffffff).toBe(0xffffff);
   });
 });
+
+describe('icon source wiring', () => {
+  it('changing the icon source bumps the epoch so cached slot/recipe icons refresh', async () => {
+    const { itemIconEpoch, setItemIconSource } = await import('../../src/ui/icons');
+    const before = itemIconEpoch();
+    setItemIconSource(() => null);
+    expect(itemIconEpoch()).toBe(before + 1);
+    setItemIconSource(null);
+    expect(itemIconEpoch()).toBe(before + 2);
+  });
+});

@@ -1,7 +1,7 @@
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { PixelText } from '../render/pixelfont';
 import { type RecipeEntry, fitText, recipeLine } from './format';
-import { hudIcon, itemIcon } from './icons';
+import { hudIcon, itemIcon, itemIconEpoch } from './icons';
 import type { BookLayout } from './layout';
 import { UI } from './theme';
 import { frame, panel } from './widgets';
@@ -84,7 +84,7 @@ export class RecipeBook extends Container {
     if (!L) return;
     this.page = clampPage(this.page, entries.length, L.rowsPerPage);
     const pages = pageCount(entries.length, L.rowsPerPage);
-    const key = `${this.page}|${entries.length}`;
+    const key = `${this.page}|${entries.length}|${itemIconEpoch()}`;
     if (key !== this.key || entries !== this.shown) {
       this.key = key;
       this.shown = entries;

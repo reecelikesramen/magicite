@@ -14,6 +14,7 @@ import { GHOST_ART, HUD_ART, SKILL_ART, artPixels, itemIconPixels, type PixelBuf
 export type ItemIconSource = (def: ItemDef) => Texture | null | undefined;
 
 let iconSource: ItemIconSource | null = null;
+let epoch = 0;
 const itemCache = new Map<string, Texture>();
 const hudCache = new Map<string, Texture>();
 
@@ -21,6 +22,16 @@ const hudCache = new Map<string, Texture>();
 export function setItemIconSource(fn: ItemIconSource | null): void {
   iconSource = fn;
   itemCache.clear();
+  epoch++;
+}
+
+/**
+ * Changes whenever the icon source does. Views that cache drawn icons by item id (slots, recipe
+ * rows) include it in their cache keys, so wiring the sprite registry after the HUD has drawn
+ * still refreshes every icon.
+ */
+export function itemIconEpoch(): number {
+  return epoch;
 }
 
 /** Convert a pixel buffer into a nearest-sampled texture (one small canvas each, cached by callers). */
