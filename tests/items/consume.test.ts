@@ -22,6 +22,40 @@ describe('inventory click-use', () => {
     expect(messages(w)).toContain("You're full.");
   });
 
+  it('refuses a pure refill when every meter it restores is full (a second potion is not wasted)', () => {
+    const { w, p, e } = rig();
+    give(p, 0, 'health_potion', 2);
+    e.hp = e.maxHp - 1;
+    cmd(w, { type: 'use', slot: 0 }, { type: 'use', slot: 0 });
+    expect(e.hp).toBe(e.maxHp);
+    expect(p.inventory[0]!.count).toBe(1);
+    expect(messages(w)).toContain('You feel fine already.');
+    // Mixed refills are fine while any of their meters has room.
+    give(p, 1, 'hearty_stew', 1); // food 5 + heal 1
+    p.hunger = p.stats.maxHunger - 1;
+    cmd(w, { type: 'use', slot: 1 });
+    expect(p.inventory[1]).toBeNull();
+    // Status / special consumables always apply.
+    give(p, 2, 'stamina_tonic', 1);
+    p.stamina = p.stats.maxStamina;
+    cmd(w, { type: 'use', slot: 2 });
+    expect(p.inventory[2]).toBeNull();
+  });
+
+  it('race / hat heal specials count: herbs still heal a herb_heal player at full hunger', () => {
+    const { w, p, e } = rig();
+    p.specials.push('herb_heal');
+    give(p, 0, 'herb', 2);
+    p.hunger = p.stats.maxHunger;
+    e.hp = e.maxHp - 1;
+    cmd(w, { type: 'use', slot: 0 });
+    expect(e.hp).toBe(e.maxHp);
+    expect(p.inventory[0]!.count).toBe(1);
+    cmd(w, { type: 'use', slot: 0 });
+    expect(p.inventory[0]!.count).toBe(1);
+    expect(messages(w)).toContain("You're full.");
+  });
+
   it('drinks potions: heal, mana, stamina + haste', () => {
     const { w, p, e } = rig();
     give(p, 0, 'health_potion', 1);

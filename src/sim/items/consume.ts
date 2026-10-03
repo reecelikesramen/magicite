@@ -1,5 +1,5 @@
 import { Content, recipeKey } from '../../content';
-import type { ItemDef, StatMods, StatusId } from '../../content/types';
+import type { ConsumeEffect, ItemDef, StatMods, StatusId } from '../../content/types';
 import { secs } from '../constants';
 import type { Entity, ItemStack, PlayerState } from '../types';
 import type { World } from '../world';
@@ -230,13 +230,28 @@ function foodOnly(def: ItemDef): boolean {
   return !!c.food && !c.heal && !c.mana && !c.stamina && !c.status?.length && !c.permanent && !c.special;
 }
 
+/**
+ * Would a pure meter refill (heal / mana / food / stamina, no statuses, permanent gains or specials)
+ * change anything? Items that only top up meters which are all full are refused, not wasted: food at
+ * full hunger (GDD), and likewise a second health potion clicked after the first one filled you up.
+ */
+function wouldHelp(p: PlayerState, e: Entity, c: ConsumeEffect, heal: number, food: number): boolean {
+  if (c.status?.length || c.permanent || c.special) return true;
+  if (heal > 0 && e.hp < e.maxHp) return true;
+  if (c.mana && p.mana < p.stats.maxMana) return true;
+  if (food > 0 && p.hunger < p.stats.maxHunger) return true;
+  if (c.stamina && p.stamina < p.stats.maxStamina) return true;
+  return false;
+}
+
 function hasSpecial(p: PlayerState, s: string): boolean {
   return p.specials.includes(s);
 }
 
 /**
  * Apply an item's ConsumeEffect (+ race/hat specials). Returns false (nothing consumed) when it is
- * refused: food at full hunger, a scroll with nothing left to learn, a repair kit with nothing worn.
+ * refused: food at full hunger (or any pure meter refill when those meters are full), a scroll with
+ * nothing left to learn, a repair kit with nothing worn.
  * `eats_anything` (boarfolk) lets any material be eaten for +1 food.
  */
 export function applyConsume(world: World, p: PlayerState, e: Entity, def: ItemDef): boolean {
@@ -249,9 +264,11 @@ export function applyConsume(world: World, p: PlayerState, e: Entity, def: ItemD
     return true;
   }
   const isFood = !!def.tags?.includes('food');
-  if (foodOnly(def) && c.food && p.hunger >= p.stats.maxHunger && !(def.id === 'herb' && hasSpecial(p, 'herb_heal'))) {
-    return deny(world, p, "You're full.");
-  }
+  let heal = c.heal ?? 0;
+  if (def.id === 'herb' && hasSpecial(p, 'herb_heal')) heal += 1;
+  if (def.id === 'glowcap' && hasSpecial(p, 'shroom_heal')) heal += 1;
+  const food = c.food ? c.food + (omnivore && isFood ? 1 : 0) : 0;
+  if (!wouldHelp(p, e, c, heal, food)) return deny(world, p, foodOnly(def) ? "You're full." : 'You feel fine already.');
   // Specials that can refuse go first so nothing else is applied on refusal.
   if (c.special === 'reveal_recipe') {
     if (!revealRecipe(world, p)) return deny(world, p, 'You already know every recipe.');
@@ -262,12 +279,9 @@ export function applyConsume(world: World, p: PlayerState, e: Entity, def: ItemD
     say(world, p, `Repaired ${Content.items.get(w.stack.id)?.name ?? w.stack.id}.`, INFO);
     world.emit({ type: 'sfx', id: 'repair', x: e.x + e.w / 2, y: e.y });
   }
-  let heal = c.heal ?? 0;
-  if (def.id === 'herb' && hasSpecial(p, 'herb_heal')) heal += 1;
-  if (def.id === 'glowcap' && hasSpecial(p, 'shroom_heal')) heal += 1;
   if (heal > 0) healEntity(world, e, heal);
   if (c.mana) p.mana = Math.max(0, Math.min(p.stats.maxMana, p.mana + c.mana));
-  if (c.food) p.hunger = Math.max(0, Math.min(p.stats.maxHunger, p.hunger + c.food + (omnivore && isFood ? 1 : 0)));
+  if (food) p.hunger = Math.max(0, Math.min(p.stats.maxHunger, p.hunger + food));
   if (c.stamina) p.stamina = Math.max(0, Math.min(p.stats.maxStamina, p.stamina + c.stamina));
   for (const s of c.status ?? []) {
     if (s.chance < 1 && !world.rng.chance(s.chance)) continue;
