@@ -124,9 +124,9 @@ await padPress(13);
 await padPress(0);
 await page.waitForTimeout(120);
 await page.screenshot({ path: `${out}/07a-gamepad.png` });
+// B clears the held item, B again closes the inventory.
 await padPress(1);
 await padPress(1);
-await padPress(8);
 await page.waitForTimeout(100);
 
 // Skill path selection + slotted skills with cooldowns.

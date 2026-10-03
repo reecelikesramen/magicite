@@ -166,7 +166,7 @@ export interface BookLayout {
 
 const EQUIP_PITCH = 22;
 export const BOOK_MAX_ROWS = 10;
-const CARD_W = 64;
+const CARD_W = 70;
 
 export function inventoryLayout(viewW: number, viewH: number): InvLayout {
   const x0 = MARGIN;

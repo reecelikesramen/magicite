@@ -1,7 +1,7 @@
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { Content } from '../content';
 import type { EquipSlot } from '../content/types';
-import { PixelText } from '../render/pixelfont';
+import { PixelText, measureText } from '../render/pixelfont';
 import { HOTBAR_SIZE } from '../sim/constants';
 import type { PlayerState } from '../sim/types';
 import { type DurabilityMemory, type RecipeEntry, fitText, fraction } from './format';
@@ -14,6 +14,9 @@ import { UI } from './theme';
 import { IconButton, SlotView, frame, panel } from './widgets';
 
 const TIP = 'SHIFT + CLICK TWO ITEMS TO CRAFT';
+
+/** Horizontal pitch of the two stat columns on the character card. */
+const statPitch = (cardW: number): number => Math.floor((cardW - 6) / 2) + 1;
 
 interface CardTexts {
   name: PixelText;
@@ -121,7 +124,7 @@ export class InventoryPanel extends Container {
     STAT_ROWS.forEach((_, i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
-      c.labels[i]!.position.set(cx + 3 + col * 31, cy + 22 + row * 9);
+      c.labels[i]!.position.set(cx + 3 + col * statPitch(L.card.w), cy + 22 + row * 9);
     });
     c.foodIcon.position.set(cx + 3, cy + L.card.h - 9);
     c.food.position.set(cx + 12, cy + L.card.h - 9);
@@ -221,13 +224,16 @@ export class InventoryPanel extends Container {
     const c = this.card;
     const L = this.L;
     c.name.text = fitText(p.name.toUpperCase(), L.card.w - 6);
-    c.lv.text = fitText(`Lv.${p.level}${race ? ` ${race}` : ''}`, L.card.w - 6);
+    // "Lv.5 Drifter"; long race names fall back to the race alone, fitted after "Lv.N".
+    const lvLine = `Lv.${p.level}${race ? ` ${race}` : ''}`;
+    c.lv.text = measureText(lvLine) <= L.card.w - 6 ? lvLine : `Lv.${p.level} ${fitText(race, L.card.w - 6 - measureText(`Lv.${p.level} `))}`;
     STAT_ROWS.forEach(([, k], i) => {
       const v = c.values[i]!;
       v.text = String(p.stats[k]);
       const col = i % 2;
       const row = Math.floor(i / 2);
-      v.position.set(L.card.x + 3 + col * 31 + 28 - v.textWidth, L.card.y + 22 + row * 9);
+      const pitch = statPitch(L.card.w);
+      v.position.set(L.card.x + 3 + col * pitch + pitch - 4 - v.textWidth, L.card.y + 22 + row * 9);
     });
     c.food.text = fraction(p.hunger, p.stats.maxHunger);
   }

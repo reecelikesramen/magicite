@@ -207,7 +207,8 @@ export class TopBar extends Container {
     }
 
     // Slotted skills.
-    const anySkill = p.skillSlots.length > 0;
+    // Hidden under the open inventory panel (it covers that strip).
+    const anySkill = p.skillSlots.length > 0 && !inventoryOpen;
     for (let i = 0; i < this.skills.length; i++) {
       const s = this.skills[i]!;
       s.visible = anySkill;
