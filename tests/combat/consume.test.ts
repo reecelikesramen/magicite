@@ -72,6 +72,17 @@ describe('place', () => {
     expect(p.inventory[0]?.count).toBe(5);
   });
 
+  it('towns take props but no tiles (they could never be dug out again)', () => {
+    const { world, p } = makeWorld({ town: true });
+    give(p, 't_block', 5);
+    step(world, 10, tap(12 * TILE + 4, (FLOOR - 1) * TILE + 4));
+    expect(world.level.grid.get(12, FLOOR - 1)).toBe(Tile.AIR);
+    expect(p.inventory[0]?.count).toBe(5);
+    give(p, 't_torch', 1);
+    step(world, 1, tap(12 * TILE + 4, (FLOOR - 1) * TILE + 4));
+    expect(world.entities.some((x) => x.kind === 'prop' && x.def === 'torch')).toBe(true);
+  });
+
   it('places props (torches) that glow', () => {
     const { world, p } = makeWorld();
     give(p, 't_torch', 2);

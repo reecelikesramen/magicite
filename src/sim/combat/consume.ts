@@ -114,10 +114,13 @@ function propLight(id: string): Entity['light'] {
 /**
  * Place the held item's tile (`places`) or prop (`placesProp`) at the aimed tile: must be in reach, the
  * cell empty (air or liquid), and a solid tile may not entomb any entity. Consumes one on success.
+ * Towns take props (torches, campfires) but no tiles: towns can't be dug, so a placed tile could never be
+ * removed again (and could wall off the gate or a shop).
  */
 export function placeFromSlot(world: World, p: PlayerState, e: Entity, slot: number, aimX: number, aimY: number): boolean {
   const def: ItemDef | undefined = maybeItem(p.inventory[slot]?.id);
   if (!def || (def.places === undefined && !def.placesProp)) return false;
+  if (def.places !== undefined && world.level.info.isTown) return false;
   const grid = world.level.grid;
   const tx = Math.floor(aimX / TILE);
   const ty = Math.floor(aimY / TILE);
