@@ -11,4 +11,5 @@ export { HostSession, DEFAULT_INTEREST, type HostOptions, type HostClientStats }
 export { PROTOCOL_VERSION } from './protocol';
 export { LoopbackNetwork, LoopbackTransport, type Channel, type LinkConditions, type PeerId, type Transport, type TransportStats } from './transport';
 export { joinTrysteroRoom, makeRoomCode, normalizeRoomCode, TrysteroTransport, type TrysteroOptions } from './trysteroTransport';
+export { withIceServers } from './ice';
 export { connectWebSocket, WebSocketClientTransport, WebSocketServerTransport, type WebSocketLike } from './wsTransport';

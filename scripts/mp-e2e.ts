@@ -15,7 +15,9 @@ const pageUrl = process.argv[2] ?? 'http://localhost:4400/local-test.html';
 const out = process.argv[3] ?? 'screenshots';
 const exe = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
 const RELAY_PORT = Number(process.env.RELAY_PORT ?? 7787);
-const url = `${pageUrl}?relay=ws://127.0.0.1:${RELAY_PORT}&ice=none`;
+/** RELAY_URL=ws://127.0.0.1:8790 tests another relay (e.g. `wrangler dev` of server/cloudflare). */
+const relayUrl = process.env.RELAY_URL ?? `ws://127.0.0.1:${RELAY_PORT}`;
+const url = `${pageUrl}?relay=${encodeURIComponent(relayUrl)}&ice=none`;
 
 type Status = { screen: string; purpose: string; roomCode: string; message: string };
 type Probe = {
@@ -27,12 +29,17 @@ type Probe = {
   corrections?: number;
 };
 
-const relay = spawn('bun', ['server/relay.ts'], { env: { ...process.env, PORT: String(RELAY_PORT) }, stdio: ['ignore', 'pipe', 'inherit'] });
-await new Promise<void>((resolve, reject) => {
-  relay.stdout!.on('data', (d: Buffer) => (d.toString().includes('signaling relay') ? resolve() : undefined));
-  relay.on('exit', (c) => reject(new Error(`relay exited ${c}`)));
-  setTimeout(() => reject(new Error('relay did not start')), 10_000);
-});
+const relay = process.env.RELAY_URL
+  ? null
+  : spawn('bun', ['server/relay.ts'], { env: { ...process.env, PORT: String(RELAY_PORT) }, stdio: ['ignore', 'pipe', 'inherit'] });
+if (relay) {
+  await new Promise<void>((resolve, reject) => {
+    relay.stdout!.on('data', (d: Buffer) => (d.toString().includes('signaling relay') ? resolve() : undefined));
+    relay.on('exit', (c) => reject(new Error(`relay exited ${c}`)));
+    setTimeout(() => reject(new Error('relay did not start')), 10_000);
+  });
+}
+console.log(`relay: ${relayUrl}`);
 
 const browser = await chromium.launch({
   executablePath: exe,
@@ -197,7 +204,7 @@ try {
   console.log(`FAIL  ${String(err)}`);
 } finally {
   await browser.close();
-  relay.kill();
+  relay?.kill();
 }
 
 console.log(failures.length ? `\n${failures.length} check(s) failed` : '\nall multiplayer checks passed');

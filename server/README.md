@@ -21,7 +21,7 @@ required server of ours: by default players connect peer-to-peer over WebRTC, wi
 | P2P + self-hosted signaling | Same, with `relayUrls: ['wss://relay.example.org']` (any Nostr relay: `strfry`, `nostr-rs-relay`), or another trystero strategy via `joinRoom` (`@trystero-p2p/torrent`, `…/mqtt`, `…/supabase`, `…/firebase`). | Public relays are flaky/blocked, or for privacy. |
 | P2P + TURN | Pass `turnConfig` (e.g. Cloudflare Realtime TURN, coturn). | Players behind symmetric NAT / strict firewalls. |
 | **Dedicated server** | `bun server/dedicated.ts` (WebSocket, no local player); clients use `connectWebSocket('wss://…')`. The run holds still while nobody is connected. | Always-on rooms, WebRTC-less webviews (some Linux WebKitGTK), LAN parties. |
-| Relay fallback (planned) | A Cloudflare Worker + Durable Object per room code that forwards `wsTransport` frames between the host and clients. Same framing as the dedicated server, so `WebSocketClientTransport` works unchanged; the host side needs a small "relay host" transport. | When P2P cannot connect at all. |
+| Own signaling relay | `server/relay.ts` (Bun/Docker) or `server/cloudflare` (Worker + Durable Object): a tiny ephemeral Nostr relay. Point builds at it with `VITE_NOSTR_RELAYS` or `?relay=`. `/ice` on the Worker mints Cloudflare TURN credentials (`VITE_ICE_ENDPOINT`). | Reliable/private matchmaking; strict NATs. See docs/HOSTING.md. |
 
 ## Wiring a lobby (for the menus/lobby workstream)
 

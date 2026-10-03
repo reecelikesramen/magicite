@@ -8,7 +8,9 @@ export const VERSION = '0.2.0';
  * Network configuration, overridable at build time with Vite env vars (see docs/HOSTING.md):
  * - VITE_NOSTR_RELAYS: comma-separated Nostr relay URLs for trystero signaling (default: trystero's
  *   public list)
- * - VITE_TURN_URL / VITE_TURN_USER / VITE_TURN_CRED: a TURN server for strict NATs
+ * - VITE_TURN_URL / VITE_TURN_USER / VITE_TURN_CRED: a static TURN server for strict NATs
+ * - VITE_ICE_ENDPOINT: URL returning `{ iceServers }` (server/cloudflare/worker.ts `/ice` mints
+ *   short-lived Cloudflare TURN credentials), fetched before joining a room
  * - VITE_DEDICATED_URL: wss:// URL of a dedicated server (src/net/wsTransport) if one is run
  * - VITE_ROOM_PASSWORD: optional shared password namespacing your rooms
  */
@@ -44,5 +46,6 @@ function trysteroConfig(): Omit<TrysteroOptions, 'roomCode'> {
 
 export const NET_CONFIG = {
   trystero: trysteroConfig(),
+  iceEndpoint: query.get('iceurl') ?? env.VITE_ICE_ENDPOINT ?? '',
   dedicatedUrl: env.VITE_DEDICATED_URL ?? '',
 };

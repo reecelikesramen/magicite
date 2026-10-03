@@ -2,7 +2,7 @@ import type { Application } from 'pixi.js';
 import { Container } from 'pixi.js';
 import { GAME_TITLE, NET_CONFIG, VERSION } from '../config';
 import { hashSeed, Rng } from '../engine/rng';
-import { ClientSession, HostSession, joinTrysteroRoom, makeRoomCode, normalizeRoomCode, type Transport } from '../net';
+import { ClientSession, HostSession, joinTrysteroRoom, makeRoomCode, normalizeRoomCode, type Transport, withIceServers } from '../net';
 import { dailySeed, randomName } from '../sim/progression/creation';
 import { PixelText } from '../render/pixelfont';
 import { creationItems, cycleCreation, formatRoomCode, moveFocus, randomCreation, setupFromCreation, statLine, type CreationState, type MenuModel } from '../ui/menus/model';
@@ -383,7 +383,7 @@ export class App implements GameOverlay {
     if (this.purpose === 'host') {
       this.roomCode = normalizeRoomCode(makeRoomCode());
       await this.connect(async (track) => {
-        const transport = track(await joinTrysteroRoom({ roomCode: formatRoomCode(this.roomCode), ...NET_CONFIG.trystero }));
+        const transport = track(await joinTrysteroRoom({ roomCode: formatRoomCode(this.roomCode), ...(await withIceServers(NET_CONFIG.trystero, NET_CONFIG.iceEndpoint)) }));
         const host = new HostSession({ transport, seed: Math.floor(Math.random() * 1e9), setups: [setup] });
         host.onPlayerJoin = (_i, name, reconnect) => this.toast(`${name} ${reconnect ? 'reconnected' : 'joined'}`);
         host.onPlayerLeave = (_i, name, reason) => this.toast(`${name} left (${reason})`);
@@ -394,7 +394,7 @@ export class App implements GameOverlay {
     }
     await this.connect(async (track) => {
       const code = formatRoomCode(this.roomCode);
-      const transport = track(await joinTrysteroRoom({ roomCode: code, ...NET_CONFIG.trystero }));
+      const transport = track(await joinTrysteroRoom({ roomCode: code, ...(await withIceServers(NET_CONFIG.trystero, NET_CONFIG.iceEndpoint)) }));
       const client = new ClientSession({ transport, setup, token: storageGet(TOKEN_KEY + normalizeRoomCode(code)) ?? undefined });
       if (this.transport !== transport) throw new Error('cancelled');
       // The client only processes packets when ticked: run it behind the "Connecting" menu.

@@ -1,0 +1,22 @@
+# Shardfall signaling relay + TURN credential minting on Cloudflare's free tier.
+#   cd server/cloudflare && npx wrangler deploy
+# Optional TURN (Cloudflare Realtime, 1,000 GB/month free):
+#   npx wrangler secret put TURN_KEY_ID
+#   npx wrangler secret put TURN_KEY_TOKEN
+# Then build the game with VITE_NOSTR_RELAYS=wss://<worker>.workers.dev and
+# VITE_ICE_ENDPOINT=https://<worker>.workers.dev/ice — see docs/HOSTING.md.
+name = "shardfall-signal"
+main = "worker.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Comma-separated origins allowed to fetch /ice ("*" = any). Lock this to your game's origin.
+ALLOWED_ORIGINS = "*"
+
+[[durable_objects.bindings]]
+name = "SIGNAL"
+class_name = "SignalRelay"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SignalRelay"]

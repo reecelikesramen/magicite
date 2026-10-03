@@ -8,3 +8,5 @@ desktop/build/
 /test-results/
 .claude/worktrees/
 dist-artifact/
+.wrangler/
+server/cloudflare/.wrangler/
