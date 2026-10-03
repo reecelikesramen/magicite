@@ -1,3 +1,4 @@
+import { scaleSpawnedEnemy } from './progression/difficulty';
 import { Content } from '../content';
 import type { SpawnSpec, World } from './world';
 
@@ -10,18 +11,20 @@ export function spawnFromSpec(world: World, s: SpawnSpec): void {
     case 'enemy': {
       const d = Content.enemies.get(s.def);
       if (!d) return;
-      world.spawnAt('enemy', d.id, s.x, s.y, d.w, d.h, {
+      const e = world.spawnAt('enemy', d.id, s.x, s.y, d.w, d.h, {
         hp: d.hp, maxHp: d.hp, armor: d.def ?? 0, kbResist: d.knockbackResist ?? 0,
         gravityScale: d.flying ? 0 : 1, light: d.light ? { radius: d.light.radius, color: d.light.color, intensity: 1 } : undefined,
       });
+      scaleSpawnedEnemy(world, e);
       return;
     }
     case 'boss': {
       const d = Content.bosses.get(s.def);
       if (!d) return;
-      world.spawnAt('boss', d.id, s.x, s.y, d.w, d.h, {
+      const e = world.spawnAt('boss', d.id, s.x, s.y, d.w, d.h, {
         hp: d.hp, maxHp: d.hp, armor: d.def ?? 0, kbResist: d.knockbackResist ?? 0.8, gravityScale: d.flying ? 0 : 1,
       });
+      scaleSpawnedEnemy(world, e);
       return;
     }
     case 'resource': {

@@ -1,3 +1,4 @@
+import { scaleEnemyDamage } from '../progression/difficulty';
 import { Content, maybeItem } from '../../content';
 import type { BossDef, DamageType, EnemyDef, ItemDef } from '../../content/types';
 import { spawnDrops, spawnGold } from '../items/drops';
@@ -113,9 +114,10 @@ export function computeDamage(
   return { amount: out, crit, type };
 }
 
-/** Outgoing damage for non-player attackers (enemy contact / projectiles): base × weak. */
-export function enemyDamage(e: Entity, base: number): number {
-  return Math.max(1, Math.round(base * damageDealtMul(e)));
+/** Outgoing damage for non-player attackers (enemy contact / projectiles): base × weak × difficulty/co-op. */
+export function enemyDamage(world: World, e: Entity, base: number): number {
+  const scaled = e.kind === 'enemy' || e.kind === 'boss' ? scaleEnemyDamage(world, base) : base;
+  return Math.max(1, Math.round(scaled * damageDealtMul(e)));
 }
 
 /**

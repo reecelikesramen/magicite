@@ -169,7 +169,7 @@ function hitCombatant(world: World, e: Entity, p: PlayerState | undefined, def: 
     amount = roll.amount;
     crit = roll.crit;
   } else {
-    amount = enemyDamage(e, def?.damage ?? combatDef(e)?.damage ?? 1);
+    amount = enemyDamage(world, e, def?.damage ?? combatDef(e)?.damage ?? 1);
   }
   const kb = (def?.knockback ?? COMBAT.melee.defaultKnockback) * (weight === 'heavy' ? 1.3 : 1);
   const dir = Math.sign(t.x + t.w / 2 - (e.x + e.w / 2)) || e.facing;

@@ -63,7 +63,7 @@ export function fireProjectile(world: World, owner: Entity | null | undefined, d
   let damage = opts.damage;
   if (damage === undefined) {
     const od = owner ? combatDef(owner) : undefined;
-    damage = owner && od ? enemyDamage(owner, od.damage) : 1;
+    damage = owner && od ? enemyDamage(world, owner, od.damage) : 1;
   }
   if (def.fromAbove) {
     y = ceilingAbove(world, x, y) + def.size / 2 + 1;

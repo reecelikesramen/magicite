@@ -11,10 +11,17 @@ import { COMBAT } from './tuning';
  * Hit a resource node (tree/rock/plant/bug) with an item. Right tool kind + toolPower >= hardness required
  * ('hand' resources take anything, even fists). Damage scales with toolPower. Returns true on a valid hit.
  */
+/** Trees up to this hardness can be punched down without an axe, at PUNCH_TREE_DAMAGE per hit. */
+export const PUNCH_TREE_MAX_HARDNESS = 1;
+export const PUNCH_TREE_DAMAGE = 0.5;
+
 export function hitResource(world: World, user: Entity, res: Entity, tool: ItemDef | undefined): boolean {
   const def = Content.resources.get(res.def);
   if (!def) return false;
-  const ok = def.tool === 'hand' || (tool?.tool === def.tool && (tool.toolPower ?? 0) >= def.hardness);
+  // Bare hands (no tool kind held) can slowly punch down soft trees, so a race that starts without an
+  // axe (Boarfolk) can still bootstrap: wood + sticks → wooden tools.
+  const punchTree = !tool?.tool && def.tool === 'axe' && def.hardness <= PUNCH_TREE_MAX_HARDNESS;
+  const ok = def.tool === 'hand' || punchTree || (tool?.tool === def.tool && (tool.toolPower ?? 0) >= def.hardness);
   const cx = res.x + res.w / 2;
   if (!ok) {
     world.emit({ type: 'sfx', id: 'clink', x: cx, y: res.y + res.h - 4 });
@@ -23,7 +30,7 @@ export function hitResource(world: World, user: Entity, res: Entity, tool: ItemD
     world.emit({ type: 'message', text: `Needs a ${need}`, player: user.playerIndex });
     return false;
   }
-  res.hp -= Math.max(1, tool?.tool === def.tool ? (tool.toolPower ?? 1) : 1);
+  res.hp -= punchTree ? PUNCH_TREE_DAMAGE : Math.max(1, tool?.tool === def.tool ? (tool.toolPower ?? 1) : 1);
   if (res.resource) res.resource.hitFlash = 8;
   const chips = def.tool === 'axe' ? 'wood_chips' : def.tool === 'pickaxe' ? 'rock_chips' : 'leaf_chips';
   world.emit({ type: 'particles', preset: chips, x: cx, y: res.y + res.h - 6, count: 4 });

@@ -21,7 +21,7 @@ export function contactDamageSystem(world: World): void {
     if (base <= 0 || isDisabled(e)) continue;
     for (const pl of players) {
       if (pl.invuln > 0 || pl.dead || !rectsOverlap(e, pl)) continue;
-      const dealt = applyDamage(world, pl, enemyDamage(e, base), { source: e, knockback: CONTACT_KNOCKBACK, type: def?.damageType });
+      const dealt = applyDamage(world, pl, enemyDamage(world, e, base), { source: e, knockback: CONTACT_KNOCKBACK, type: def?.damageType });
       if (dealt > 0) applyStatuses(world, pl, def?.onHit, e);
     }
   }
