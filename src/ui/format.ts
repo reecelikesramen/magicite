@@ -6,7 +6,7 @@ import { Content, recipeKey } from '../content';
 import type { ItemCategory, ItemDef, SkillDef, StatMods } from '../content/types';
 import { measureText } from '../render/pixelfont';
 import { TICK_RATE } from '../sim/constants';
-import type { ItemStack, RunStats } from '../sim/types';
+import type { GameEvent, ItemStack, RunStats } from '../sim/types';
 import { PATH_COLORS, PATH_NAMES, UI, tierColor } from './theme';
 
 /** 'iron_bar' → 'Iron Bar', 'bossKills' → 'Boss Kills'. */
@@ -274,6 +274,35 @@ export function craftFeedback(ev: CraftLike): { text: string; color: number } {
 
 export function pickupText(count: number, id: string): string {
   return `+${count} ${itemName(id)}`;
+}
+
+export interface ToastSpec {
+  text: string;
+  color: number;
+  /** Seconds on screen. */
+  ttl: number;
+}
+
+/**
+ * The bottom-centre toast (if any) a sim event produces for local player `me`. Craft results
+ * toast only while the inventory is closed (it has its own feedback line).
+ */
+export function eventToast(ev: GameEvent, me: number, nameOf: (player: number) => string, inventoryOpen = false): ToastSpec | null {
+  switch (ev.type) {
+    case 'message':
+      return ev.player === undefined || ev.player === me ? { text: ev.text, color: ev.color ?? UI.text, ttl: 3 } : null;
+    case 'downed':
+      return ev.player === me ? null : { text: `${nameOf(ev.player)} is down!`, color: UI.bad, ttl: 3 };
+    case 'revived':
+      return { text: ev.player === me ? "You're back on your feet!" : `${nameOf(ev.player)} is back up!`, color: UI.good, ttl: 2.5 };
+    case 'craft': {
+      if (ev.player !== me || inventoryOpen) return null;
+      const fb = craftFeedback(ev);
+      return { ...fb, ttl: 2.5 };
+    }
+    default:
+      return null;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

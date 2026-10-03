@@ -6,6 +6,7 @@ import {
   DurabilityMemory,
   craftFeedback,
   durabilityFrac,
+  eventToast,
   fitText,
   formatTime,
   fraction,
@@ -128,6 +129,35 @@ describe('crafting & pickups', () => {
     expect(entries[1]!.result).toBe('?');
     expect(recipeLine(entries[1]!)).toBe('Herb + Stone = ???');
     expect(recipeEntries(['garbage'])).toEqual([]);
+  });
+});
+
+describe('event toasts', () => {
+  const nameOf = (i: number) => ['RALVAND', 'BRYNNA'][i] ?? 'Someone';
+
+  it('shows global messages and ones addressed to the local player only', () => {
+    expect(eventToast({ type: 'message', text: 'A chill creeps into the air...' }, 0, nameOf)?.text).toBe('A chill creeps into the air...');
+    expect(eventToast({ type: 'message', text: 'Hi', color: 0x123456, player: 0 }, 0, nameOf)).toEqual({ text: 'Hi', color: 0x123456, ttl: 3 });
+    expect(eventToast({ type: 'message', text: 'Not you', player: 1 }, 0, nameOf)).toBeNull();
+  });
+
+  it('announces teammates going down and getting back up', () => {
+    expect(eventToast({ type: 'downed', player: 1 }, 0, nameOf)?.text).toBe('BRYNNA is down!');
+    expect(eventToast({ type: 'downed', player: 0 }, 0, nameOf)).toBeNull();
+    expect(eventToast({ type: 'revived', player: 1 }, 0, nameOf)?.text).toBe('BRYNNA is back up!');
+    expect(eventToast({ type: 'revived', player: 0 }, 0, nameOf)?.text).toBe("You're back on your feet!");
+  });
+
+  it('toasts own craft results only while the inventory is closed', () => {
+    const ev = { type: 'craft', player: 0, a: 'wood', b: 'wood', result: 'plank', count: 1, discovered: true } as const;
+    expect(eventToast(ev, 0, nameOf)?.text).toBe('Discovered: Plank!');
+    expect(eventToast(ev, 0, nameOf, true)).toBeNull();
+    expect(eventToast(ev, 1, nameOf)).toBeNull();
+    expect(eventToast({ ...ev, result: null, discovered: false }, 0, nameOf)?.text).toBe('Nothing happens...');
+  });
+
+  it('ignores presentation-only events', () => {
+    expect(eventToast({ type: 'shake', amount: 2, ticks: 4 }, 0, nameOf)).toBeNull();
   });
 });
 

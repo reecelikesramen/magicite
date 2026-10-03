@@ -8,6 +8,7 @@ import {
   type RecipeEntry,
   type TipLine,
   craftFeedback,
+  eventToast,
   itemName,
   itemTooltip,
   levelBanner,
@@ -122,6 +123,8 @@ export class Hud {
     const me = playerIndex;
     const nameOf = (i: number) => world.players[i]?.name ?? 'Someone';
     for (const ev of events) {
+      const toast = eventToast(ev, me, nameOf, this.inventoryOpen);
+      if (toast) this.toasts.push(toast.text, toast.color, toast.ttl);
       switch (ev.type) {
         case 'levelEnter': {
           const b = levelBanner(ev);
@@ -131,13 +134,13 @@ export class Hud {
           break;
         }
         case 'pickup':
-          if (ev.player === me) this.pickups.pushMerged(ev.item, ev.count, (n) => pickupText(n, ev.item), UI.text, 2.5, ev.item);
+          // Gold is shown from wallet deltas in update() (covers pickups, selling, rewards alike).
+          if (ev.player === me && ev.item !== 'gold') this.pickups.pushMerged(ev.item, ev.count, (n) => pickupText(n, ev.item), UI.text, 2.5, ev.item);
           break;
         case 'craft': {
           if (ev.player !== me) break;
           const fb = craftFeedback(ev);
           this.inv.showFeedback(fb.text, fb.color, ev.result ?? undefined);
-          if (!this.inventoryOpen) this.toasts.push(fb.text, fb.color, 2.5);
           if (ev.discovered) this.flash.fire(UI.discover, 0.12, 0.3);
           break;
         }
@@ -149,13 +152,6 @@ export class Hud {
           break;
         case 'downed':
           if (ev.player === me) this.flash.fire(UI.bad, 0.35, 0.5);
-          else this.toasts.push(`${nameOf(ev.player)} is down!`, UI.bad, 3);
-          break;
-        case 'revived':
-          this.toasts.push(ev.player === me ? "You're back on your feet!" : `${nameOf(ev.player)} is back up!`, UI.good, 2.5);
-          break;
-        case 'message':
-          if (ev.player === undefined || ev.player === me) this.toasts.push(ev.text, ev.color ?? UI.text, 3);
           break;
         case 'runOver':
           this.showRunOver(world, me, ev.victory);
