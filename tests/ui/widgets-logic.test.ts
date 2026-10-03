@@ -105,10 +105,13 @@ describe('HUD values', () => {
     expect(meterValues(p, e, 'stamina')).toEqual([2, 3]);
   });
 
-  it('revive progress accepts ticks or a 0..1 fraction', () => {
+  it('revive progress is read as ticks (the first tick is not a full bar)', () => {
     expect(reviveFraction(0)).toBe(0);
-    expect(reviveFraction(0.5)).toBe(0.5);
+    expect(reviveFraction(-3)).toBe(0);
+    expect(reviveFraction(1)).toBeCloseTo(1 / REVIVE_TICKS);
+    expect(reviveFraction(1)).toBeLessThan(0.05);
     expect(reviveFraction(REVIVE_TICKS / 2)).toBe(0.5);
+    expect(reviveFraction(REVIVE_TICKS)).toBe(1);
     expect(reviveFraction(REVIVE_TICKS * 3)).toBe(1);
   });
 

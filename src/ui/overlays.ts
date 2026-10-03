@@ -13,10 +13,13 @@ import { Bar, frame, panel, solid } from './widgets';
 /** Ticks a teammate must hold interact to revive (GDD: 2 s). */
 export const REVIVE_TICKS = secs(2);
 
-/** reviveProgress → 0..1 (accepts either a 0..1 fraction or a tick count). */
+/**
+ * reviveProgress (ticks a reviver has held interact, 0..REVIVE_TICKS; it decays while nobody
+ * helps) → 0..1. Always ticks: guessing "≤ 1 means a fraction" drew a full bar for 1 tick.
+ */
 export function reviveFraction(progress: number): number {
-  if (progress <= 0) return 0;
-  return Math.min(1, progress <= 1 ? progress : progress / REVIVE_TICKS);
+  if (!(progress > 0)) return 0;
+  return Math.min(1, progress / REVIVE_TICKS);
 }
 
 /** Text rendered at an integer multiple of the native scale (2× for banners). */
