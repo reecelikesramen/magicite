@@ -230,6 +230,8 @@ export const NPCS: NpcDef[] = [
       'You look like someone who needs a torch.',
       'Everything here is mostly legal.',
       'Scrolls! Learn a recipe without blowing anything up.',
+      'Tip: herb and glowcap brew a potion. Which potion? Exciting, isn\'t it?',
+      'Tip: raw meat keeps you alive. Cooked meat keeps you happy. Find a campfire.',
     ],
   },
   {
@@ -239,6 +241,8 @@ export const NPCS: NpcDef[] = [
       'Pelts, shells, glowing bits. Fair prices, mostly.',
       'Don\'t ask where I found it. Or what it was.',
       'I\'ll take your scraps, too. One creature\'s leftovers...',
+      'Tip: two hides tan into leather. Leather and string make a cap.',
+      'Tip: catch two fireflies and squeeze. Gently. You get a fire gem.',
     ],
   },
   {
@@ -248,6 +252,8 @@ export const NPCS: NpcDef[] = [
       'That blade\'s seen better days. Let me fix it.',
       'Iron remembers every strike.',
       'Forge is hot. Smelt your ore while you\'re in town.',
+      'Tip: two bars make a blade. Blade and stick make a sword.',
+      'Tip: bar and stone make a pick head. Better picks crack harder veins.',
     ],
   },
   {
@@ -257,6 +263,8 @@ export const NPCS: NpcDef[] = [
       'You\'ll want something between you and the teeth.',
       'Measured twice, stitched once.',
       'Rings? Charms? Fashion is survival down here.',
+      'Tip: hang a fang on a string and wear it with pride.',
+      'Tip: set a gem in gold and you\'ve got yourself a ring.',
     ],
   },
   {
@@ -275,5 +283,10 @@ export const NPCS: NpcDef[] = [
       'Five hundred gold. The stone remembers generosity.',
       'Kneel, and be changed.',
     ],
+  },
+  // Town critter (GDD §8). Level gen spawns it as an npc when no 'chicken' enemy def exists.
+  {
+    id: 'chicken', name: 'Chicken', sprite: 'npc_chicken', role: 'flavor',
+    dialogue: ['Bawk.', 'Bawk bawk?', '...bawk.'],
   },
 ];

@@ -141,7 +141,9 @@ describe('npcs', () => {
       expect(n!.dialogue.length, id).toBeGreaterThanOrEqual(3);
       expect(SHOPS[id], id).toBeDefined();
     }
-    expect(NPCS.length).toBe(Object.keys(SHOPS).length);
+    for (const n of NPCS) if (n.role !== 'flavor') expect(SHOPS[n.id], n.id).toBeDefined();
+    expect(Content.npcs.get('chicken')?.role).toBe('flavor');
+    expect(Content.npcs.get('npc_smith')!.dialogue.some((d) => d.startsWith('Tip:'))).toBe(true);
   });
 
   it('shop lines reference real items with sane quantities', () => {
