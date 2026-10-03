@@ -86,7 +86,9 @@ export function populate(ctx: GenCtx, t: Traversal, secretChests: { x: number; y
   const reachSpots = spots.filter((s) => s.reach);
   const sx = ctx.spawnTx;
   const sy = ctx.spawnTy;
-  const far = (s: { x: number; y: number }, r: number): boolean => Math.hypot(s.x - sx, s.y - sy) >= r;
+  // Exact integer arithmetic only (Math.hypot / ** are implementation-approximated, and clients on
+  // other JS engines must regenerate the identical level).
+  const far = (s: { x: number; y: number }, r: number): boolean => (s.x - sx) * (s.x - sx) + (s.y - sy) * (s.y - sy) >= r * r;
 
   // --- Containers ---
   const tierBase = Math.floor(ctx.req.district / 6);
@@ -244,7 +246,7 @@ function enemySpawns(ctx: GenCtx, reachSpots: Spot[]): void {
   const { rng, w, h, grid, biome } = ctx;
   const sx = ctx.spawnTx;
   const sy = ctx.spawnTy;
-  const dist = (x: number, y: number): number => Math.hypot(x - sx, y - sy);
+  const dist = (x: number, y: number): number => Math.sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy));
   const arena = ctx.arena;
   const inArena = (x: number, y: number): boolean => !!arena && x >= arena.x0 - 2 && x <= arena.x1 + 2 && y >= arena.y0 - 2 && y <= arena.y1 + 2;
   const points: SpawnPoint[] = [];

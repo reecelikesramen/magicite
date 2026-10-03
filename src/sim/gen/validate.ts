@@ -372,7 +372,7 @@ export function checkLevel(level: Level): LevelReport {
     const r = specRect(s);
     if (r.x < 0 || r.y < 0 || r.x + r.w > g.pixelWidth || r.y + r.h > g.pixelHeight) problems.push(`${s.kind} ${s.def} out of bounds at ${s.x},${s.y}`);
     else if (rectHitsSolid(g, r)) problems.push(`${s.kind} ${s.def} inside solid at ${s.x},${s.y}`);
-    if (s.kind === 'enemy' && Math.hypot(s.x - sx, s.y - sy) < 12 * TILE) problems.push(`enemy ${s.def} within 12 tiles of spawn`);
+    if (s.kind === 'enemy' && (s.x - sx) * (s.x - sx) + (s.y - sy) * (s.y - sy) < 144 * TILE * TILE) problems.push(`enemy ${s.def} within 12 tiles of spawn`);
   }
   if (level.info.isBoss) {
     if (!level.arena) problems.push('boss level without arena');

@@ -1,3 +1,27 @@
+/**
+ * Procedural level generation (GDD §8). `generateLevel(req)` is a PURE function of the
+ * `LevelRequest` + static content: every peer regenerates the same level locally (exact integer /
+ * IEEE arithmetic only, no Math.hypot/pow/trig, no Math.random).
+ *
+ * Pipeline (districts): route profile (macro height curve, terraces, cliffs climbed by stairs /
+ * platform stacks / ladders) → noise caverns + CA → main corridor → extra corridors joined by
+ * ladder or platform shafts → exit terraces (one portal per `req.nextBiomes`) or boss arena →
+ * pocket connection → guarded dressing (liquid basins & pools, special tiles, platforms, spikes;
+ * a pass that breaks exit reachability is rolled back feature by feature) → rock pockets, secret
+ * chest rooms, back-wall windows, mine frames → traversal repair (validate.ts movement graph:
+ * every exit reachable, no reachable dead-end pits) → populate (resources, chests, enemies, decor).
+ *
+ * SpawnSpec `data` conventions (all optional, plain values):
+ * - chests / pots (`kind: 'resource'`, defs chest_wood / chest_iron / pot): `lootTier` (0 pot,
+ *   1 wooden, 2 iron, +1 for `secret: 1` sealed rooms, +district/6), roll loot from it.
+ * - enemies: `point` = the spawn-point kind they were placed on (ground/air/ceiling/turret).
+ * - boss: `arena: 1`. npcs: `role` (= def). chickens: `critter: 1` (kind 'npc' unless an enemy def
+ *   named 'chicken' exists). props: `decor: 1`, `hang: 1` when hanging from a ceiling (y = bottom
+ *   of the cell under the ceiling).
+ * - ceiling resources (placement 'ceiling'): y = the ceiling surface (spawn.ts hangs them below).
+ * `GeneratedLevel.spawnPoints`: typed enemy spawn points (≥ 12 tiles from the player spawn, never in
+ * a boss arena) incl. one `giant` point for a roaming giant monster when the level has room.
+ */
 import { Content } from '../../content';
 import type { BiomeDef } from '../../content/types';
 import { clamp, lerp } from '../../engine/math';
