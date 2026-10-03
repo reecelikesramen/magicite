@@ -158,6 +158,7 @@ export class ClientSession implements Session {
   private lateIdx = 0;
   private targetSlack = 2;
   private adjust = 0;
+  private adjustPhase = 0;
   private adjustCooldown = 0;
   private lastMisses = 0;
   private lastMissTick = 0;
@@ -229,11 +230,13 @@ export class ClientSession implements Session {
     // 2. Sample + record + send this tick's input (1 tick normally; 0/2 while re-timing).
     const raw = local.get(this.index) ?? local.values().next().value ?? EMPTY;
     if (raw.commands.length) this.transport.send(this.hostPeer, 'reliable', encodeCommands(this.predTick, raw.commands, this.strings));
+    // Re-timing is spread out (at most every other tick) so it reads as a slight speed change.
     let steps = 1;
-    if (this.adjust > 0) {
+    this.adjustPhase ^= 1;
+    if (this.adjust > 0 && this.adjustPhase) {
       steps = 2;
       this.adjust--;
-    } else if (this.adjust < 0) {
+    } else if (this.adjust < 0 && this.adjustPhase) {
       steps = 0;
       this.adjust++;
     }
@@ -507,14 +510,24 @@ export class ClientSession implements Session {
       this.targetSlack--;
       this.lastMissTick = T;
     }
-    if (h.inputTick < 0 || h.slack >= 100 || T < this.adjustCooldown || this.adjust !== 0) return;
+    if (h.inputTick < 0 || h.slack >= 100 || T < this.adjustCooldown) return;
+    const rttTicks = Math.ceil(this.stats.rttMs / (1000 / 60));
+    if (h.slack < -20 || h.slack > 60) {
+      // We stalled (background tab, debugger) or the link changed drastically: jump straight to the
+      // right input tick instead of slowly re-timing; the next snapshot re-anchors the prediction.
+      this.predTick += this.targetSlack + 1 - h.slack;
+      this.adjust = 0;
+      this.predicting = false;
+      this.adjustCooldown = T + rttTicks + 40;
+      return;
+    }
+    if (this.adjust !== 0) return;
     let d = 0;
     if (h.slack < this.targetSlack) d = this.targetSlack - h.slack;
     else if (h.slack > this.targetSlack + 3) d = this.targetSlack + 1 - h.slack;
     if (d === 0) return;
     this.adjust = Math.max(-30, Math.min(30, d));
-    const rttTicks = Math.ceil(this.stats.rttMs / (1000 / 60));
-    this.adjustCooldown = T + Math.abs(this.adjust) + rttTicks + 40;
+    this.adjustCooldown = T + 2 * Math.abs(this.adjust) + rttTicks + 40;
   }
 
   private sendInputs(): void {

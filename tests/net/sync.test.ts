@@ -76,6 +76,27 @@ describe('net sync details', () => {
     expect(events.some((e) => e.type === 'craft' && e.result === 'plank')).toBe(true);
   });
 
+  it('a client recovers from a 1 s stall (background tab) and predicts cleanly again', () => {
+    const rig = makeRig({ clients: 1, conditions: { latencyMs: 50, jitterMs: 10 }, netSeed: 29 });
+    for (const e of rig.host.world.entities) if (e.kind === 'enemy') e.dead = true;
+    run(rig, 240);
+    const c = rig.clients[0]!;
+    // Stall: the host keeps simulating, the client does not tick at all.
+    for (let i = 0; i < 60; i++) {
+      rig.host.tick(new Map([[0, scripted(rig.t++, 0)]]));
+      rig.host.drainEvents();
+      rig.net.advance(TICK_MS);
+    }
+    run(rig, 300);
+    const before = c.stats.corrections;
+    run(rig, 600);
+    expect(c.stats.corrections - before).toBe(0);
+    run(rig, 120, idle, idle);
+    const hp = rig.host.world.playerEntity(c.playerIndex)!;
+    const cp = c.world.get(hp.id)!;
+    expect(Math.abs(cp.x - hp.x)).toBeLessThanOrEqual(0.05);
+  });
+
   it('a client that never sends input still sees the world and holds its position', () => {
     const rig = makeRig({ clients: 2, conditions: { latencyMs: 30 }, netSeed: 27 });
     run(rig, 300, scripted, idle);
