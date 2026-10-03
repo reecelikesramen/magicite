@@ -1,20 +1,28 @@
-import { Content } from '../../content';
 import { rectsOverlap } from '../../engine/math';
 import type { World } from '../world';
-import { applyDamage } from './damage';
+import { applyDamage, combatDef, enemyDamage } from './damage';
+import { applyStatuses, isDisabled } from './status';
 
-/** Enemies hurt players on touch (classic platformer contact damage). */
+/** Knockback (px/s) dealt to players touching an enemy. */
+export const CONTACT_KNOCKBACK = 120;
+
+/**
+ * Enemies hurt players on touch (classic platformer contact damage). Frozen/stunned enemies and
+ * harmless ones (damage 0, e.g. critters) don't; the enemy's onHit statuses apply on contact.
+ */
 export function contactDamageSystem(world: World): void {
   if (world.freeze > 0) return;
   const players = world.activePlayers();
   if (players.length === 0) return;
   for (const e of world.entities) {
     if (e.dead || (e.kind !== 'enemy' && e.kind !== 'boss')) continue;
-    const def = e.kind === 'boss' ? Content.bosses.get(e.def) : Content.enemies.get(e.def);
-    const dmg = def?.damage ?? 1;
+    const def = combatDef(e);
+    const base = def?.damage ?? 1;
+    if (base <= 0 || isDisabled(e)) continue;
     for (const pl of players) {
-      if (pl.invuln > 0 || !rectsOverlap(e, pl)) continue;
-      applyDamage(world, pl, dmg, { source: e, knockback: 120, type: def?.damageType });
+      if (pl.invuln > 0 || pl.dead || !rectsOverlap(e, pl)) continue;
+      const dealt = applyDamage(world, pl, enemyDamage(e, base), { source: e, knockback: CONTACT_KNOCKBACK, type: def?.damageType });
+      if (dealt > 0) applyStatuses(world, pl, def?.onHit, e);
     }
   }
 }
