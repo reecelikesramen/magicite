@@ -262,6 +262,13 @@ describe('ranger effects', () => {
     }
   });
 
+  it('arrow rain is clamped to its max range from the caster', () => {
+    const { w, e, slot } = setup('arrow_rain');
+    cast(w, slot, PX + 5000, FLOOR_Y - 4, SKILL_FX.arrowRain.ticks);
+    const cx = e.x + e.w / 2;
+    for (const a of projectiles(w, 'arrow')) expect(Math.abs(a.x - cx)).toBeLessThan(SKILL_FX.arrowRain.maxRange + SKILL_FX.arrowRain.width);
+  });
+
   it('bear trap snaps on the first foe to step in (damage + hold), max 2 traps', () => {
     const { w, e, slot } = setup('bear_trap');
     cast(w, slot, PX, FLOOR_Y, 3);

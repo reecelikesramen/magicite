@@ -30,7 +30,7 @@ export const SKILL_FX = {
   blink: { step: 2, iframes: 10 },
   meteor: { fall: 0.6, speed: 260, radius: 34, maxRange: 160, burn: secs(3) },
   multishot: { spread: 0.18, speed: 260 },
-  arrowRain: { ticks: secs(1.2), width: 56, height: 110, speed: 280 },
+  arrowRain: { ticks: secs(1.2), width: 56, height: 110, speed: 280, maxRange: 160 },
   bearTrap: { life: secs(30), max: 2, snapLinger: 30 },
   smokeBomb: { radius: 48, iframes: secs(0.5), slow: 0.5, haste: 0.4 },
   hawk: { life: secs(6), speed: 190, range: 128, rest: 12, accel: 900 },
@@ -553,8 +553,11 @@ const multishot: EffectFn = (world, p, e, input, rank, def) => {
 
 const arrowRain: EffectFn = (world, p, e, input, rank, def) => {
   const T = SKILL_FX.arrowRain;
-  const tx = input.aimX;
-  const ty = input.aimY;
+  // Centred on the cursor, but never further than maxRange from the caster (aim is client input).
+  const aim = aimFrom(e, input);
+  const reach = Math.min(aim.dist, T.maxRange);
+  const tx = e.x + e.w / 2 + aim.x * reach;
+  const ty = e.y + e.h / 2 + aim.y * reach;
   // Arrows appear just below the ceiling above the target (or T.height above it in the open).
   let top = ty - T.height;
   for (let y = ty - TILE; y > ty - T.height; y -= TILE) {

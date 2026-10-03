@@ -3,7 +3,7 @@ import type { RaceDef } from './types';
 /**
  * Playable races (GDD §10). Mods stack on top of the rolled creation stats; `special` flags are
  * handled by name in the sim:
- *  - `wealthy`       start the run with RACE_START_GOLD gold (src/sim/progression/runstart.ts)
+ *  - `wealthy`       start the run with RACE_START_GOLD gold (src/sim/run.ts startRun)
  *  - `herb_heal`     herbs heal +1 HP when eaten (items workstream)
  *  - `eats_anything` any material can be eaten for +1 food; food restores +1 extra (items workstream)
  *  - `burn_immune`   ignores the burn status (combat status workstream)
