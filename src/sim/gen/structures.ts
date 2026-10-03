@@ -4,6 +4,7 @@ import { TILE } from '../constants';
 import { Tile, Wall } from '../tiles';
 import type { ExitPortal } from '../world';
 import { carve, put } from './grid';
+import { makeNoise, noise01 } from './noise';
 import type { RouteProfile } from './district';
 import { F_CLAIM, F_NOHAZ, F_PROTECT, type GenCtx, type TRect } from './types';
 
@@ -120,15 +121,16 @@ export function buildArena(ctx: GenCtx, x0: number, floorRow: number, size: Aren
     }
     fightX1 = lx0 - 1;
   }
-  // Dodging platforms: two tiers.
+  // Dodging platforms: tiers 4 rows apart (double-jump escapes; bosses fit under the first),
+  // fewer and narrower the higher they are (flying bosses get the upper air).
   const span = fightX1 - ix0;
-  const tiers = size.h >= 14 ? [floorRow - 5, floorRow - 9] : [floorRow - 5];
+  const tiers = size.h >= 24 ? [floorRow - 5, floorRow - 9, floorRow - 13] : size.h >= 14 ? [floorRow - 5, floorRow - 9] : [floorRow - 5];
   tiers.forEach((ty, ti) => {
     if (ty <= iy0 + 2) return;
     const count = ti === 0 ? 2 + (span > 40 ? 1 : 0) : 2;
     for (let k = 0; k < count; k++) {
-      const pw = rng.int(4, 7);
-      const cx = ix0 + Math.round(((k + 1) / (count + 1)) * span) + (ti === 1 ? rng.int(-3, 3) : 0);
+      const pw = ti === 2 ? rng.int(3, 5) : rng.int(4, 7);
+      const cx = ix0 + Math.round(((k + 1) / (count + 1)) * span) + (ti >= 1 ? rng.int(-3, 3) : 0);
       for (let x = cx - (pw >> 1); x < cx - (pw >> 1) + pw; x++) if (x > ix0 && x < fightX1) grid.fg[ty * w + x] = Tile.PLATFORM;
     }
   });
@@ -149,10 +151,13 @@ export function buildLair(ctx: GenCtx): TRect {
     grid.fg[floorRow * w + x] = Tile.GROUND;
     grid.fg[(floorRow + 1) * w + x] = Tile.GROUND;
   }
-  // Uneven ceiling and blight growths on the walls (bedrock stays the shell).
+  // Uneven ceiling with hanging blight growths (bedrock stays the shell), low blight mounds on the
+  // floor (≤ 1 tile, never in the spawn pad).
+  const noise = makeNoise(rng);
   for (let x = ix0; x <= ix1; x++) {
-    const hang = rng.chance(0.3) ? rng.int(1, 3) : 0;
+    const hang = Math.max(0, Math.round(noise01(noise, x * 0.18, 1) * 7 - 2.5));
     for (let y = iy0; y < iy0 + hang; y++) grid.fg[y * w + x] = Tile.GROUND;
+    if (x > 10 && x < ix1 - 2 && noise01(noise, x * 0.25, 7) > 0.68) grid.fg[(floorRow - 1) * w + x] = Tile.GROUND;
   }
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) flags[y * w + x]! |= F_NOHAZ;
   for (const ty of [floorRow - 5, floorRow - 10]) {

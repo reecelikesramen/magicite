@@ -3,10 +3,10 @@ import type { BiomeDef } from '../../content/types';
 import { clamp, lerp } from '../../engine/math';
 import { hashSeed, Rng } from '../../engine/rng';
 import { TILE } from '../constants';
-import { TileGrid } from '../tiles';
+import { Tile, TileGrid } from '../tiles';
 import type { Level } from '../world';
 import { buildCliffs, buildEntrance, buildProfile, carveCaverns, carveCorridors, carveRoute, connectPockets, ENTRANCE_W, initGrid } from './district';
-import { backWalls, cavernPools, platforms, rockPockets, routeBasins, secretPockets, specialTiles, spikes } from './features';
+import { backWalls, cavernPools, mineSupports, platforms, rockPockets, routeBasins, secretPockets, specialTiles, spikes } from './features';
 import { levelName } from './names';
 import { populate } from './populate';
 import { guardedPasses, repairTraversal } from './repair';
@@ -120,10 +120,11 @@ function buildDistrictLevel(ctx: GenCtx, boss: boolean): void {
   if (a) ctx.arena = buildArena(ctx, arenaX0, profile.floor[routeEnd - 1]!, a, req.nextBiomes);
   else buildExitTerraces(ctx, profile, req.nextBiomes);
   connectPockets(ctx);
-  guardedPasses(ctx, [(c) => routeBasins(c, ENTRANCE_W + 8, cavEnd - 6), cavernPools, specialTiles, platforms, spikes]);
+  guardedPasses(ctx, [(c, check) => routeBasins(c, ENTRANCE_W + 8, cavEnd - 6, check), cavernPools, specialTiles, platforms, spikes]);
   rockPockets(ctx);
   const secrets = secretPockets(ctx);
   backWalls(ctx);
+  mineSupports(ctx);
   const t = repairTraversal(ctx);
   populate(ctx, t, secrets);
   if (ctx.arena) bossSpawn(ctx, biome, ctx.arena, 0.4);
@@ -139,6 +140,25 @@ function buildLairLevel(ctx: GenCtx): void {
 
 function bossSpawn(ctx: GenCtx, biome: BiomeDef, a: TRect, at: number): void {
   const exitsLeft = ctx.exits.length ? Math.min(...ctx.exits.map((e) => e.x / TILE)) - 3 : a.x1;
-  const x = Math.round(lerp(a.x0 + 4, Math.min(a.x1, exitsLeft) - 4, at));
+  const want = Math.round(lerp(a.x0 + 4, Math.min(a.x1, exitsLeft) - 4, at));
+  // Nearest arena-floor column with room for the boss's body (default 4×3 tiles before boss content).
+  const def = Content.bosses.get(biome.boss);
+  const half = Math.ceil((def?.w ?? 32) / TILE / 2);
+  const tall = Math.ceil((def?.h ?? 24) / TILE);
+  const room = (x: number): boolean => {
+    for (let xx = x - half; xx <= x + half; xx++) for (let y = a.y1 - tall + 1; y <= a.y1; y++) if (ctx.grid.get(xx, y) !== Tile.AIR) return false;
+    return true;
+  };
+  let x = want;
+  for (let d = 0; d < a.x1 - a.x0; d++) {
+    if (room(want - d)) {
+      x = want - d;
+      break;
+    }
+    if (room(want + d)) {
+      x = want + d;
+      break;
+    }
+  }
   ctx.spawns.push({ kind: 'boss', def: biome.boss, x: x * TILE + TILE / 2, y: (a.y1 + 1) * TILE, data: { arena: 1 } });
 }

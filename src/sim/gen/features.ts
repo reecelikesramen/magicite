@@ -2,6 +2,7 @@ import { TILE } from '../constants';
 import { Tile, Wall } from '../tiles';
 import { airAt, carve, groundSpot, headroom, IS_SOLID, isTerrain, put, solidAt } from './grid';
 import { fbm, makeNoise } from './noise';
+import { feature, type FeatureCheck } from './snapshot';
 import { F_CLAIM, F_NOHAZ, F_PROTECT, F_ROUTE, F_SECRET, type GenCtx } from './types';
 
 /**
@@ -16,40 +17,49 @@ const okCell = (ctx: GenCtx, x: number, y: number, mask = F_NOHAZ | F_PROTECT | 
   x > 1 && y > 1 && x < ctx.w - 2 && y < ctx.h - 2 && (ctx.flags[y * ctx.w + x]! & mask) === 0;
 
 /** Liquid basins dug into flat stretches of the main route (fen bogs, cinder lava lakes). */
-export function routeBasins(ctx: GenCtx, x0: number, x1: number): void {
+export function routeBasins(ctx: GenCtx, x0: number, x1: number, check?: FeatureCheck): void {
   const { rng, style, biome } = ctx;
   if (biome.gen.liquid === 'none') return;
   const liquid = liquidTile(ctx);
   const target = Math.round(((style.basins * (x1 - x0)) / 100) * (0.5 + biome.gen.liquidAmount * 2));
+  // Flat runs of the route floor with open air above (and nothing reserved on them).
+  const runs: { x: number; len: number; f: number }[] = [];
+  const minW = style.basinW[0];
+  for (let x = x0; x < x1; ) {
+    const f = ctx.floor[x]!;
+    let e = x;
+    while (e < x1 && ctx.floor[e] === f && f >= 0 && okCell(ctx, e, f - 1) && okCell(ctx, e, f) && airAt(ctx.grid, e, f - 1)) e++;
+    if (e - x >= minW + 2) runs.push({ x, len: e - x, f });
+    x = Math.max(e, x + 1);
+  }
+  rng.shuffle(runs);
   let placed = 0;
-  for (let tries = 0; tries < target * 8 && placed < target; tries++) {
-    const bw = rng.int(style.basinW[0], style.basinW[1]);
-    const bx = rng.int(x0, x1 - bw - 1);
-    const f = ctx.floor[bx]!;
-    let flat = f >= 0;
-    for (let x = bx - 1; x <= bx + bw && flat; x++) {
-      if (ctx.floor[x] !== f || !okCell(ctx, x, f - 1) || !okCell(ctx, x, f)) flat = false;
-      if (flat && !airAt(ctx.grid, x, f - 1)) flat = false;
-    }
-    if (!flat) continue;
-    const depth = rng.int(style.basinDepth[0], style.basinDepth[1]);
-    for (let x = bx; x < bx + bw; x++) {
-      const edge = x === bx || x === bx + bw - 1;
-      const d = edge ? Math.max(1, depth - 1) : depth;
-      for (let y = f; y < f + d; y++) put(ctx, x, y, liquid);
-      for (let y = f + d; y <= f + d + 1; y++) if (!solidAt(ctx.grid, x, y)) put(ctx, x, y, Tile.GROUND);
-      ctx.flags[(f - 1) * ctx.w + x]! |= F_CLAIM;
-    }
-    // Lava lakes wider than a comfortable jump get basalt stepping pillars.
-    if (liquid === Tile.LAVA && (bw > 5 || style.pillars)) {
-      for (let x = bx + 2 + rng.int(0, 1); x < bx + bw - 2; x += rng.int(3, 4)) {
-        const top = f - (rng.chance(0.4) ? 1 : 0);
-        for (let y = top; y < f + depth; y++) put(ctx, x, y, Tile.ROCK);
-        if (top < f) carve(ctx, x, top - 1);
+  for (const r of runs) {
+    if (placed >= target) break;
+    const bw = rng.int(minW, Math.min(style.basinW[1], r.len - 2));
+    const bx = r.x + 1 + rng.int(0, r.len - 2 - bw);
+    const f = r.f;
+    const ok = feature(ctx, check, () => {
+      const depth = rng.int(style.basinDepth[0], style.basinDepth[1]);
+      for (let x = bx; x < bx + bw; x++) {
+        const edge = x === bx || x === bx + bw - 1;
+        const d = edge ? Math.max(1, depth - 1) : depth;
+        for (let y = f; y < f + d; y++) put(ctx, x, y, liquid);
+        for (let y = f + d; y <= f + d + 1; y++) if (!solidAt(ctx.grid, x, y)) put(ctx, x, y, Tile.GROUND);
+        ctx.flags[(f - 1) * ctx.w + x]! |= F_CLAIM;
       }
-    }
-    if (liquid === Tile.LAVA) lightRun(ctx, bx, bw, f);
-    placed++;
+      // Lava lakes wider than a comfortable jump get basalt stepping pillars.
+      if (liquid === Tile.LAVA && (bw > 5 || style.pillars)) {
+        for (let x = bx + 2 + rng.int(0, 1); x < bx + bw - 2; x += rng.int(3, 4)) {
+          const top = f - (rng.chance(0.4) ? 1 : 0);
+          for (let y = top; y < f + depth; y++) put(ctx, x, y, Tile.ROCK);
+          if (top < f) carve(ctx, x, top - 1);
+        }
+      }
+      if (liquid === Tile.LAVA) lightRun(ctx, bx, bw, f);
+      return true;
+    });
+    if (ok) placed++;
   }
 }
 
@@ -59,7 +69,7 @@ function lightRun(ctx: GenCtx, bx: number, bw: number, row: number): void {
 }
 
 /** Pools that settle in cavern dips: flood upward from a floor cell while the pool stays small. */
-export function cavernPools(ctx: GenCtx): void {
+export function cavernPools(ctx: GenCtx, check?: FeatureCheck): void {
   const { rng, biome, w, h, grid } = ctx;
   if (biome.gen.liquid === 'none' || biome.gen.liquidAmount <= 0) return;
   const liquid = liquidTile(ctx);
@@ -115,21 +125,24 @@ export function cavernPools(ctx: GenCtx): void {
     let minY = h;
     for (const c of best) minY = Math.min(minY, Math.floor(c / w));
     if (y - minY < 1) continue;
-    let minX = w;
-    let maxX = 0;
-    for (const c of best) {
-      const x = c % w;
-      put(ctx, x, (c - x) / w, liquid);
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-    }
-    if (liquid === Tile.LAVA) lightRun(ctx, minX, maxX - minX + 1, minY);
-    placed++;
+    const ok = feature(ctx, check, () => {
+      let minX = w;
+      let maxX = 0;
+      for (const c of best) {
+        const x = c % w;
+        put(ctx, x, (c - x) / w, liquid);
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+      }
+      if (liquid === Tile.LAVA) lightRun(ctx, minX, maxX - minX + 1, minY);
+      return true;
+    });
+    if (ok) placed++;
   }
 }
 
 /** Spike clusters on floors (never near the spawn, climb structures or portals). */
-export function spikes(ctx: GenCtx): void {
+export function spikes(ctx: GenCtx, check?: FeatureCheck): void {
   const { rng, w, h, grid, biome } = ctx;
   const count = Math.round(biome.gen.hazardDensity * w * 0.5 * (0.6 + ctx.depth));
   let placed = 0;
@@ -147,16 +160,19 @@ export function spikes(ctx: GenCtx): void {
       if (k >= 0 && k < len && (!airAt(grid, xx, y) || !airAt(grid, xx, y - 1) || !airAt(grid, xx, y - 2))) ok = false;
     }
     if (!ok) continue;
-    for (let k = 0; k < len; k++) {
-      put(ctx, x + k, y, Tile.SPIKES);
-      ctx.flags[y * w + x + k]! |= F_CLAIM;
-    }
-    placed++;
+    const placedRow = feature(ctx, check, () => {
+      for (let k = 0; k < len; k++) {
+        put(ctx, x + k, y, Tile.SPIKES);
+        ctx.flags[y * w + x + k]! |= F_CLAIM;
+      }
+      return true;
+    });
+    if (placedRow) placed++;
   }
 }
 
 /** Biome special tile: floor patches (ice, mud), glowing clusters (crystal, obsidian, blight), ice shelves. */
-export function specialTiles(ctx: GenCtx): void {
+export function specialTiles(ctx: GenCtx, check?: FeatureCheck): void {
   const { rng, style, biome, w, h, grid } = ctx;
   const density = biome.gen.specialTileDensity;
   if (density <= 0 || style.special === 'none') return;
@@ -211,8 +227,11 @@ export function specialTiles(ctx: GenCtx): void {
     let ok = headroom(grid, x, ly - 1) >= 3;
     for (let xx = x - 1; xx <= x + len && ok; xx++) if (!airAt(grid, xx, ly) || !airAt(grid, xx, ly - 1) || !airAt(grid, xx, ly + 1) || !okCell(ctx, xx, ly)) ok = false;
     if (!ok) continue;
-    for (let xx = x; xx < x + len; xx++) put(ctx, xx, ly, Tile.SPECIAL);
-    k++;
+    if (feature(ctx, check, () => {
+      for (let xx = x; xx < x + len; xx++) put(ctx, xx, ly, Tile.SPECIAL);
+      return true;
+    }))
+      k++;
   }
 }
 
@@ -325,4 +344,40 @@ export function secretPockets(ctx: GenCtx): { x: number; y: number }[] {
     out.push({ x: x0 + (pw >> 1), y: y0 + ph - 1 });
   }
   return out;
+}
+
+/**
+ * Mine timber frames (hollow): two posts and a crossbeam drawn on the back-wall layer (no
+ * collision) across tunnels whose ceiling is 4–8 tiles above the floor.
+ */
+export function mineSupports(ctx: GenCtx): void {
+  const { rng, style, w, h, grid } = ctx;
+  if (style.supports <= 0) return;
+  const want = Math.round((style.supports * w) / 100);
+  let placed = 0;
+  let lastX = -100;
+  for (let x = 8; x < w - 12 && placed < want; x += rng.int(2, 4)) {
+    if (x - lastX < 9) continue;
+    // Walk down this column to the first floor spot with a tunnel-height ceiling.
+    for (let y = 3; y < h - 3; y++) {
+      if (!groundSpot(grid, x, y) || ctx.flags[y * w + x]! & F_PROTECT) continue;
+      const room = headroom(grid, x, y, 10);
+      if (room < 4 || room > 8 || !solidAt(grid, x, y - room)) continue;
+      const span = rng.int(4, 6);
+      const top = y - room + 1;
+      // The far post must stand on the same floor under the same ceiling height (±1).
+      const x2 = x + span;
+      if (!groundSpot(grid, x2, y)) continue;
+      const room2 = headroom(grid, x2, y, 10);
+      if (Math.abs(room2 - room) > 1 || !solidAt(grid, x2, y - room2)) continue;
+      let clear = true;
+      for (let xx = x; xx <= x2 && clear; xx++) if (!airAt(grid, xx, top) || !airAt(grid, xx, y)) clear = false;
+      if (!clear) continue;
+      for (const px of [x, x2]) for (let yy = y - headroom(grid, px, y, 10) + 1; yy <= y; yy++) grid.bg[yy * w + px] = Wall.WOOD;
+      for (let xx = x; xx <= x2; xx++) grid.bg[top * w + xx] = Wall.WOOD;
+      placed++;
+      lastX = x2;
+      break;
+    }
+  }
 }

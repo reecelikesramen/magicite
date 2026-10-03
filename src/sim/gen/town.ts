@@ -10,6 +10,9 @@ import { F_CLAIM, F_NOHAZ, F_PROTECT, type GenCtx } from './types';
 /** Town street floor row and gate geometry. */
 export const TOWN_FLOOR = 22;
 
+/** Share of brick (vs timber) facades per biome: timber villages in the woods, stone in the deep. */
+const BRICK_CHANCE: Record<string, number> = { woods: 0.25, fen: 0.2, hollow: 0.6, rime: 0.5, amethyst: 0.8, cinder: 0.9, lair: 1 };
+
 /** Shop roles in building order; roles without a building get a market stall on the street. */
 const ROLES = ['npc_merchant', 'npc_smith', 'npc_outfitter', 'npc_trader', 'npc_fence'];
 
@@ -66,7 +69,7 @@ export function buildTown(ctx: GenCtx): void {
     if (gap >= 6) stallSpots.push(x + (gap >> 1));
     x += Math.max(2, gap >> 1);
     const bw = widths[i]!;
-    const brick = rng.chance(0.6);
+    const brick = rng.chance(BRICK_CHANCE[ctx.biome.id] ?? 0.6);
     const fh = rng.int(5, 7);
     const roofY = floor - fh - 1;
     const wall = brick ? Wall.BRICK : Wall.WOOD;

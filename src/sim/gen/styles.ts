@@ -41,6 +41,8 @@ export interface GenStyle {
   wallWindows: number;
   /** Lantern lights (with a hanging lantern prop) per 100 columns. */
   lanterns: number;
+  /** Mine timber frames (back-wall posts + beam) per 100 columns. */
+  supports: number;
   /** Chests / pots per 100 columns, secret pockets per level. */
   chests: number;
   pots: number;
@@ -77,6 +79,7 @@ const BASE: GenStyle = {
   special: 'none',
   wallWindows: 0.04,
   lanterns: 0,
+  supports: 0,
   chests: 1,
   pots: 1.2,
   secrets: [1, 2],
@@ -105,7 +108,7 @@ export const STYLES: Record<string, Partial<GenStyle>> = {
   hollow: {
     zoneW: [22, 34], shift: [6, 12], segW: [4, 9], stepMax: 1, stepChance: 0.3, clearance: [5, 7],
     climb: { stairs: 1, platforms: 2, ladder: 3 }, cavernScale: 9, cavernStretch: 2.4, corridors: [4, 6],
-    corridorClearance: [4, 6], corridorLen: [40, 90], basins: 0.3, lanterns: 5, chests: 1.3, pots: 2, decor: 16,
+    corridorClearance: [4, 6], corridorLen: [40, 90], basins: 0.3, lanterns: 5, supports: 6, chests: 1.3, pots: 2, decor: 16,
     trees: 1.5, rocks: 9, plants: 3, bugs: 2, hangers: 2,
   },
   // Icy ledges: frequent 2–3 tile steps, ice shelves to hop across.
@@ -123,9 +126,9 @@ export const STYLES: Record<string, Partial<GenStyle>> = {
   },
   // Lava lakes with basalt pillars, wide open halls.
   cinder: {
-    zoneW: [28, 42], shift: [4, 8], segW: [4, 9], stepMax: 2, stepChance: 0.35, clearance: [11, 16],
-    climb: { stairs: 2, platforms: 3, ladder: 0 }, cavernScale: 13, corridors: [1, 2], basins: 1.6,
-    basinW: [6, 15], basinDepth: [2, 4], pillars: true, special: 'cluster', specialLight: { color: 0xff6010, radius: 20 },
+    zoneW: [28, 42], shift: [4, 8], segW: [6, 14], stepMax: 2, stepChance: 0.25, clearance: [11, 16],
+    climb: { stairs: 2, platforms: 3, ladder: 0 }, cavernScale: 13, corridors: [1, 2], basins: 2,
+    basinW: [5, 15], basinDepth: [2, 4], pillars: true, special: 'cluster', specialLight: { color: 0xff6010, radius: 20 },
     chests: 0.8, decor: 14, trees: 2.5, rocks: 7, plants: 1, bugs: 2, hangers: 0,
   },
   lair: { special: 'cluster', specialLight: { color: 0xff40a0, radius: 28 }, decor: 14, trees: 1, rocks: 3, plants: 1, bugs: 1, hangers: 1 },

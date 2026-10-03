@@ -1,6 +1,7 @@
 import { Tile } from '../tiles';
 import { carve, IS_HAZARD, IS_LIQUID, IS_SOLID, put } from './grid';
 import { F_CLAIM, F_NOHAZ, F_PROTECT, type GenCtx } from './types';
+import { restore, snapshot, type FeatureCheck } from './snapshot';
 import { analyzeTraversal, type Traversal } from './validate';
 
 /**
@@ -250,35 +251,20 @@ function walkway(ctx: GenCtx, t: Traversal, a: number, b: number): boolean {
   return changed;
 }
 
-interface Snapshot {
-  fg: Uint8Array;
-  bg: Uint8Array;
-  flags: Uint8Array;
-  lights: number;
-}
-
-function snapshot(ctx: GenCtx): Snapshot {
-  return { fg: ctx.grid.fg.slice(), bg: ctx.grid.bg.slice(), flags: ctx.flags.slice(), lights: ctx.lights.length };
-}
-
-function restore(ctx: GenCtx, s: Snapshot): void {
-  ctx.grid.fg.set(s.fg);
-  ctx.grid.bg.set(s.bg);
-  ctx.flags.set(s.flags);
-  ctx.lights.length = s.lights;
-}
-
 function exitsOk(ctx: GenCtx): boolean {
   if (ctx.exits.length === 0) return true;
   return analyze(ctx).exitReachable.every(Boolean);
 }
 
 /**
- * Run terrain dressing passes (liquids, hazards, special tiles…) without breaking the route: if the
- * exits were reachable before and aren't after, roll back and re-run the passes one at a time,
- * dropping any pass that breaks reachability. Costs one traversal analysis in the common case.
+ * Run terrain dressing passes (liquids, hazards, special tiles…) without breaking the route. Fast
+ * path: run them all and check once. If the exits were reachable before and aren't after, roll
+ * back and re-run the passes one at a time; a pass that breaks reachability is re-run in checked
+ * mode, where each feature it places (a pool, a spike row…) is validated and rolled back on its own.
  */
-export function guardedPasses(ctx: GenCtx, passes: readonly ((ctx: GenCtx) => void)[]): void {
+export type DressingPass = (ctx: GenCtx, check?: FeatureCheck) => void;
+
+export function guardedPasses(ctx: GenCtx, passes: readonly DressingPass[]): void {
   if (!exitsOk(ctx)) {
     for (const p of passes) p(ctx);
     return;
@@ -287,9 +273,12 @@ export function guardedPasses(ctx: GenCtx, passes: readonly ((ctx: GenCtx) => vo
   for (const p of passes) p(ctx);
   if (exitsOk(ctx)) return;
   restore(ctx, before);
+  const check = (): boolean => exitsOk(ctx);
   for (const p of passes) {
     const s = snapshot(ctx);
     p(ctx);
-    if (!exitsOk(ctx)) restore(ctx, s);
+    if (exitsOk(ctx)) continue;
+    restore(ctx, s);
+    p(ctx, check);
   }
 }

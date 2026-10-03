@@ -87,7 +87,7 @@ function render(level: GeneratedLevel): { w: number; h: number; rgb: Uint8Array 
       let c: number;
       switch (t) {
         case Tile.AIR:
-          c = g.getWall(tx, ty) === Wall.NONE ? pal.sky : g.getWall(tx, ty) === Wall.BRICK ? 0x3a2e20 : g.getWall(tx, ty) === Wall.WOOD ? 0x2a1a0c : pal.wall[1]!;
+          c = g.getWall(tx, ty) === Wall.NONE ? pal.sky : g.getWall(tx, ty) === Wall.BRICK ? 0x4a3e30 : g.getWall(tx, ty) === Wall.WOOD ? 0x5a3a1c : pal.wall[1]!;
           break;
         case Tile.GROUND:
           c = exposed ? pal.fringe[2]! : pal.ground[2]!;
