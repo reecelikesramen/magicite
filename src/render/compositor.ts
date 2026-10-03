@@ -143,8 +143,14 @@ export class Compositor {
   readonly emissive = scene();
   /** Bloom: blurred copy of the emissive layer + additive halo sprites (world space). */
   readonly bloom = scene();
-  /** The on-screen output quad (add to the stage). */
-  readonly output: Mesh<Geometry, Shader>;
+  /** The on-screen output (add to the stage): the composite quad, or the unlit fallback. */
+  readonly output = new Container();
+  private mesh: Mesh<Geometry, Shader>;
+  /**
+   * Canvas-renderer fallback (no WebGL, e.g. a blocklisted GPU): layers stacked without the
+   * lighting shader — terrain dimmed so the mood survives, creatures and glows on top.
+   */
+  private fallback = new Container();
   /** Native size of the layer textures (view + 2·MARGIN). */
   w = 0;
   h = 0;
@@ -207,7 +213,11 @@ export class Compositor {
         uBloomSampler: this.bloomRT.source.style,
       },
     });
-    this.output = new Mesh({ geometry, shader });
+    this.mesh = new Mesh({ geometry, shader });
+    const terrain = new Sprite(this.terrainRT);
+    terrain.tint = 0x8a8478;
+    this.fallback.addChild(terrain, new Sprite(this.entityRT), new Sprite(this.emissiveRT));
+    this.output.addChild(this.mesh, this.fallback);
   }
 
   /** Resize layer textures to a native view of vw×vh px (no-op when unchanged). */
@@ -254,12 +264,17 @@ export class Compositor {
 
   /** Render all layers; then place the output quad: `fx,fy` = sub-pixel camera remainder (0..1). */
   render(r: PixiRenderer, scale: number, fx: number, fy: number): void {
+    const lit = r.name !== 'canvas';
     r.render({ container: this.terrain.root, target: this.terrainRT, clear: true, clearColor: this.clearBlack });
     r.render({ container: this.entities.root, target: this.entityRT, clear: true, clearColor: this.clearClear });
-    r.render({ container: this.light.root, target: this.lightRT, clear: true, clearColor: this.ambient });
+    if (lit) r.render({ container: this.light.root, target: this.lightRT, clear: true, clearColor: this.ambient });
     r.render({ container: this.emissive.root, target: this.emissiveRT, clear: true, clearColor: this.clearClear });
-    r.render({ container: this.bloom.root, target: this.bloomRT, clear: true, clearColor: this.clearBlack });
-    this.output.scale.set(this.w * scale, this.h * scale);
+    if (lit) r.render({ container: this.bloom.root, target: this.bloomRT, clear: true, clearColor: this.clearBlack });
+    this.mesh.visible = lit;
+    this.fallback.visible = !lit;
+    // The mesh is a unit quad; the fallback sprites are already w×h native px.
+    if (lit) this.output.scale.set(this.w * scale, this.h * scale);
+    else this.output.scale.set(scale, scale);
     this.output.position.set(-Math.round((MARGIN + fx) * scale), -Math.round((MARGIN + fy) * scale));
   }
 

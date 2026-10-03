@@ -1,0 +1,58 @@
+# Desktop builds (Electrobun) for macOS (Apple Silicon), Windows and Linux.
+# - Manual run (Actions tab -> Desktop builds -> Run workflow): artifacts attached to the run.
+# - Tag push `v*`: also publishes them to a GitHub Release, which the in-app updater reads.
+# Unsigned for now: macOS users right-click -> Open the first time; Windows SmartScreen says
+# "More info -> Run anyway". See desktop/README.md for signing.
+name: Desktop builds
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, name: macos-arm64 }
+          - { os: windows-latest, name: windows-x64 }
+          - { os: ubuntu-24.04, name: linux-x64 }
+          - { os: ubuntu-24.04, name: linux-x64-lite, lite: '1' }
+    runs-on: ${{ matrix.os }}
+    env:
+      SHARDFALL_LITE: ${{ matrix.lite || '0' }}
+      RELEASE_BASE_URL: https://github.com/${{ github.repository }}/releases/latest/download
+      VITE_NOSTR_RELAYS: ${{ vars.NOSTR_RELAYS }}
+      VITE_ICE_ENDPOINT: ${{ vars.ICE_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - working-directory: desktop
+        run: bun install --frozen-lockfile
+      - working-directory: desktop
+        run: bun run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shardfall-${{ matrix.name }}
+          path: desktop/artifacts/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-desktop
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist-desktop/*
+          generate_release_notes: true

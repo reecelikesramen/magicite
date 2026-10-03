@@ -1,0 +1,14 @@
+{
+  "name": "shardfall-desktop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "web": "cd .. && bun run build:single",
+    "dev": "bun run web && electrobun dev",
+    "build": "bun run web && electrobun build --env=stable",
+    "build:canary": "bun run web && electrobun build --env=canary"
+  },
+  "devDependencies": {
+    "electrobun": "1.18.1"
+  }
+}

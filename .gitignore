@@ -10,3 +10,5 @@ desktop/build/
 dist-artifact/
 .wrangler/
 server/cloudflare/.wrangler/
+desktop/artifacts*/
+desktop/build*/
