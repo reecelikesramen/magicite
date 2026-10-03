@@ -1,6 +1,6 @@
 import { HOTBAR_SIZE } from '../constants';
 import type { PlayerCommand, PlayerState, SlotRef } from '../types';
-import type { Level, World } from '../world';
+import type { World } from '../world';
 import { craft } from './craft';
 import { spawnStackPickup } from './drops';
 import { equipFromInventory, isEquipSlot, swapSlots, unequip, validRef } from './equip';
@@ -99,18 +99,13 @@ export function runCommand(world: World, p: PlayerState, c: PlayerCommand): void
   }
 }
 
-/** Levels whose shop NPCs have been stocked (pure memo: stocking is deterministic and idempotent). */
-const stocked = new WeakSet<Level>();
-
 /**
  * Processes UI commands (GDD §7, §9): crafting, inventory moves, equipment, click-use, drop, split,
- * sort, shops, repairs. Commands run in player order, then in the order they were issued.
+ * sort, shops, repairs. Commands run in player order, then in the order they were issued. Shop NPCs
+ * get their (seeded, idempotent) stock the first tick they exist — a cheap allocation-free scan.
  */
 export function commandSystem(world: World): void {
-  if (world.level && !stocked.has(world.level)) {
-    stocked.add(world.level);
-    initShops(world);
-  }
+  if (world.level) initShops(world);
   for (const p of world.players) {
     const input = world.inputs[p.index];
     if (!input || input.commands.length === 0) continue;
