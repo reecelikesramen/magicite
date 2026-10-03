@@ -20,6 +20,18 @@ const page = await browser.newPage({ viewport: { width: W, height: H } });
 const logs: string[] = [];
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
+// A scriptable fake gamepad (standard mapping) so the pad navigation can be exercised headlessly.
+await page.addInitScript(() => {
+  const pad = { id: 'fake', index: 0, connected: true, mapping: 'standard', timestamp: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })) };
+  (window as any).__pad = pad;
+  Object.defineProperty(navigator, 'getGamepads', { value: () => [pad] });
+});
+const padPress = async (i: number) => {
+  await page.evaluate((b) => ((window as any).__pad.buttons[b] = { pressed: true, touched: true, value: 1 }), i);
+  await page.waitForTimeout(70);
+  await page.evaluate((b) => ((window as any).__pad.buttons[b] = { pressed: false, touched: false, value: 0 }), i);
+  await page.waitForTimeout(70);
+};
 await page.goto(url);
 await page.waitForTimeout(1200);
 await page.screenshot({ path: `${out}/01-hud-banner.png` });
@@ -99,6 +111,23 @@ await page.mouse.click(mx, my);
 await page.waitForTimeout(200);
 await page.screenshot({ path: `${out}/07-recipe-book.png` });
 await page.keyboard.press('Tab');
+await page.waitForTimeout(100);
+
+// Gamepad: Back opens the inventory, d-pad moves the cursor, A picks up, X craft-picks.
+await padPress(8);
+await padPress(15);
+await padPress(15);
+await padPress(13);
+await padPress(2);
+await padPress(13);
+await padPress(13);
+await padPress(0);
+await page.waitForTimeout(120);
+await page.screenshot({ path: `${out}/07a-gamepad.png` });
+await padPress(1);
+await padPress(1);
+await padPress(8);
+await page.waitForTimeout(100);
 
 // Skill path selection + slotted skills with cooldowns.
 await page.evaluate(() => {
