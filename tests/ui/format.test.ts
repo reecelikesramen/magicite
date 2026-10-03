@@ -146,8 +146,9 @@ describe('event toasts', () => {
     expect(eventToast({ type: 'message', text: 'Not you', player: 1 }, 0, nameOf)).toBeNull();
   });
 
-  it('announces teammates going down and getting back up', () => {
-    expect(eventToast({ type: 'downed', player: 1 }, 0, nameOf)?.text).toBe('BRYNNA is down!');
+  it('announces teammates getting back up (going down has its own notice)', () => {
+    // Down: the persistent revive notice (and the sim's own message) say it; no duplicate toast.
+    expect(eventToast({ type: 'downed', player: 1 }, 0, nameOf)).toBeNull();
     expect(eventToast({ type: 'downed', player: 0 }, 0, nameOf)).toBeNull();
     expect(eventToast({ type: 'revived', player: 1 }, 0, nameOf)?.text).toBe('BRYNNA is back up!');
     expect(eventToast({ type: 'revived', player: 0 }, 0, nameOf)?.text).toBe("You're back on your feet!");

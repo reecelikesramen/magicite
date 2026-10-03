@@ -286,14 +286,14 @@ export interface ToastSpec {
 
 /**
  * The bottom-centre toast (if any) a sim event produces for local player `me`. Craft results
- * toast only while the inventory is closed (it has its own feedback line).
+ * toast only while the inventory is closed (it has its own feedback line). A teammate going down
+ * gets no toast: the persistent "is down! Hold F to revive" notice (DownedOverlay) covers it, and
+ * the player sim also announces it with a 'message' event.
  */
 export function eventToast(ev: GameEvent, me: number, nameOf: (player: number) => string, inventoryOpen = false): ToastSpec | null {
   switch (ev.type) {
     case 'message':
       return ev.player === undefined || ev.player === me ? { text: ev.text, color: ev.color ?? UI.text, ttl: 3 } : null;
-    case 'downed':
-      return ev.player === me ? null : { text: `${nameOf(ev.player)} is down!`, color: UI.bad, ttl: 3 };
     case 'revived':
       return { text: ev.player === me ? "You're back on your feet!" : `${nameOf(ev.player)} is back up!`, color: UI.good, ttl: 2.5 };
     case 'craft': {
