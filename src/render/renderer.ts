@@ -1,54 +1,126 @@
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Container, Sprite, type Application } from 'pixi.js';
 import { Content } from '../content';
-import { hash01 } from '../engine/rng';
 import { lerp } from '../engine/math';
 import { TILE } from '../sim/constants';
-import { CHUNK, Tile, tileProps } from '../sim/tiles';
+import { Tile } from '../sim/tiles';
 import type { Entity, GameEvent } from '../sim/types';
-import type { World } from '../sim/world';
+import type { Level, World } from '../sim/world';
+import { Background } from './background';
+import { Camera, type Bounds, type CameraTarget } from './camera';
+import { blue, green, normalizeHue, ramp, red } from './color';
+import { Compositor } from './compositor';
+import { EntityViews } from './entities';
+import { flicker, LightPool } from './lights';
+import { damageColor, WorldOverlay } from './overlay';
+import { resolveAmbient, updateAmbient } from './particles/ambient';
+import { emitOpts, emitPreset } from './particles/presets';
+import { ParticleSystem } from './particles/system';
+import { ParticleView } from './particles/view';
+import { flushAtlas, registerBuiltinSprites, setFrames, spriteSet } from './sprites';
+import { biomeStyle, type BiomeStyle } from './style';
+import { ChunkLayer } from './tiles/chunks';
+import type { Emitter } from './tiles/painter';
+import { haloTexture, lightTexture } from './tiles/textures';
+
+/** Ticks a teammate holds interact to revive (GDD: 2 s); `PlayerState.reviveProgress` counts up to it. */
+const REVIVE_TICKS = 120;
 
 /** Target native view; the scale is the largest integer that still shows at least this much. */
 export const VIEW_W = 320;
 export const VIEW_H = 180;
 
-const KIND_COLORS: Record<string, number> = {
-  player: 0xf0c8a0,
-  enemy: 0x5ce65c,
-  boss: 0xc02020,
-  projectile: 0xffd040,
-  pickup: 0xe0c040,
-  resource: 0x7a4a24,
-  npc: 0x8080ff,
-  prop: 0xaaaaaa,
-  companion: 0xff80c0,
-  effect: 0xffffff,
+/** Look tunables (exposed for quick iteration from the console: `game.renderer.look`). */
+export const LOOK = {
+  /** Multiplier on palette.ambient·ambientLevel (the darkness of everything outside lights). */
+  ambientBoost: 1.0,
+  /** Minimum light on creatures/items (0 = as dark as terrain, 1 = unlit). */
+  entityFloor: 0.6,
+  bloom: 1.4,
+  /** Static/level lights and portal lights. */
+  portalLight: { radius: 44, intensity: 0.9 },
+  lavaFlicker: 0.15,
 };
 
-function rgb(c: number): [number, number, number] {
-  return [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+interface PortalView {
+  frame: Sprite;
+  glow: Sprite;
+  bars: Sprite | null;
+  x: number;
+  y: number;
+  color: number;
 }
 
 /**
- * PLACEHOLDER renderer (scaffold): chunked tile canvases + tinted rectangles for entities.
- * The render workstream replaces internals (procedural sprites, lighting, glow, parallax,
- * particles) but keeps this public surface: `draw(world, alpha)`, `screenToWorld`, `scale`.
+ * Render core. Reads the sim (never writes it): procedural tile chunks, sprite views, particles,
+ * dynamic lighting with over-exposure, emissive glow + bloom, parallax haze, camera with lookahead,
+ * shake and hit-stop flash, damage numbers and name tags. Public surface used by `Game`:
+ * `draw(world, alpha, focus)`, `handleEvents(events, world)`, `screenToWorld`, `scale`, `viewW/H`, `camX/Y`.
  */
 export class Renderer {
+  /** Everything this renderer puts on the stage (composited world + world-space UI). */
   readonly root = new Container();
-  readonly world = new Container();
-  private tiles = new Container();
-  private ents = new Container();
-  private chunkSprites = new Map<number, { sprite: Sprite; canvas: HTMLCanvasElement; version: number }>();
-  private entSprites = new Map<number, Sprite>();
-  private portal = new Graphics();
-  private levelRef: unknown = null;
+  readonly look = LOOK;
   scale = 4;
+  /** Camera top-left in native px (smoothed, without shake). */
   camX = 0;
   camY = 0;
 
+  private comp = new Compositor();
+  private camera = new Camera();
+  private chunks = new ChunkLayer();
+  private background = new Background();
+  private entities = new EntityViews();
+  private particles = new ParticleSystem(4096);
+  private particleView = new ParticleView();
+  private lights: LightPool;
+  private halos: LightPool;
+  private overlay = new WorldOverlay();
+  private portals = new Container();
+  private portalGlows = new Container();
+  private portalViews: PortalView[] = [];
+  private emitters: Emitter[] = [];
+  private level: Level | null = null;
+  private style: BiomeStyle = biomeStyle('woods');
+  /** Ambient particle kind of the level (content name, or the family default for unknown names). */
+  private ambientKind = 'fireflies';
+  private lastNow = 0;
+  private time = 0;
+  private flash = 0;
+  private flashColor = 0xffffff;
+  private gridRef: Level['grid'] | null = null;
+  private readonly solidFn = (x: number, y: number): boolean => this.gridRef !== null && this.gridRef.solidAt(x, y);
+  // Per-frame scratch (no allocations in draw()).
+  private readonly view = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly levelBounds: Bounds = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly camTarget: CameraTarget = { x: 0, y: 0, vx: 0, vy: 0, grounded: true };
+  private bubbleDt = 0;
+  private readonly bubbleFn = (tx0: number, tx1: number, ty: number, kind: 'water' | 'lava'): void => {
+    const ps = this.particles;
+    const n = (tx1 - tx0 + 1) * this.bubbleDt * (kind === 'lava' ? 0.6 : 0.25);
+    if (ps.rand() > n) return;
+    const x = (tx0 + ps.rand() * (tx1 - tx0 + 1)) * TILE;
+    if (kind === 'lava') emitPreset(ps, 'embers', x, ty * TILE, emitOpts(1));
+    else emitPreset(ps, 'bubble', x, ty * TILE + 3, emitOpts(1));
+  };
+
   constructor(private readonly app: Application) {
-    this.world.addChild(this.tiles, this.portal, this.ents);
-    this.root.addChild(this.world);
+    registerBuiltinSprites();
+    this.lights = new LightPool(lightTexture());
+    this.halos = new LightPool(haloTexture(), 1);
+    const c = this.comp;
+    // Terrain layer: haze/parallax (screen space) → back wall + terrain chunks → water surfaces → cracks.
+    c.terrain.root.addChildAt(this.background.root, 0);
+    c.terrain.world.addChild(this.chunks.terrain, this.chunks.water, this.chunks.cracks);
+    // Lit entity layer.
+    const ev = this.entities;
+    c.entities.world.addChild(ev.background, this.portals, ev.middle, ev.main, ev.front, ev.trails, this.particleView.lit);
+    // Lightmap: sky (neutral light) + lights (additive) → depth attenuation (multiply).
+    this.chunks.skyMasks.tint = 0x808080;
+    c.light.world.addChild(this.chunks.skyMasks, this.lights.container, this.chunks.attenMasks);
+    // Emissive (unlit) layer and bloom halos.
+    c.emissive.world.addChild(this.chunks.emissive, this.portalGlows, ev.emissive, this.particleView.glow);
+    c.bloom.world.addChild(this.halos.container);
+    this.root.addChild(c.output, this.overlay.root);
     app.stage.addChild(this.root);
   }
 
@@ -64,164 +136,295 @@ export class Renderer {
     return { x: sx / this.scale + this.camX, y: sy / this.scale + this.camY };
   }
 
-  private rebuildLevel(world: World): void {
-    for (const c of this.chunkSprites.values()) c.sprite.destroy({ texture: true, textureSource: true });
-    this.chunkSprites.clear();
-    for (const s of this.entSprites.values()) s.destroy();
-    this.entSprites.clear();
-    this.levelRef = world.level;
-    this.portal.clear();
-    for (const ex of world.level.exits) this.portal.rect(ex.x, ex.y, ex.w, ex.h).fill({ color: 0x7ac040, alpha: 0.35 }).stroke({ color: 0x8a8a8a, width: 2 });
+  /** Particle system (other presentation code may emit presets directly). */
+  emit(preset: string, x: number, y: number, count?: number, color?: number): void {
+    emitPreset(this.particles, preset, x, y, { count, color });
   }
 
-  private drawChunk(world: World, cx: number, cy: number, canvas: HTMLCanvasElement): void {
-    const g = world.level.grid;
-    const biome = Content.biomes.get(world.level.info.biome);
-    const pal = biome?.palette;
-    const ctx = canvas.getContext('2d')!;
-    const img = ctx.createImageData(CHUNK * TILE, CHUNK * TILE);
-    const d = img.data;
-    const ground = pal?.ground ?? [0x3b2a1a, 0x4e3822];
-    const fringe = pal?.fringe ?? [0x3f8f2a, 0x8fdc5a];
-    const rock = pal?.rock ?? [0x3e3e44, 0x5a5a60];
-    const wall = pal?.wall ?? [0x0a0806, 0x1f170e];
-    for (let ty = 0; ty < CHUNK; ty++) {
-      for (let tx = 0; tx < CHUNK; tx++) {
-        const wx = cx * CHUNK + tx;
-        const wy = cy * CHUNK + ty;
-        if (!g.inBounds(wx, wy)) continue;
-        const id = g.get(wx, wy);
-        const wallId = g.getWall(wx, wy);
-        const exposedTop = tileProps(id).solid && !tileProps(g.get(wx, wy - 1)).solid;
-        for (let py = 0; py < TILE; py++) {
-          for (let px = 0; px < TILE; px++) {
-            const gx = wx * TILE + px;
-            const gy = wy * TILE + py;
-            const n = hash01(gx >> 1, gy >> 1, id);
-            let col = -1;
-            let a = 255;
-            switch (id) {
-              case Tile.AIR:
-                if (wallId) col = wall[Math.floor(n * wall.length)]!;
-                break;
-              case Tile.GROUND:
-                col = exposedTop && py < 2 + (hash01(gx, wy) < 0.4 ? 1 : 0) ? fringe[Math.floor(n * fringe.length)]! : ground[Math.floor(n * ground.length)]!;
-                break;
-              case Tile.ROCK:
-              case Tile.BRICK:
-                col = rock[Math.floor(n * rock.length)]!;
-                break;
-              case Tile.BEDROCK:
-                col = rock[0]!;
-                break;
-              case Tile.PLATFORM:
-                if (py < 2) col = 0x8a5a2a;
-                break;
-              case Tile.LADDER:
-                if (px === 1 || px === 6 || py % 3 === 0) col = 0x7a4a24;
-                break;
-              case Tile.WATER:
-                col = 0x2050c0;
-                a = 150;
-                break;
-              case Tile.LAVA:
-                col = py < 2 ? 0xffd040 : 0xff6020;
-                break;
-              case Tile.SPIKES:
-                if (py >= TILE - 1 - Math.abs(px - 3.5) * 2) col = 0xc8c8c8;
-                break;
-              default:
-                col = 0x808080;
-            }
-            if (col < 0) continue;
-            const o = ((ty * TILE + py) * CHUNK * TILE + tx * TILE + px) * 4;
-            const [r, gg, b] = rgb(col);
-            d[o] = r;
-            d[o + 1] = gg;
-            d[o + 2] = b;
-            d[o + 3] = a;
+  private setLevel(world: World): void {
+    const level = world.level;
+    this.level = level;
+    this.gridRef = level.grid;
+    const def = Content.biomes.get(level.info.biome);
+    this.style = biomeStyle(level.info.biome, def);
+    const amb = this.style.ambientParticles;
+    this.ambientKind = resolveAmbient(amb) !== undefined || amb === 'none' ? amb : this.style.ambientDefault;
+    this.chunks.setLevel(level.grid, this.style);
+    this.background.setStyle(this.style, level.info.seed + level.info.district);
+    this.entities.clear();
+    this.particles.clear();
+    this.overlay.clear();
+    this.buildPortals(level);
+    this.camera = new Camera();
+  }
+
+  private buildPortals(level: Level): void {
+    for (const p of this.portalViews) {
+      p.frame.destroy();
+      p.glow.destroy();
+      p.bars?.destroy();
+    }
+    this.portalViews.length = 0;
+    const frameSet = spriteSet('exit_portal');
+    const glowSet = spriteSet('exit_portal_glow');
+    for (const ex of level.exits) {
+      const x = Math.round(ex.x + ex.w / 2);
+      const y = Math.round(ex.y + ex.h);
+      const dest = ex.biome ? biomeStyle(ex.biome, Content.biomes.get(ex.biome)) : this.style;
+      const frame = new Sprite(setFrames(frameSet, 'idle')[0]!);
+      frame.anchor.set(frameSet.ox / frameSet.w, frameSet.oy / frameSet.h);
+      frame.position.set(x, y);
+      const glow = new Sprite(setFrames(glowSet, 'idle')[0]!);
+      glow.anchor.set(glowSet.ox / glowSet.w, glowSet.oy / glowSet.h);
+      glow.position.set(x, y);
+      glow.tint = dest.portal;
+      this.portals.addChild(frame);
+      this.portalGlows.addChild(glow);
+      this.portalViews.push({ frame, glow, bars: null, x, y, color: dest.portal });
+    }
+  }
+
+  /** React to presentation events (particles, shake, damage numbers, flashes…). */
+  handleEvents(events: readonly GameEvent[], world: World): void {
+    const ps = this.particles;
+    for (const ev of events) {
+      switch (ev.type) {
+        case 'particles':
+          emitPreset(ps, ev.preset, ev.x, ev.y, { count: ev.count, color: ev.color, dirX: ev.dirX, dirY: ev.dirY });
+          break;
+        case 'damage': {
+          this.overlay.damage(ev.x, ev.y, ev.amount, damageColor(ev.toPlayer, ev.crit, ev.damageType), ev.crit);
+          const t = world.get(ev.target);
+          const cy = t ? t.y + t.h / 2 : ev.y + 4;
+          emitPreset(ps, 'hit_spark', ev.x, cy, { count: ev.crit ? 10 : 5 });
+          if (t && t.kind !== 'resource') emitPreset(ps, this.isSlime(t) ? 'slime_splat' : 'blood', ev.x, cy, { count: Math.min(12, 3 + ev.amount), color: this.isSlime(t) ? this.slimeColor(t) : undefined });
+          break;
+        }
+        case 'heal':
+          this.overlay.heal(ev.x, ev.y, ev.amount);
+          emitPreset(ps, 'heal', ev.x, ev.y + 4);
+          break;
+        case 'death': {
+          if (ev.kind === 'enemy' || ev.kind === 'boss') {
+            const big = ev.kind === 'boss';
+            const slime = /slime/.test(Content.enemies.get(ev.def)?.sprite ?? ev.def);
+            emitPreset(ps, slime ? 'slime_splat' : 'death_burst', ev.x, ev.y, { count: big ? 40 : 12 });
+            emitPreset(ps, 'poof', ev.x, ev.y, { count: big ? 30 : 8 });
+            if (big) this.camera.addShake(4, 20);
+          } else if (ev.kind === 'resource') {
+            const tool = Content.resources.get(ev.def)?.tool;
+            emitPreset(ps, tool === 'axe' ? 'wood_chips' : tool === 'pickaxe' ? 'rock_chips' : 'poof', ev.x, ev.y, { count: 12 });
+          } else if (ev.kind === 'projectile') {
+            emitPreset(ps, 'hit_spark', ev.x, ev.y, { count: 4 });
           }
+          break;
         }
+        case 'shake':
+          this.camera.addShake(ev.amount, ev.ticks);
+          break;
+        case 'hitstop':
+          this.flash = Math.max(this.flash, Math.min(0.2, 0.03 * ev.ticks));
+          this.flashColor = 0xffffff;
+          break;
+        case 'tileBroken':
+          emitPreset(ps, 'tile_chips', ev.tx * TILE + 4, ev.ty * TILE + 4, { color: this.tileColor(ev.tile) });
+          break;
+        case 'resourceHit':
+          this.entities.shake(ev.entity);
+          break;
+        case 'levelUp': {
+          const e = world.playerEntity(ev.player);
+          if (e) emitPreset(ps, 'levelup', e.x + e.w / 2, e.y + e.h / 2);
+          break;
+        }
+        case 'downed': {
+          const e = world.playerEntity(ev.player);
+          if (e) emitPreset(ps, 'smoke', e.x + e.w / 2, e.y + e.h - 2);
+          this.camera.addShake(3, 12);
+          break;
+        }
+        case 'revived': {
+          const e = world.playerEntity(ev.player);
+          if (e) emitPreset(ps, 'heal', e.x + e.w / 2, e.y + e.h / 2, { count: 16 });
+          break;
+        }
+        case 'pickup': {
+          const e = world.playerEntity(ev.player);
+          if (e && ev.item === 'gold') emitPreset(ps, 'coin_sparkle', e.x + e.w / 2, e.y + 2, { count: 3 });
+          break;
+        }
+        case 'craft': {
+          const e = world.playerEntity(ev.player);
+          if (e && ev.result && ev.discovered) emitPreset(ps, 'magic', e.x + e.w / 2, e.y + 2, { count: 12, color: 0xfff080 });
+          break;
+        }
+        default:
+          break;
       }
     }
-    ctx.putImageData(img, 0, 0);
   }
 
-  private syncChunks(world: World): void {
-    const g = world.level.grid;
-    const x0 = Math.max(0, Math.floor(this.camX / TILE / CHUNK));
-    const y0 = Math.max(0, Math.floor(this.camY / TILE / CHUNK));
-    const x1 = Math.min(g.chunksX - 1, Math.floor((this.camX + this.viewW) / TILE / CHUNK));
-    const y1 = Math.min(g.chunksY - 1, Math.floor((this.camY + this.viewH) / TILE / CHUNK));
-    for (let cy = y0; cy <= y1; cy++) {
-      for (let cx = x0; cx <= x1; cx++) {
-        const key = cy * g.chunksX + cx;
-        const version = g.chunkVersion[key]!;
-        let c = this.chunkSprites.get(key);
-        if (!c) {
-          const canvas = document.createElement('canvas');
-          canvas.width = canvas.height = CHUNK * TILE;
-          this.drawChunk(world, cx, cy, canvas);
-          const sprite = new Sprite(Texture.from(canvas));
-          sprite.position.set(cx * CHUNK * TILE, cy * CHUNK * TILE);
-          this.tiles.addChild(sprite);
-          c = { sprite, canvas, version };
-          this.chunkSprites.set(key, c);
-        } else if (c.version !== version) {
-          this.drawChunk(world, cx, cy, c.canvas);
-          c.sprite.texture.source.update();
-          c.version = version;
-        }
-      }
+  private isSlime(e: Entity): boolean {
+    return e.kind === 'enemy' && /slime/.test(Content.enemies.get(e.def)?.sprite ?? e.def);
+  }
+
+  private slimeColor(e: Entity): number | undefined {
+    const s = Content.enemies.get(e.def)?.sprite ?? e.def;
+    if (/magma|lava|fire/.test(s)) return 0xff6020;
+    if (/ice|frost/.test(s)) return 0x8ad0f0;
+    if (/bog/.test(s)) return 0x7a9a3a;
+    if (/blight/.test(s)) return 0xd04090;
+    return undefined;
+  }
+
+  private tileColor(tile: number): number {
+    const p = this.style.pal;
+    switch (tile) {
+      case Tile.ROCK:
+      case Tile.BRICK:
+        return ramp(p.rock, 2);
+      case Tile.WOOD:
+      case Tile.PLATFORM:
+      case Tile.LADDER:
+        return ramp(this.style.wood, 2);
+      default:
+        return ramp(p.ground, 3);
     }
   }
-
-  private entitySprite(e: Entity): Sprite {
-    let s = this.entSprites.get(e.id);
-    if (!s) {
-      s = new Sprite(Texture.WHITE);
-      s.tint = KIND_COLORS[e.kind] ?? 0xffffff;
-      this.ents.addChild(s);
-      this.entSprites.set(e.id, s);
-    }
-    return s;
-  }
-
-  /** React to presentation events (particles, shake, damage numbers…). */
-  handleEvents(_events: readonly GameEvent[], _world: World): void {}
 
   draw(world: World, alpha: number, focus: Entity | undefined): void {
-    if (this.levelRef !== world.level) this.rebuildLevel(world);
+    const now = performance.now();
+    const dt = this.lastNow ? Math.min(0.1, (now - this.lastNow) / 1000) : 1 / 60;
+    this.lastNow = now;
+    this.time += dt;
+    if (this.level !== world.level) this.setLevel(world);
+    const level = world.level;
+    const grid = level.grid;
+
+    // --- scale + camera ------------------------------------------------------------------
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
     this.scale = Math.max(1, Math.floor(Math.min(sw / VIEW_W, sh / VIEW_H)));
-
+    const vw = sw / this.scale;
+    const vh = sh / this.scale;
+    const cam = this.camera;
+    cam.setView(vw, vh);
+    const lb = this.levelBounds;
+    lb.w = grid.pixelWidth;
+    lb.h = grid.pixelHeight;
+    let bounds: Bounds = lb;
     if (focus) {
       const fx = lerp(focus.px, focus.x, alpha) + focus.w / 2;
       const fy = lerp(focus.py, focus.y, alpha) + focus.h / 2;
-      const g = world.level.grid;
-      this.camX = Math.max(0, Math.min(g.pixelWidth - this.viewW, fx - this.viewW / 2));
-      this.camY = Math.max(0, Math.min(g.pixelHeight - this.viewH, fy - this.viewH / 2));
-    }
-    this.world.scale.set(this.scale);
-    this.world.position.set(Math.round(-this.camX * this.scale), Math.round(-this.camY * this.scale));
-    this.syncChunks(world);
+      const a = level.arena;
+      if (a && level.locked && fx >= a.x && fx <= a.x + a.w && fy >= a.y && fy <= a.y + a.h) bounds = a;
+      const inp = focus.playerIndex !== undefined ? world.inputs[focus.playerIndex] : undefined;
+      const hasAim = !!inp && (inp.aimX !== 0 || inp.aimY !== 0);
+      const t = this.camTarget;
+      t.x = fx;
+      t.y = fy;
+      t.vx = focus.vx;
+      t.vy = focus.vy;
+      t.grounded = focus.onGround;
+      t.aimX = hasAim ? inp!.aimX : undefined;
+      t.aimY = hasAim ? inp!.aimY : undefined;
+      cam.update(dt, t, bounds);
+    } else cam.update(dt, null, bounds);
+    this.camX = cam.x;
+    this.camY = cam.y;
+    const rx = cam.x + cam.shakeX;
+    const ry = cam.y + cam.shakeY;
+    const ix = Math.floor(rx);
+    const iy = Math.floor(ry);
+    const view = this.view;
+    view.x = rx;
+    view.y = ry;
+    view.w = vw;
+    view.h = vh;
 
-    const seen = new Set<number>();
-    for (const e of world.entities) {
-      if (e.dead) continue;
-      seen.add(e.id);
-      const s = this.entitySprite(e);
-      s.position.set(lerp(e.px, e.x, alpha), lerp(e.py, e.y, alpha));
-      s.width = e.w;
-      s.height = e.h;
-      s.alpha = e.invuln > 0 && e.kind === 'player' && Math.floor(e.invuln / 4) % 2 === 0 ? 0.4 : 1;
+    this.comp.resize(vw, vh);
+    this.comp.setCamera(ix, iy);
+    this.comp.floor = LOOK.entityFloor;
+    this.comp.bloomStrength = LOOK.bloom;
+    const pal = this.style.pal;
+    const amb = normalizeHue(pal.ambient);
+    const k = pal.ambientLevel * LOOK.ambientBoost;
+    this.comp.setAmbient((red(amb) / 255) * k, (green(amb) / 255) * k, (blue(amb) / 255) * k);
+
+    // --- world -----------------------------------------------------------------------------
+    this.chunks.update(view, dt);
+    this.background.update(this.comp.w, this.comp.h, rx, ry, grid.pixelHeight);
+    const lights = this.lights;
+    const halos = this.halos;
+    lights.begin();
+    halos.begin();
+    for (const l of level.lights) lights.add(l.x, l.y, l.radius, l.color, l.intensity);
+    this.drawPortals(level);
+    this.emitters.length = 0;
+    this.chunks.collectEmitters(view, 48, this.emitters);
+    for (let i = 0; i < this.emitters.length; i++) {
+      const e = this.emitters[i]!;
+      const fl = 1 - LOOK.lavaFlicker * flicker(i * 7 + Math.floor(e.x), this.time * 0.6);
+      lights.add(e.x, e.y, e.radius, e.color, e.intensity * fl, e.w);
+      halos.add(e.x, e.y, e.radius * 0.45, e.color, 0.18 * fl, e.w);
     }
-    for (const [id, s] of this.entSprites) {
-      if (!seen.has(id)) {
-        s.destroy();
-        this.entSprites.delete(id);
+    this.entities.sync(world, alpha, dt, view, this.style, lights, halos, this.particles);
+    this.liquidBubbles(view, dt);
+    updateAmbient(this.particles, this.ambientKind, view, this.solidFn);
+    this.particles.update(dt, this.time, this.solidFn);
+    this.particleView.sync(this.particles, view, lights, halos);
+    lights.end();
+    halos.end();
+
+    // --- world-space UI --------------------------------------------------------------------
+    this.overlay.setCamera(this.scale, rx, ry);
+    this.overlay.beginTags();
+    for (const p of world.players) {
+      const e = world.get(p.entityId);
+      if (!e || p.out) continue;
+      // The tag stays at standing height while downed (with a red '!' and the revive bar).
+      const v = this.entities.viewOf(e.id);
+      const x = v ? v.ax : lerp(e.px, e.x, alpha) + e.w / 2;
+      const top = v ? v.ay - (v.set.h - 1) : lerp(e.py, e.y, alpha);
+      this.overlay.tag(e.id, p.name, x, top, 0xffffff, e === focus ? 0.85 : 1, p.downed ? p.reviveProgress / REVIVE_TICKS : -1);
+    }
+    this.overlay.endTags();
+    this.overlay.update(dt);
+
+    // --- composite -------------------------------------------------------------------------
+    this.flash = Math.max(0, this.flash - dt * 4);
+    this.comp.setFlash(this.flash, this.flashColor);
+    flushAtlas();
+    this.comp.render(this.app.renderer, this.scale, rx - ix, ry - iy);
+  }
+
+  private drawPortals(level: Level): void {
+    const t = this.time;
+    const glowSet = spriteSet('exit_portal_glow');
+    const frames = setFrames(glowSet, 'idle');
+    const fi = Math.floor(t * 5) % frames.length;
+    for (const p of this.portalViews) {
+      p.glow.texture = frames[fi]!;
+      p.glow.alpha = level.locked ? 0.25 : 0.85 + 0.15 * Math.sin(t * 3 + p.x);
+      if (level.locked && !p.bars) {
+        const bs = spriteSet('exit_portal_bars');
+        p.bars = new Sprite(setFrames(bs, 'idle')[0]!);
+        p.bars.anchor.set(bs.ox / bs.w, bs.oy / bs.h);
+        p.bars.position.set(p.x, p.y);
+        this.portals.addChild(p.bars);
+      } else if (!level.locked && p.bars) {
+        p.bars.destroy();
+        p.bars = null;
       }
+      const k = level.locked ? 0.3 : 1;
+      this.lights.add(p.x, p.y - 10, LOOK.portalLight.radius, p.color, LOOK.portalLight.intensity * k);
+      this.halos.add(p.x, p.y - 9, 16, p.color, 0.35 * k);
     }
+  }
+
+  /** Occasional bubbles / embers from liquid surfaces in view. */
+  private liquidBubbles(view: { x: number; y: number; w: number; h: number }, dt: number): void {
+    this.bubbleDt = dt;
+    this.chunks.forEachSurface(view, this.bubbleFn);
   }
 }
