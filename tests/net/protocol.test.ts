@@ -64,12 +64,14 @@ describe('protocol', () => {
     expect(evil.name.length).toBe(CREATION_RULES.nameMax);
     expect(evil.race).toBe('');
     expect(evil.traits).toEqual(known.slice(0, 2)); // known, distinct, at most 2 (trait mods stack per entry)
-    expect(evil.stats).toBeUndefined(); // illegal roll → default spread
+    expect(evil.stats).toBeUndefined(); // stats are never taken from the network (host derives them)
+    expect(evil.bias).toBeUndefined();
     expect(evil.difficulty).toBeUndefined();
-    // Legal rolls pass untouched; a single point over the total or a range does not.
-    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', stats: { hp: 6, atk: 2, dex: 3, mag: 2, lck: 2 } }).stats).toEqual({ hp: 6, atk: 2, dex: 3, mag: 2, lck: 2 });
-    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', stats: { hp: 6, atk: 3, dex: 3, mag: 2, lck: 2 } }).stats).toBeUndefined();
-    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', stats: { hp: 7, atk: 2, dex: 2, mag: 2, lck: 2 } }).stats).toBeUndefined();
+    // Legal creation picks pass; illegal ones (duplicates, bad among good, unknown stats) do not.
+    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', bias: { good: ['atk', 'dex'], bad: 'mag' } }).bias).toEqual({ good: ['atk', 'dex'], bad: 'mag' });
+    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', bias: { good: ['atk', 'atk'], bad: 'mag' } }).bias).toBeUndefined();
+    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', bias: { good: ['atk', 'dex'], bad: 'dex' } }).bias).toBeUndefined();
+    expect(roundTrip({ name: 'ANA', race: '', hat: '', companion: '', bias: { good: ['atk', 'lck'], bad: null } }).bias).toBeUndefined();
     expect(roundTrip({ name: '   ', race: '', hat: '', companion: '' }).name).toBe('DELVER');
   });
 

@@ -9,49 +9,60 @@ import {
   NAME_MAX,
   randomName,
   randomSetup,
+  creationStats,
+  inferBias,
+  rollBias,
   rollStats,
   rollTraits,
   sanitizeName,
-  STAT_RULES,
+  validBias,
   validStats,
 } from '../../src/sim/progression/creation';
+import { levelGains, xpForLevel } from '../../src/sim/progression/xp';
+import { staminaForLevel } from '../../src/sim/items/stats';
 import { difficultyMul, runDifficulty } from '../../src/sim/progression/difficulty';
 
-describe('rollStats', () => {
-  it('always spends exactly 15 points within HP 4–6 and ATK/DEX/MAG/LCK 2–4', () => {
-    for (let seed = 0; seed < 2000; seed++) {
-      const s = rollStats(new Rng(seed));
-      expect(s.hp + s.atk + s.dex + s.mag + s.lck).toBe(15);
-      expect(s.hp).toBeGreaterThanOrEqual(4);
-      expect(s.hp).toBeLessThanOrEqual(6);
-      for (const k of ['atk', 'dex', 'mag', 'lck'] as const) {
-        expect(s[k]).toBeGreaterThanOrEqual(2);
-        expect(s[k]).toBeLessThanOrEqual(4);
-      }
-      expect(validStats(s)).toBe(true);
-    }
+describe('creation picks (GDD §2b.3)', () => {
+  it('every stat starts at 3 (HP 5), two good +1, one bad -1, LCK 3', () => {
+    expect(creationStats({ good: ['atk', 'mag'], bad: 'hp' })).toEqual({ hp: 4, atk: 4, dex: 3, mag: 4, lck: 3 });
+    expect(creationStats({ good: ['hp', 'dex'], bad: null })).toEqual({ hp: 6, atk: 3, dex: 4, mag: 3, lck: 3 });
   });
 
-  it('is deterministic per seed and actually varies', () => {
-    expect(rollStats(new Rng(5))).toEqual(rollStats(new Rng(5)));
-    const seen = new Set(Array.from({ length: 50 }, (_, i) => JSON.stringify(rollStats(new Rng(i)))));
-    expect(seen.size).toBeGreaterThan(10);
+  it('rollBias is legal, deterministic per seed and varies', () => {
+    for (let seed = 0; seed < 100; seed++) expect(validBias(rollBias(new Rng(seed)))).toBe(true);
+    expect(rollBias(new Rng(5))).toEqual(rollBias(new Rng(5)));
+    const seen = new Set(Array.from({ length: 300 }, (_, i) => JSON.stringify(rollBias(new Rng(i)))));
+    expect(seen.size).toBe(12); // C(4,2) good pairs × 2 remaining bad picks
   });
 
-  it('every stat can roll its extremes', () => {
-    const max = { hp: 0, atk: 0, dex: 0, mag: 0, lck: 0 };
-    for (let seed = 0; seed < 3000; seed++) {
-      const s = rollStats(new Rng(seed));
-      for (const k of Object.keys(max) as (keyof typeof max)[]) max[k] = Math.max(max[k], s[k]);
-    }
-    expect(max).toEqual(STAT_RULES.max);
+  it('validBias rejects duplicates, unknown stats and a bad stat that is also good', () => {
+    expect(validBias({ good: ['atk', 'atk'], bad: 'mag' })).toBe(false);
+    expect(validBias({ good: ['atk', 'lck' as never], bad: null })).toBe(false);
+    expect(validBias({ good: ['atk', 'dex'], bad: 'dex' })).toBe(false);
+    expect(validBias({ good: ['atk'], bad: null } as never)).toBe(false);
   });
 
-  it('validStats rejects bad blocks', () => {
-    expect(validStats({ hp: 5, atk: 3, dex: 3, mag: 2, lck: 2 })).toBe(true);
-    expect(validStats({ hp: 7, atk: 2, dex: 2, mag: 2, lck: 2 })).toBe(false);
-    expect(validStats({ hp: 4, atk: 2, dex: 2, mag: 2, lck: 2 })).toBe(false);
-    expect(validStats({ hp: 5, atk: 1, dex: 4, mag: 3, lck: 2 })).toBe(false);
+  it('validStats accepts exactly the blocks some pick produces; inferBias round-trips', () => {
+    expect(validStats(creationStats({ good: ['dex', 'mag'], bad: 'atk' }))).toBe(true);
+    expect(validStats({ hp: 9, atk: 3, dex: 3, mag: 3, lck: 3 })).toBe(false);
+    expect(validStats(rollStats(new Rng(1)))).toBe(true);
+    const bias = { good: ['hp', 'mag'] as ('hp' | 'mag')[], bad: 'atk' as const };
+    expect(creationStats(inferBias(creationStats(bias)))).toEqual(creationStats(bias));
+  });
+
+  it('level-ups follow the cadence: good every 2, neutral every 3, bad every 4 levels', () => {
+    const bias = { good: ['atk', 'dex'] as ('atk' | 'dex')[], bad: 'mag' as const };
+    expect(levelGains(2, bias)).toEqual(['atk', 'dex']);
+    expect(levelGains(3, bias)).toEqual(['hp']);
+    expect(levelGains(4, bias)).toEqual(['atk', 'dex', 'mag']);
+    expect(levelGains(5, bias)).toEqual([]);
+    expect(levelGains(6, bias)).toEqual(['hp', 'atk', 'dex']);
+  });
+
+  it('XP curve is L² + 3L + 4 (8 at Lv1, 92 at Lv8) and stamina follows the level (4 → cap 12)', () => {
+    expect(xpForLevel(1)).toBe(8);
+    expect(xpForLevel(8)).toBe(92);
+    expect([1, 3, 4, 7, 12, 30].map(staminaForLevel)).toEqual([4, 4, 4, 7, 12, 12]);
   });
 });
 
@@ -89,10 +100,11 @@ describe('names, traits and setup helpers', () => {
 
   it('randomSetup builds a playable hero', () => {
     const s = randomSetup(new Rng(3));
-    expect(validStats(s.stats!)).toBe(true);
+    expect(validBias(s.bias)).toBe(true);
     const w = createRun(1, [s]);
     expect(w.players[0]!.name).toBe(s.name);
-    expect(w.players[0]!.base).toEqual(s.stats);
+    expect(w.players[0]!.base).toEqual(creationStats(s.bias));
+    expect(w.players[0]!.bias).toEqual(s.bias);
   });
 });
 

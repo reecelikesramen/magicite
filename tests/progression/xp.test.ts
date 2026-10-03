@@ -23,7 +23,7 @@ describe('XP curve', () => {
 });
 
 describe('level-ups', () => {
-  it('grant +1 to exactly one base stat, recalc stats and refill HP + meters', () => {
+  it('apply the good/neutral/bad cadence, recalc stats and refill HP + meters', () => {
     const w = makeWorld();
     const p = w.players[0]!;
     const e = w.playerEntity(0)!;
@@ -36,7 +36,9 @@ describe('level-ups', () => {
     expect(p.level).toBe(2);
     expect(p.xp).toBe(0);
     expect(p.xpToNext).toBe(xpForLevel(2));
-    expect(baseSum(p.base)).toBe(baseSum(before) + 1);
+    // Level 2: only the two good stats grow (every 2 levels).
+    expect(baseSum(p.base)).toBe(baseSum(before) + 2);
+    for (const k of p.bias.good) expect(p.base[k]).toBe(before[k] + 1);
     expect(e.hp).toBe(e.maxHp);
     expect(p.mana).toBe(p.stats.maxMana);
     expect(p.stamina).toBe(p.stats.maxStamina);
@@ -53,16 +55,14 @@ describe('level-ups', () => {
     expect(p.runStats.level).toBe(4);
   });
 
-  it('stat gains are deterministic per seed (world.rng)', () => {
-    const roll = (seed: number) => {
+  it('stat gains are deterministic (no rng) and depend only on the creation picks', () => {
+    const grow = (seed: number) => {
       const w = makeWorld({ seed });
       const p = w.players[0]!;
       grantXp(w, p, totalXpForLevel(12));
       return { ...p.base };
     };
-    expect(roll(11)).toEqual(roll(11));
-    const variants = new Set([1, 2, 3, 4, 5, 6].map((s) => JSON.stringify(roll(s))));
-    expect(variants.size).toBeGreaterThan(1);
+    expect(grow(11)).toEqual(grow(99));
   });
 
   it('downed players gain levels but are not revived by the refill', () => {

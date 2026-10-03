@@ -16,13 +16,27 @@ export function addMods(a: StatMods, b: StatMods | undefined): StatMods {
   return a;
 }
 
+/** Max stamina from level alone (original rule): 4 until Lv4, then the level, capped at 12. */
+export function staminaForLevel(level: number): number {
+  return Math.min(12, Math.max(4, level));
+}
+
+/** Move-speed multiplier delta per DEX point away from 3 (applied by the controller via dexSpeedMul). */
+export const DEX_SPEED_PER_POINT = 0.01;
+
+/** Movement multiplier from DEX (GDD §2b.4): ±1% per point away from 3, never below 0.8. */
+export function dexSpeedMul(dex: number): number {
+  return Math.max(0.8, 1 + DEX_SPEED_PER_POINT * (dex - 3));
+}
+
 /** Default creation roll when a setup doesn't provide one (15 points). */
-export const DEFAULT_BASE = { hp: 5, atk: 3, dex: 3, mag: 2, lck: 2 } as const;
+export const DEFAULT_BASE = { hp: 5, atk: 4, dex: 4, mag: 2, lck: 3 } as const; // = creationStats(DEFAULT_BIAS)
 
 /**
  * Recompute a player's final stats from rolled base + race + traits + hat + companion + skills +
  * equipment. Call after anything that changes those inputs. Clamps current meters to the new maxima.
- * Derived maxima (GDD §5): maxMana = 2 + MAG, maxStamina = 2 + floor(DEX/2), maxHunger = 8.
+ * Derived (GDD §2b): maxMana = 2 + MAG, maxStamina = 4 until Lv4 then = level (cap 12), maxHunger = 8,
+ * and DEX moves speed by ±1% per point away from 3.
  */
 export function recalcStats(p: PlayerState, e: Entity | undefined): void {
   const mods: StatMods = {};
@@ -59,7 +73,7 @@ export function recalcStats(p: PlayerState, e: Entity | undefined): void {
     maxHp: Math.max(1, b.hp + (mods.maxHp ?? 0)),
     maxMana: Math.max(0, 2 + mag + (mods.maxMana ?? 0)),
     maxHunger: Math.max(1, 8 + (mods.maxHunger ?? 0)),
-    maxStamina: Math.max(1, 2 + Math.floor(dex / 2) + (mods.maxStamina ?? 0)),
+    maxStamina: Math.max(1, staminaForLevel(p.level) + (mods.maxStamina ?? 0)),
     atk,
     dex,
     mag,

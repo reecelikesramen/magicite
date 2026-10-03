@@ -3,7 +3,7 @@ import type { Rect } from '../engine/math';
 import { MAX_PLAYERS } from './constants';
 import type { LevelRequest } from './gen';
 import type { TileGrid } from './tiles';
-import type { BaseStats, Entity, EntityKind, GameEvent, PlayerInput, PlayerState, Team } from './types';
+import type { BaseStats, Entity, StatBias, EntityKind, GameEvent, PlayerInput, PlayerState, Team } from './types';
 import { emptyInput } from './types';
 
 export interface LevelInfo {
@@ -97,7 +97,9 @@ export interface PlayerSetup {
   hat: string;
   companion: string;
   traits?: string[];
-  /** Rolled creation stats; when omitted a balanced default is used. */
+  /** Creation picks (preferred): base stats are derived from them. */
+  bias?: StatBias;
+  /** Explicit base stats (tests/legacy); ignored when `bias` is given. */
   stats?: BaseStats;
   difficulty?: 'normal' | 'madcap';
 }

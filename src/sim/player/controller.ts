@@ -1,3 +1,4 @@
+import { dexSpeedMul } from '../items/stats';
 import { approach } from '../../engine/math';
 import { DT, HOTBAR_SIZE, PHYS, TILE } from '../constants';
 import { dropDistance, isPlatformTile, ladderAt, ladderBelow, liquidAt } from '../physics';
@@ -148,7 +149,7 @@ export function controlPlayer(world: World, p: PlayerState, e: Entity, input: Pl
   const lava = liquid === Tile.LAVA;
   const statusMul = statusMoveMul(e);
   const stunned = statusMul === 0;
-  const speedMul = (1 + (mods.moveSpeed ?? 0)) * (stunned ? 1 : statusMul);
+  const speedMul = (1 + (mods.moveSpeed ?? 0)) * dexSpeedMul(p.stats.dex) * (stunned ? 1 : statusMul);
   const speed = PHYS.walkSpeed * speedMul * (lava ? PHYS.lavaSpeedMul : liquid ? PHYS.swimSpeedMul : 1);
   const jumpSpeed = PHYS.jumpSpeed * (1 + (mods.jump ?? 0));
   const move = stunned || Math.abs(input.moveX) < 0.2 ? 0 : Math.sign(input.moveX);

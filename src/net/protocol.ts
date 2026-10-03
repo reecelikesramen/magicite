@@ -1,6 +1,7 @@
 import { Content } from '../content';
 import type { LevelRequest } from '../sim/gen';
-import type { BaseStats, PlayerCommand, PlayerInput } from '../sim/types';
+import { validBias } from '../sim/progression/creation';
+import type { BiasStat, PlayerCommand, PlayerInput } from '../sim/types';
 import { emptyInput } from '../sim/types';
 import type { Level, PlayerSetup, RunState } from '../sim/world';
 import {
@@ -134,19 +135,14 @@ export function decodeHello(r: ByteReader, table: StringTable): Hello {
 }
 
 /**
- * GDD §3 character-creation rules, enforced on setups from the network (a modified client must not
- * join with 99 in every stat or the same trait four times — trait mods stack per entry). Mirrors
- * STAT_RULES / NAME_MAX in the progression workstream's creation helpers.
+ * Character-creation rules enforced on setups from the network (a modified client must not join with
+ * the same trait four times — trait mods stack per entry). Stats are derived on the host from the
+ * creation picks (src/sim/progression/creation.ts), never taken from the client.
  */
 export const CREATION_RULES = {
   nameMax: 10,
   traits: 2,
-  statTotal: 15,
-  statMin: { hp: 4, atk: 2, dex: 2, mag: 2, lck: 2 } as Readonly<BaseStats>,
-  statMax: { hp: 6, atk: 4, dex: 4, mag: 4, lck: 4 } as Readonly<BaseStats>,
 } as const;
-
-const STAT_KEYS: readonly (keyof BaseStats)[] = ['hp', 'atk', 'dex', 'mag', 'lck'];
 
 /** Untrusted setup → a well-formed PlayerSetup within the creation rules. */
 export function sanitizeSetup(v: unknown): PlayerSetup {
@@ -162,21 +158,12 @@ export function sanitizeSetup(v: unknown): PlayerSetup {
     }
     setup.traits = traits;
   }
-  const st = o.stats as Record<string, unknown> | undefined;
-  if (st && typeof st === 'object') {
-    // Rolled stats are kept only if they are a legal roll; anything else gets the default spread.
-    let total = 0;
-    let ok = true;
-    const stats = {} as BaseStats;
-    for (const k of STAT_KEYS) {
-      const x = st[k];
-      if (typeof x !== 'number' || !Number.isInteger(x) || x < R.statMin[k] || x > R.statMax[k]) ok = false;
-      else {
-        stats[k] = x;
-        total += x;
-      }
-    }
-    if (ok && total === R.statTotal) setup.stats = stats;
+  // Stats are never trusted from the network: only the creation picks travel; the host derives the
+  // numbers (creationStats). Illegal picks fall back to the default.
+  const b = o.bias as { good?: unknown; bad?: unknown } | undefined;
+  if (b && typeof b === 'object' && Array.isArray(b.good)) {
+    const bias = { good: b.good.slice(0, 2) as BiasStat[], bad: (typeof b.bad === 'string' ? b.bad : null) as BiasStat | null };
+    if (validBias(bias)) setup.bias = bias;
   }
   if (o.difficulty === 'madcap' || o.difficulty === 'normal') setup.difficulty = o.difficulty;
   return setup;

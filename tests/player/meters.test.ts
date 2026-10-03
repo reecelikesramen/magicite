@@ -34,13 +34,16 @@ describe('stamina', () => {
     expect(p.stamina).toBe(1);
   });
 
-  it('higher DEX raises max stamina', () => {
+  it('max stamina follows the level (4 until Lv4, then the level, capped at 12)', () => {
     const w = world();
     const p = pl(w);
-    const before = p.stats.maxStamina;
-    p.base.dex += 4;
+    expect(p.stats.maxStamina).toBe(4);
+    p.level = 9;
     recalcStats(p, ent(w));
-    expect(p.stats.maxStamina).toBe(before + 2);
+    expect(p.stats.maxStamina).toBe(9);
+    p.level = 30;
+    recalcStats(p, ent(w));
+    expect(p.stats.maxStamina).toBe(12);
   });
 
   it('dashes cost a charge each and respect the cooldown (presses during cooldown are buffered briefly)', () => {

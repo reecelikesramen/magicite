@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PHYS } from '../../src/sim/constants';
+import { dexSpeedMul } from '../../src/sim/items/stats';
 import type { World } from '../../src/sim/world';
 import { boxGrid, ent, makeWorld, pl, place, run, runUntil, settle, TILE } from './helpers';
 
@@ -412,7 +413,7 @@ describe('platforms, ladders, water', () => {
     // Speed in water is reduced.
     place(w, 0, 13 * TILE, 33 * TILE);
     run(w, 30, { moveX: 1 });
-    expect(Math.abs(e.vx)).toBeLessThanOrEqual(PHYS.walkSpeed * PHYS.swimSpeedMul + 0.01);
+    expect(Math.abs(e.vx)).toBeLessThanOrEqual(PHYS.walkSpeed * PHYS.swimSpeedMul * dexSpeedMul(w.players[0]!.stats.dex) + 0.01);
   });
 
   it('holding Down underwater dives faster than sinking (and brakes a fast entry); leaping out splashes once', () => {

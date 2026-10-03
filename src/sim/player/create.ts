@@ -1,7 +1,8 @@
 import { Content } from '../../content';
 import { INVENTORY_SIZE } from '../constants';
 import { addItem } from '../items/inventory';
-import { DEFAULT_BASE, recalcStats } from '../items/stats';
+import { recalcStats } from '../items/stats';
+import { creationStats, DEFAULT_BIAS, inferBias, validBias } from '../progression/creation';
 import type { Entity, PlayerCtl, PlayerState, RunStats } from '../types';
 import type { PlayerSetup, World } from '../world';
 
@@ -59,7 +60,8 @@ export function addPlayer(world: World, setup: PlayerSetup): PlayerState {
     hat: setup.hat,
     companion: setup.companion,
     traits: [...(setup.traits ?? [])],
-    base: { ...(setup.stats ?? DEFAULT_BASE) },
+    base: validBias(setup.bias) ? creationStats(setup.bias) : setup.stats ? { ...setup.stats } : creationStats(DEFAULT_BIAS),
+    bias: validBias(setup.bias) ? { good: [...setup.bias.good], bad: setup.bias.bad } : setup.stats ? inferBias(setup.stats) : { good: [...DEFAULT_BIAS.good], bad: DEFAULT_BIAS.bad },
     stats: { maxHp: 1, maxMana: 0, maxHunger: 1, maxStamina: 1, atk: 0, dex: 0, mag: 0, lck: 0, def: 0 },
     mods: {},
     specials: [],

@@ -229,6 +229,15 @@ export interface BaseStats {
   lck: number;
 }
 
+/** Stats that take part in creation picks and the level-up cadence (LCK only moves via gear/traits). */
+export type BiasStat = 'hp' | 'atk' | 'dex' | 'mag';
+
+/** Creation picks (GDD §2b.3): two "good" stats (+1, grow every 2 levels) and one "bad" (−1, every 4). */
+export interface StatBias {
+  good: BiasStat[];
+  bad: BiasStat | null;
+}
+
 export interface CoreStats {
   maxHp: number;
   maxMana: number;
@@ -269,8 +278,10 @@ export interface PlayerState {
   hat: string;
   companion: string;
   traits: string[];
-  /** Creation roll + level-up gains (before race/trait/gear mods). */
+  /** Creation stats + level-up gains (before race/trait/gear mods). */
   base: BaseStats;
+  /** Creation picks; drive the level-up cadence. */
+  bias: StatBias;
   /** Final stats after race + level + skills + equipment (recomputed by recalcStats). */
   stats: CoreStats;
   /** Aggregated StatMods from everything (multipliers, resistances, specials). */

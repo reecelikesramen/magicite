@@ -1,3 +1,4 @@
+import { dexSpeedMul } from '../../src/sim/items/stats';
 import { describe, expect, it } from 'vitest';
 import { PHYS, secs } from '../../src/sim/constants';
 import { hazardSystem, HAZARD } from '../../src/sim/combat/hazards';
@@ -82,7 +83,7 @@ describe('lava', () => {
     e.invuln = 9999; // no damage pops: measure pure wading speed
     run(w, 20, { moveX: 1 });
     expect(e.inLiquid).toBe(true);
-    expect(Math.abs(e.vx)).toBeLessThanOrEqual(PHYS.walkSpeed * PHYS.lavaSpeedMul + 0.01);
+    expect(Math.abs(e.vx)).toBeLessThanOrEqual(PHYS.walkSpeed * PHYS.lavaSpeedMul * dexSpeedMul(pl(w).stats.dex) + 0.01);
     expect(e.status.some((s) => s.id === 'burn')).toBe(false);
   });
 });

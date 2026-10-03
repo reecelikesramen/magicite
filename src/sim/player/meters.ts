@@ -10,7 +10,7 @@ import { currentLevelKey, enterLevelFor, updateDowned } from './downed';
  */
 export const METERS = {
   /** One stamina charge back every 1.2 s while below max. */
-  staminaRegenTicks: secs(1.2),
+  staminaRegenTicks: secs(1), // GDD §2b.4: +1 per second
   /** Mana: +1 every manaBaseSecs / ((1 + manaPerMag·MAG) · (1 + mods.manaRegen)) seconds. */
   manaBaseSecs: 3.2,
   manaPerMag: 0.15,

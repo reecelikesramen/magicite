@@ -1,7 +1,7 @@
 import { Content } from '../../content';
 import type { CompanionDef, HatDef, RaceDef, SkillDef, SkillPath, TraitDef } from '../../content/types';
 import { hashSeed, type Rng } from '../../engine/rng';
-import type { BaseStats } from '../types';
+import type { BaseStats, BiasStat, StatBias } from '../types';
 import type { PlayerSetup } from '../world';
 
 /**
@@ -9,41 +9,65 @@ import type { PlayerSetup } from '../world';
  * can reroll deterministically and the result can be sent over the network as plain data.
  */
 
-/** Creation stat rules: exactly `total` points over HP/ATK/DEX/MAG/LCK within [min, max]. */
-export const STAT_RULES = {
-  total: 15,
-  min: { hp: 4, atk: 2, dex: 2, mag: 2, lck: 2 } as Readonly<BaseStats>,
-  max: { hp: 6, atk: 4, dex: 4, mag: 4, lck: 4 } as Readonly<BaseStats>,
-} as const;
+/** Stats a player can pick as good/bad at creation (LCK is fixed at CREATION_BASE). */
+export const BIAS_STATS: readonly BiasStat[] = ['hp', 'atk', 'dex', 'mag'];
+/** Every stat starts here; HP gets HP_BONUS on top (GDD §2b.3). */
+export const CREATION_BASE = 3;
+export const HP_BONUS = 2;
+/** Default picks when a setup has none (balanced fighter). */
+export const DEFAULT_BIAS: Readonly<StatBias> = { good: ['atk', 'dex'], bad: 'mag' };
 
-const KEYS: readonly (keyof BaseStats)[] = ['hp', 'atk', 'dex', 'mag', 'lck'];
+/** True if `b` is a legal pick: two distinct good stats and an optional bad stat not among them. */
+export function validBias(b: StatBias | undefined | null): b is StatBias {
+  if (!b || !Array.isArray(b.good) || b.good.length !== 2) return false;
+  const [g1, g2] = b.good;
+  if (!BIAS_STATS.includes(g1!) || !BIAS_STATS.includes(g2!) || g1 === g2) return false;
+  if (b.bad === null) return true;
+  return BIAS_STATS.includes(b.bad) && !b.good.includes(b.bad);
+}
 
-/**
- * Roll creation stats. Rule: start every stat at its minimum (HP 4, others 2 → 12 points), then
- * hand out the remaining 3 points one at a time, each to a uniformly random stat that is still
- * below its cap (HP 6, others 4). Total is always exactly 15.
- */
-export function rollStats(rng: Rng): BaseStats {
-  const s: BaseStats = { ...STAT_RULES.min };
-  let left = STAT_RULES.total - KEYS.reduce((n, k) => n + s[k], 0);
-  while (left > 0) {
-    const k = KEYS[rng.int(0, KEYS.length - 1)]!;
-    if (s[k] >= STAT_RULES.max[k]) continue;
-    s[k]++;
-    left--;
-  }
+/** Base stats from creation picks: all 3 (HP 5), good +1, bad −1, LCK 3. */
+export function creationStats(bias: StatBias = DEFAULT_BIAS): BaseStats {
+  const b = validBias(bias) ? bias : DEFAULT_BIAS;
+  const s: BaseStats = { hp: CREATION_BASE + HP_BONUS, atk: CREATION_BASE, dex: CREATION_BASE, mag: CREATION_BASE, lck: CREATION_BASE };
+  for (const k of b.good) s[k]++;
+  if (b.bad) s[b.bad]--;
   return s;
 }
 
-/** True if a stat block satisfies the creation rules (used to validate lobby input). */
+/** Random legal picks (the creation screen's "Reroll"). */
+export function rollBias(rng: Rng): StatBias {
+  const keys = rng.shuffle([...BIAS_STATS]);
+  const good = [keys[0]!, keys[1]!].sort((a, b) => BIAS_STATS.indexOf(a) - BIAS_STATS.indexOf(b));
+  return { good, bad: keys[2]! };
+}
+
+/** Compatibility: random creation stats (= creationStats(rollBias(rng))). */
+export function rollStats(rng: Rng): BaseStats {
+  return creationStats(rollBias(rng));
+}
+
+/** Best-effort picks for legacy explicit stats: highest two above base are good, lowest below is bad. */
+export function inferBias(s: BaseStats): StatBias {
+  const rel = (k: BiasStat) => s[k] - (CREATION_BASE + (k === 'hp' ? HP_BONUS : 0));
+  const sorted = [...BIAS_STATS].sort((a, b) => rel(b) - rel(a));
+  const good = sorted.slice(0, 2) as BiasStat[];
+  const worst = sorted[3]!;
+  return { good, bad: rel(worst) < 0 ? worst : null };
+}
+
+/** True if a stat block is exactly what some legal pick produces (lobby/network validation). */
 export function validStats(s: BaseStats): boolean {
-  let total = 0;
-  for (const k of KEYS) {
-    const v = s[k];
-    if (!Number.isInteger(v) || v < STAT_RULES.min[k] || v > STAT_RULES.max[k]) return false;
-    total += v;
+  for (let i = 0; i < BIAS_STATS.length; i++) {
+    for (let j = i + 1; j < BIAS_STATS.length; j++) {
+      const good = [BIAS_STATS[i]!, BIAS_STATS[j]!];
+      for (const bad of [null, ...BIAS_STATS.filter((k) => !good.includes(k))]) {
+        const c = creationStats({ good, bad });
+        if ((Object.keys(c) as (keyof BaseStats)[]).every((k) => c[k] === s[k])) return true;
+      }
+    }
   }
-  return total === STAT_RULES.total;
+  return false;
 }
 
 const ONSETS = ['b', 'br', 'd', 'dr', 'f', 'g', 'gr', 'h', 'k', 'kr', 'l', 'm', 'n', 'p', 'r', 's', 'sk', 'st', 't', 'th', 'v', 'w', 'z', ''];
@@ -108,7 +132,7 @@ export function randomSetup(rng: Rng, overrides: Partial<PlayerSetup> = {}): Pla
     hat: '',
     companion: '',
     traits: rollTraits(rng, 2),
-    stats: rollStats(rng),
+    bias: rollBias(rng),
     difficulty: 'normal',
     ...overrides,
   };
