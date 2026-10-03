@@ -175,6 +175,8 @@ export interface TooltipOpts {
   width?: number;
   /** Largest durability seen for this item id (when the def has no max). */
   seenMaxDurability?: number;
+  /** Omit the "Right-click to …" action hint (recipe book, shops). */
+  noHint?: boolean;
 }
 
 /** Tooltip content for an item: name (tier colour), kind, description, stats, mods, hint. */
@@ -217,7 +219,7 @@ export function itemTooltip(id: string, stack: ItemStack | null, opts: TooltipOp
     : def.use === 'consume' || def.consume
       ? 'Right-click to use'
       : '';
-  if (hint) stat(hint, UI.textMuted);
+  if (hint && !opts.noHint) stat(hint, UI.textMuted);
   return lines;
 }
 

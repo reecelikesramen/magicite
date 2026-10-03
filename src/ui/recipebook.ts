@@ -1,20 +1,21 @@
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { PixelText } from '../render/pixelfont';
-import { type RecipeEntry, fitText, itemName } from './format';
+import { type RecipeEntry, fitText, recipeLine } from './format';
 import { hudIcon, itemIcon } from './icons';
 import type { BookLayout } from './layout';
 import { UI } from './theme';
 import { frame, panel } from './widgets';
 
 interface Row {
-  a: Sprite;
-  plus: PixelText;
-  b: Sprite;
-  eq: PixelText;
+  /** Result icon. */
   c: Sprite;
+  /** "A + B = C" line. */
   name: PixelText;
   hl: Graphics;
 }
+
+/** Text column x offset (after the result icon) inside a recipe row. */
+const TEXT_X = 13;
 
 export function pageCount(entries: number, perPage: number): number {
   return Math.max(1, Math.ceil(entries / Math.max(1, perPage)));
@@ -25,7 +26,7 @@ export function clampPage(page: number, entries: number, perPage: number): numbe
   return Math.max(0, Math.min(pageCount(entries, perPage) - 1, page));
 }
 
-/** Known recipes as "[a] + [b] = [c] Name", paged. Opened by the lightbulb button. */
+/** Known recipes as "[icon] A + B = C", paged. Opened by the lightbulb button. */
 export class RecipeBook extends Container {
   page = 0;
   private bg = new Graphics();
@@ -58,27 +59,19 @@ export class RecipeBook extends Container {
     this.next.position.set(L.next.x + 2, L.next.y + 1);
     this.close.position.set(L.close.x + 3, L.close.y + 1);
     this.empty.position.set(L.panel.x + 6, L.rowsY + 4);
-    for (const r of this.rows) for (const o of [r.a, r.plus, r.b, r.eq, r.c, r.name, r.hl]) o.destroy();
+    for (const r of this.rows) for (const o of [r.c, r.name, r.hl]) o.destroy();
     this.rows = [];
     for (let i = 0; i < L.rowsPerPage; i++) {
       const y = L.rowsY + i * L.rowH;
       const x = L.panel.x + 4;
       const row: Row = {
         hl: new Graphics().rect(L.panel.x + 2, y - 1, L.panel.w - 4, L.rowH).fill({ color: 0xffffff, alpha: 0.07 }),
-        a: new Sprite(Texture.EMPTY),
-        plus: new PixelText('+', { color: UI.textDim }),
-        b: new Sprite(Texture.EMPTY),
-        eq: new PixelText('=', { color: UI.textDim }),
         c: new Sprite(Texture.EMPTY),
         name: new PixelText(''),
       };
-      row.a.position.set(x, y);
-      row.plus.position.set(x + 12, y + 1);
-      row.b.position.set(x + 18, y);
-      row.eq.position.set(x + 30, y + 1);
-      row.c.position.set(x + 36, y);
-      row.name.position.set(x + 49, y + 1);
-      this.addChild(row.hl, row.a, row.plus, row.b, row.eq, row.c, row.name);
+      row.c.position.set(x, y);
+      row.name.position.set(x + TEXT_X, y + 1);
+      this.addChild(row.hl, row.c, row.name);
       this.rows.push(row);
     }
     this.key = '';
@@ -96,17 +89,13 @@ export class RecipeBook extends Container {
       this.pageText.text = `${this.page + 1}/${pages}`;
       this.pageText.position.set(L.pageText.x - Math.floor(this.pageText.textWidth / 2), L.pageText.y);
       this.empty.text = entries.length ? '' : 'None yet. Try Wood + Wood!';
-      const nameW = L.panel.w - 4 - 49 - 4;
+      const nameW = L.panel.w - 4 - TEXT_X - 4;
       this.rows.forEach((row, i) => {
         const e = entries[this.page * L.rowsPerPage + i];
-        const vis = !!e;
-        for (const o of [row.a, row.plus, row.b, row.eq, row.c, row.name]) o.visible = vis;
+        row.c.visible = row.name.visible = !!e;
         if (!e) return;
-        row.a.texture = itemIcon(e.a.startsWith('#') ? e.a.slice(1) : e.a);
-        row.b.texture = itemIcon(e.b.startsWith('#') ? e.b.slice(1) : e.b);
         row.c.texture = e.result === '?' ? Texture.EMPTY : itemIcon(e.result);
-        const label = `${e.result === '?' ? '???' : itemName(e.result)}${e.count > 1 ? ` x${e.count}` : ''}`;
-        row.name.text = fitText(label, nameW);
+        row.name.text = fitText(recipeLine(e), nameW);
         row.name.color = e.station ? UI.warn : UI.text;
       });
     }

@@ -405,7 +405,8 @@ export class Hud {
     if (t.kind === 'book') {
       const e = this.inv.book.entryAt(this.recipes, t.row);
       if (!e) return null;
-      const lines: TipLine[] = [{ text: recipeLine(e), color: UI.text }];
+      // The row already reads "A + B = C"; the tooltip describes what C is.
+      const lines: TipLine[] = e.result === '?' ? [{ text: recipeLine(e), color: UI.text }] : itemTooltip(e.result, null, { noHint: true });
       if (e.station) lines.push({ text: e.station === 'campfire' ? 'Needs a campfire nearby' : 'Needs a forge (town)', color: UI.warn });
       return { lines, x: mx, y: my };
     }
