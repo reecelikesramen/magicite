@@ -363,8 +363,10 @@ const updCharge: UpdateFn = (world, fx, ai) => {
   o.invuln = Math.max(o.invuln, 2);
   follow(fx, o);
   for (const f of world.entities) {
-    if (!isFoe(f) || ai.n[`h${f.id}`] || !rectsOverlap(fx, f)) continue;
-    ai.n[`h${f.id}`] = 1;
+    if (!isFoe(f) || !rectsOverlap(fx, f)) continue;
+    const key = `h${f.id}`;
+    if (ai.n[key]) continue;
+    ai.n[key] = 1;
     strike(world, o, f, ai.n.dmg!, 'physical', T.knockback, dir);
     world.emit({ type: 'hitstop', ticks: 2 });
   }

@@ -102,7 +102,8 @@ function moveWraith(world: World, w: Entity): void {
   w.hurt = 0;
   w.status.length = 0;
   const ai = (w.ai ??= { state: 'hunt', t: 0, target: 0, phase: 0, n: {} });
-  ai.t++;
+  // Time alive comes from Entity.age (advanced only by World), not ai.t, which AI code may touch.
+  const alive = w.age;
   const cx = w.x + w.w / 2;
   const cy = w.y + w.h / 2;
   let target: Entity | undefined;
@@ -124,7 +125,7 @@ function moveWraith(world: World, w: Entity): void {
     const dx = target.x + target.w / 2 - cx;
     const dy = target.y + target.h / 2 - cy;
     const d = Math.sqrt(best) || 1;
-    const speed = wraithSpeed(ai.t);
+    const speed = wraithSpeed(alive);
     w.vx = approach(w.vx, (dx / d) * speed, WRAITH.steer * DT);
     w.vy = approach(w.vy, (dy / d) * speed, WRAITH.steer * DT);
   } else {
@@ -137,7 +138,7 @@ function moveWraith(world: World, w: Entity): void {
   w.y = w.py + w.vy * DT;
   if (Math.abs(w.vx) > 1) w.facing = w.vx > 0 ? 1 : -1;
   w.anim = 'fly';
-  if (ai.t % 4 === 0) world.emit({ type: 'particles', preset: 'wraith', x: cx, y: cy, count: 2, color: WRAITH.color, dirX: -w.vx, dirY: -w.vy });
+  if (alive % 4 === 0) world.emit({ type: 'particles', preset: 'wraith', x: cx, y: cy, count: 2, color: WRAITH.color, dirX: -w.vx, dirY: -w.vy });
 }
 
 /** Level timer, warnings, spawn and movement. Called from progressionSystem every tick. */
