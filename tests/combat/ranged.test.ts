@@ -22,7 +22,7 @@ describe('shoot (bows)', () => {
     give(p, 't_bow');
     const evs = stepCollect(world, 5, tap(200, 122));
     expect(projectiles(world)).toHaveLength(0);
-    expect(evs.some((ev) => ev.type === 'message' && ev.text.startsWith('Out of'))).toBe(true);
+    expect(evs.some((ev) => ev.type === 'message' && ev.text.endsWith('left!'))).toBe(true);
   });
 
   it('arrow damage = weapon + ammo + DEX', () => {

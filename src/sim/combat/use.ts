@@ -118,7 +118,7 @@ function useMelee(world: World, p: PlayerState, e: Entity, def: ItemDef | undefi
 function useShoot(world: World, p: PlayerState, e: Entity, def: ItemDef, angle: number, press: boolean): void {
   const ammo = findAmmo(p, def.ammoType);
   if (!ammo) {
-    fail(world, p, e, press, `Out of ${def.ammoType ?? 'ammo'}!`, 'empty');
+    fail(world, p, e, press, `No ${def.ammoType ?? 'ammo'} left!`, 'empty');
     return;
   }
   const projId = ammo.def.projectile && Content.projectiles.has(ammo.def.projectile) ? ammo.def.projectile : def.projectile;
