@@ -1,3 +1,4 @@
+import { maybeItem } from '../content';
 import type { Session } from '../game/session';
 import { World } from '../sim';
 import { MAX_PLAYERS } from '../sim/constants';
@@ -98,7 +99,7 @@ const F_SWING = fieldIdx('swing');
 const F_SWING_TICKS = fieldIdx('swing.ticks');
 const F_PLAYER_INDEX = fieldIdx('playerIndex');
 /** Fields the client predicts (or manages) for its own player: never overwritten from rows. */
-const LOCAL_SKIP = fieldMask([...PREDICTED_ENTITY_KEYS, 'anim', 'age', ...fieldsUnder('swing').map((i) => ENTITY_FIELDS[i]!.key)]);
+const LOCAL_SKIP = fieldMask([...PREDICTED_ENTITY_KEYS, 'anim', 'age', 'held', ...fieldsUnder('swing').map((i) => ENTITY_FIELDS[i]!.key)]);
 /** Interpolated fields (written by the interpolator, not by row application). */
 const REMOTE_SKIP = fieldMask(['x', 'y']);
 const SWING_FIELDS = fieldsUnder('swing');
@@ -652,6 +653,8 @@ export class ClientSession implements Session {
     const world = this.world;
     world.events.length = 0;
     predictStep(world, p, e, input);
+    // Cosmetic: show the newly selected hotbar item at once (the host confirms it in snapshots).
+    if (!p.downed && !p.out) e.held = maybeItem(p.inventory[p.selected]?.id)?.id;
     const hist = this.history!;
     const o = hist.stateSlot(t);
     this.owner!.capture(p, e, hist.states, o);
