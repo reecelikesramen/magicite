@@ -171,6 +171,15 @@ describe('projectiles', () => {
     expect(evs.some((ev) => ev.type === 'tileBroken')).toBe(true);
   });
 
+  it('explosion statuses credit the thrower, not the (removed) bomb entity', () => {
+    const { world, e } = makeWorld();
+    const d = spawnEnemy(world, 't_dummy', 200, FLOOR_Y, { kbResist: 1 });
+    const bomb = fireProjectile(world, e, 'bomb', 200, 116, Math.PI / 2, { damage: 1, speedMul: 0, sourceItem: 't_fire_bomb' })!;
+    step(world, 10); // touching the dummy detonates it
+    expect(bomb.dead).toBe(true);
+    expect(d.status.find((s) => s.id === 'burn')?.source).toBe(e.id);
+  });
+
   it('explode() never breaks tiles in towns', () => {
     const { world } = makeWorld({ town: true });
     explode(world, 200, 126, { radius: 20, damage: 5, team: 'player', breaksTiles: true });

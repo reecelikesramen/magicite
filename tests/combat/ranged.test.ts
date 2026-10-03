@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fireProjectile } from '../../src/sim/combat/projectiles';
 import { secs } from '../../src/sim/constants';
 import { FLOOR_Y, give, makeWorld, projectiles, spawnEnemy, step, stepCollect, tap } from './helpers';
 
@@ -46,6 +47,31 @@ describe('shoot (bows)', () => {
     expect(stuck!.gravityScale).toBe(0);
     expect(stuck!.x).toBeGreaterThan(360);
     expect(stuck!.x + stuck!.w).toBeLessThanOrEqual(47 * 8);
+  });
+});
+
+describe('elemental bows', () => {
+  it('a fire bow makes its own arrows fire damage with its onHit', () => {
+    const { world, p } = makeWorld();
+    give(p, 't_fire_bow');
+    p.inventory[1] = { id: 't_arrow', count: 2 };
+    const d = spawnEnemy(world, 't_dummy', 160, FLOOR_Y, { kbResist: 1 });
+    const evs = stepCollect(world, 30, tap(200, 124));
+    expect(evs.some((ev) => ev.type === 'damage' && ev.target === d.id && ev.damageType === 'fire')).toBe(true);
+    expect(d.status.some((s) => s.id === 'burn')).toBe(true);
+  });
+
+  it('a held bow does not lend its element or onHit to other shots (thrown knives)', () => {
+    const { world, p, e } = makeWorld();
+    give(p, 't_fire_bow');
+    step(world, 1);
+    expect(e.held).toBe('t_fire_bow');
+    const d = spawnEnemy(world, 't_dummy', 110, FLOOR_Y, { kbResist: 1 });
+    fireProjectile(world, e, 'throwing_knife', e.x + e.w + 3, e.y + e.h / 2, 0, { damage: 2, sourceItem: 't_knife' });
+    const evs = stepCollect(world, 20);
+    const hit = evs.find((ev) => ev.type === 'damage' && ev.target === d.id);
+    expect(hit).toMatchObject({ damageType: 'physical' });
+    expect(d.status.some((s) => s.id === 'burn')).toBe(false);
   });
 });
 

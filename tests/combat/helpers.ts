@@ -31,12 +31,17 @@ export const FIXTURE_ITEMS: ItemDef[] = [
   { ...base, id: 't_axe', name: 'Test Axe', category: 'tool', maxStack: 1, use: 'swing', damage: 1, cooldown: 0.4, range: 10, tool: 'axe', toolPower: 1 },
   { ...base, id: 't_bow', name: 'Test Bow', category: 'weapon', maxStack: 1, use: 'shoot', damage: 1, cooldown: 0.5, projectile: 'arrow', ammoType: 't_arrow' },
   { ...base, id: 't_sticky_bow', name: 'Sticky Bow', category: 'weapon', maxStack: 1, use: 'shoot', damage: 1, cooldown: 0.5, projectile: 't_sticky', ammoType: 't_arrow' },
+  {
+    ...base, id: 't_fire_bow', name: 'Fire Bow', category: 'weapon', maxStack: 1, use: 'shoot', damage: 1, cooldown: 0.5, projectile: 'arrow', ammoType: 't_arrow',
+    damageType: 'fire', onHit: [{ id: 'burn', duration: 2, chance: 1 }],
+  },
   { ...base, id: 't_arrow', name: 'Test Arrow', category: 'ammo', maxStack: 99, damage: 1, ammoKind: 't_arrow' },
   { ...base, id: 't_arrow2', name: 'Heavy Arrow', category: 'ammo', maxStack: 99, damage: 3, ammoKind: 't_arrow' },
   { ...base, id: 't_wand', name: 'Test Wand', category: 'weapon', maxStack: 1, use: 'cast', damage: 2, cooldown: 0.5, manaCost: 2, projectile: 'fireball' },
   { ...base, id: 't_storm', name: 'Storm Rod', category: 'weapon', maxStack: 1, use: 'cast', damage: 3, cooldown: 0.5, manaCost: 1, projectile: 'lightning' },
   { ...base, id: 't_bomb', name: 'Test Bomb', category: 'consumable', maxStack: 10, use: 'throw', damage: 5, projectile: 'bomb' },
   { ...base, id: 't_knife', name: 'Test Knife', category: 'weapon', maxStack: 20, use: 'throw', damage: 2, projectile: 'throwing_knife' },
+  { ...base, id: 't_fire_bomb', name: 'Fire Bomb', category: 'consumable', maxStack: 10, use: 'throw', damage: 1, projectile: 'bomb', onHit: [{ id: 'burn', duration: 3, chance: 1 }] },
   { ...base, id: 't_potion', name: 'Test Potion', category: 'consumable', maxStack: 10, use: 'consume', consume: { heal: 3, mana: 2 } },
   { ...base, id: 't_food', name: 'Test Food', category: 'consumable', maxStack: 10, use: 'consume', consume: { food: 3, stamina: 1 } },
   {

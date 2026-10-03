@@ -1,6 +1,6 @@
 import { Content, maybeItem } from '../../content';
 import type { CombatProjectileDef } from '../../content/projectiles';
-import type { DamageType, StatusApply } from '../../content/types';
+import type { DamageType, ItemDef, StatusApply } from '../../content/types';
 import { DT, secs, TILE } from '../constants';
 import { Tile, tileProps } from '../tiles';
 import type { Entity, ProjectileComp, Team } from '../types';
@@ -112,7 +112,24 @@ function canHit(world: World, team: Team, t: Entity): boolean {
   return false;
 }
 
-/** Statuses a projectile applies: its def's, its source item's, and (enemy shots) the owner's onHit. */
+/**
+ * The bow/crossbow behind a player's shot. ProjectileComp only records the ammo (`sourceItem`), so this is
+ * the shooter's held 'shoot' weapon, and only when the shot's source item is ammo for it: thrown knives,
+ * spells and skill volleys never pick up the element or onHit of a bow that happens to be in hand.
+ */
+function firingBow(world: World, pc: ProjectileComp): ItemDef | undefined {
+  if (!pc.owner || !pc.sourceItem) return undefined;
+  const owner = world.get(pc.owner);
+  if (owner?.kind !== 'player') return undefined;
+  const bow = maybeItem(owner.held);
+  if (bow?.use !== 'shoot' || !bow.ammoType) return undefined;
+  const ammo = maybeItem(pc.sourceItem);
+  if (!ammo) return undefined;
+  const kind = ammo.ammoKind ?? (ammo.category === 'ammo' ? ammo.id : undefined);
+  return kind === bow.ammoType ? bow : undefined;
+}
+
+/** Statuses a projectile applies: its def's, its source item's, and the firing bow's / enemy owner's onHit. */
 function applyProjectileStatuses(world: World, pc: ProjectileComp, def: CombatProjectileDef, t: Entity, src: Entity): void {
   if (t.dead) return;
   applyStatuses(world, t, def.onHit, pc.owner || src);
@@ -122,20 +139,14 @@ function applyProjectileStatuses(world: World, pc: ProjectileComp, def: CombatPr
   if (owner) {
     const od = combatDef(owner);
     if (od) applyStatuses(world, t, od.onHit, owner);
-    else if (owner.kind === 'player') {
-      // Bows: the firing weapon isn't stored on the projectile; use the shooter's held weapon.
-      const held = maybeItem(owner.held);
-      if (held && held.use === 'shoot' && held.id !== pc.sourceItem) applyStatuses(world, t, held.onHit, owner);
-    }
+    else applyStatuses(world, t, firingBow(world, pc)?.onHit, owner);
   }
 }
 
-/** Damage type of a hit: a held elemental bow (e.g. fire) converts physical arrows. */
+/** Damage type of a hit: an elemental bow (e.g. fire) converts the physical arrows it fired. */
 function hitType(world: World, pc: ProjectileComp, def: CombatProjectileDef): DamageType {
-  if (def.damageType !== 'physical' || !pc.owner) return def.damageType;
-  const owner = world.get(pc.owner);
-  const held = owner?.kind === 'player' ? maybeItem(owner.held) : undefined;
-  return held?.use === 'shoot' && held.damageType ? held.damageType : def.damageType;
+  if (def.damageType !== 'physical') return def.damageType;
+  return firingBow(world, pc)?.damageType ?? def.damageType;
 }
 
 export interface ExplodeOpts {
@@ -161,6 +172,8 @@ export function explode(world: World, x: number, y: number, o: ExplodeOpts): voi
   const r = o.radius;
   const kb = o.knockback ?? 160;
   const type = o.type ?? 'physical';
+  // Credit statuses (burn kills) to a projectile's owner: the exploding projectile itself is gone next tick.
+  const statusSrc = o.source?.projectile?.owner || o.source;
   for (const t of world.entities) {
     if (t.dead) continue;
     const hostile = canHit(world, o.team, t);
@@ -177,7 +190,7 @@ export function explode(world: World, x: number, y: number, o: ExplodeOpts): voi
     const dealt = applyDamage(world, t, amount, { source: o.source, type, knockback: kb, dir, unblockable: true, ignoreIframes: hostile && o.team === 'player' });
     if (dealt > 0 && !t.dead) {
       t.vy = Math.min(t.vy, -kb * 0.8 * (1 - t.kbResist));
-      if (o.statuses) for (const list of o.statuses) applyStatuses(world, t, list, o.source);
+      if (o.statuses) for (const list of o.statuses) applyStatuses(world, t, list, statusSrc);
     }
   }
   if (o.breaksTiles && !world.level.info.isTown) {
