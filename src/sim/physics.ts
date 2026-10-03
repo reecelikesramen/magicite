@@ -288,15 +288,17 @@ export function integrate(world: World, e: Entity): void {
   e.onLadder = ladderAt(grid, e);
 }
 
+/** One entity's physics tick (what physicsSystem does per entity; also used by client prediction). */
+export function stepBody(world: World, e: Entity): void {
+  if (e.gravityScale === 0 && e.vx === 0 && e.vy === 0) {
+    e.onGround = e.collides && groundBelow(world.level.grid, e);
+    return;
+  }
+  integrate(world, e);
+}
+
 /** Physics system: integrates every mobile entity. Static entities set gravityScale 0 and zero velocity. */
 export function physicsSystem(world: World): void {
   if (world.freeze > 0) return;
-  for (const e of world.entities) {
-    if (e.dead) continue;
-    if (e.gravityScale === 0 && e.vx === 0 && e.vy === 0) {
-      e.onGround = e.collides && groundBelow(world.level.grid, e);
-      continue;
-    }
-    integrate(world, e);
-  }
+  for (const e of world.entities) if (!e.dead) stepBody(world, e);
 }

@@ -374,14 +374,16 @@ export function controlPlayer(world: World, p: PlayerState, e: Entity, input: Pl
   );
 }
 
+/** Remember this tick's button states for edge detection on the next tick. */
+export function latchInput(p: PlayerState, input: PlayerInput): void {
+  p.prev.jump = input.jump;
+  p.prev.attack = input.attack;
+  p.prev.interact = input.interact;
+  p.prev.alt = input.alt;
+  p.prev.dash = input.dash ?? 0;
+}
+
 /** Store this tick's button states for edge detection. Runs last in the pipeline. */
 export function playerInputLatchSystem(world: World): void {
-  for (const p of world.players) {
-    const input = world.inputs[p.index]!;
-    p.prev.jump = input.jump;
-    p.prev.attack = input.attack;
-    p.prev.interact = input.interact;
-    p.prev.alt = input.alt;
-    p.prev.dash = input.dash ?? 0;
-  }
+  for (const p of world.players) latchInput(p, world.inputs[p.index]!);
 }
