@@ -439,12 +439,18 @@ function updateProjectile(world: World, e: Entity, pc: ProjectileComp, def: Comb
   if (def.trail && e.age % 3 === 0 && !resting) world.emit({ type: 'particles', preset: def.trail, x: e.x + half, y: e.y + e.h / 2, count: 1 });
 }
 
-/** Flight, tile/entity collision (swept, no tunnelling), pierce, bounce, explode, stick/recover, homing. */
+/**
+ * Flight, tile/entity collision (swept, no tunnelling), pierce, bounce, explode, stick/recover, homing.
+ * Hit-stop pauses projectiles, but a hit-stop raised earlier in this same tick (meleeSystem runs after
+ * physics) must not skip the segment physics already moved them: anything that moved this tick is still
+ * swept, otherwise a fast shot could pass through a target or a thin wall unseen.
+ */
 export function projectileSystem(world: World): void {
-  if (world.freeze > 0) return;
+  const frozen = world.freeze > 0;
   for (const e of world.entities) {
     const pc = e.projectile;
     if (!pc || e.dead) continue;
+    if (frozen && e.x === e.px && e.y === e.py) continue;
     const def = projDef(pc.def);
     if (!def) {
       world.kill(e);

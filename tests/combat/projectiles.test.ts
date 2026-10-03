@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { aiSystem } from '../../src/sim/ai';
 import { explode, fireProjectile } from '../../src/sim/combat/projectiles';
 import { secs, TILE } from '../../src/sim/constants';
+import { physicsSystem } from '../../src/sim/physics';
+import { addPlayer } from '../../src/sim/player/create';
+import { SYSTEMS } from '../../src/sim/systems';
 import { Tile } from '../../src/sim/tiles';
-import { FLOOR, FLOOR_Y, makeWorld, projectiles, spawnEnemy, step, stepCollect } from './helpers';
+import { World } from '../../src/sim/world';
+import { FLOOR, FLOOR_Y, makeLevel, makeWorld, projectiles, spawnEnemy, step, stepCollect } from './helpers';
 
 describe('projectiles', () => {
   it('pierce: a bolt (pierce 1) hits exactly two enemies in a row', () => {
@@ -52,6 +57,27 @@ describe('projectiles', () => {
     }
     expect(shot.dead).toBe(true);
     expect(maxX).toBeLessThanOrEqual(20 * TILE + 1);
+  });
+
+  it('a hit-stop raised mid-tick (after physics) does not let a shot skip its swept segment', () => {
+    let freezeAt = -1;
+    // Stand-in for meleeSystem's hitstop(): raise world.freeze right after physics on one tick.
+    const raise = (w: World): void => {
+      if (w.tick === freezeAt) w.freeze = 4;
+    };
+    const systems = SYSTEMS.filter((s) => s !== aiSystem).flatMap((s) => (s === physicsSystem ? [s, raise] : [s]));
+    const world = new World(1, systems);
+    addPlayer(world, { name: 'P', race: '', hat: '', companion: '' });
+    world.loadLevel(makeLevel());
+    const e = world.get(world.players[0]!.entityId)!;
+    e.x = 200;
+    e.y = FLOOR_Y - e.h;
+    const hp = e.hp;
+    // 15 px/tick toward the player from 6 px away: this tick's physics carries it right past the player.
+    fireProjectile(world, null, 't_fast', e.x + e.w + 6, e.y + e.h / 2, Math.PI, { team: 'enemy', damage: 1 });
+    freezeAt = world.tick;
+    step(world, 20);
+    expect(e.hp).toBe(hp - 1);
   });
 
   it('ghost projectiles pass through walls', () => {
