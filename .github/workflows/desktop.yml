@@ -1,5 +1,6 @@
 # Desktop builds (Electrobun) for macOS (Apple Silicon), Windows and Linux.
 # - Manual run (Actions tab -> Desktop builds -> Run workflow): artifacts attached to the run.
+# - Push to a claude/** branch touching desktop/**: build check.
 # - Tag push `v*`: also publishes them to a GitHub Release, which the in-app updater reads.
 # Unsigned for now: macOS users right-click -> Open the first time; Windows SmartScreen says
 # "More info -> Run anyway". See desktop/README.md for signing.
@@ -8,6 +9,9 @@ on:
   workflow_dispatch:
   push:
     tags: ['v*']
+    # Dev branches: only when the desktop shell itself changes.
+    branches: ['claude/**']
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
 
 permissions:
   contents: write
