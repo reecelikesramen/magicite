@@ -10,7 +10,7 @@ import { applyDifficultyToLevel } from './progression/difficulty';
 import { resetSkillCooldowns } from './progression/skills';
 import { isActive } from './progression/util';
 import { spawnLevelEntities } from './spawn';
-import type { Entity } from './types';
+import type { Entity, PlayerState } from './types';
 import type { World } from './world';
 
 /**
@@ -99,12 +99,20 @@ export function biomeForDistrict(world: World, district: number): string {
 // Level entry
 // ------------------------------------------------------------------------------------------------
 
-/** Run-start bookkeeping (once, after district 1 loads): race start gold etc. */
+/**
+ * Per-player run-start bookkeeping (race start gold, progression run stats), applied once per player:
+ * when district 1 loads, or on the first tick after a co-op player joins mid-run (net addPlayer).
+ * `runStats.level` doubles as the "started" mark (progression keeps it as the highest level reached).
+ */
+export function startPlayer(world: World, p: PlayerState): void {
+  if (p.runStats.level !== undefined) return;
+  if (Content.races.get(p.race)?.special === 'wealthy') p.gold += RACE_START_GOLD;
+  p.runStats.level = p.level;
+  if (world.level) p.runStats.district = Math.max(p.runStats.district ?? 0, world.level.info.district);
+}
+
 function startRun(world: World): void {
-  for (const p of world.players) {
-    if (Content.races.get(p.race)?.special === 'wealthy') p.gold += RACE_START_GOLD;
-    p.runStats.level = p.level;
-  }
+  for (const p of world.players) startPlayer(world, p);
 }
 
 /** Downed / out players come back at 1 HP whenever the party changes level (GDD §3). */

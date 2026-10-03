@@ -4,6 +4,7 @@ import { createRun } from '../../src/sim';
 import { secs } from '../../src/sim/constants';
 import { spawnPickup } from '../../src/sim/items/drops';
 import { COMPANION, companionOf, spawnCompanions } from '../../src/sim/progression/companions';
+import { addPlayer } from '../../src/sim/player/create';
 import { travel } from '../../src/sim/run';
 import type { World } from '../../src/sim/world';
 import { dummy, FLOOR_Y, inp, makeWorld, placePlayer, run, statusOf } from './helpers';
@@ -106,6 +107,30 @@ describe('companions', () => {
   it('passive companion mods apply to the owner', () => {
     const w = makeWorld({ players: [{ name: 'A', race: 'drifter', hat: '', companion: 'haste_beetle' }] });
     expect(w.players[0]!.mods.moveSpeed).toBeCloseTo(0.15);
+  });
+
+  it('a co-op player joining mid-run gets their companion and race start bonus on the next tick', () => {
+    const w = createRun(3, [{ name: 'A', race: 'drifter', hat: '', companion: '' }]);
+    run(w, 5, inp());
+    const late = addPlayer(w, { name: 'B', race: 'highborn', hat: '', companion: 'ember_bat' });
+    run(w, 1, [inp(), inp()]);
+    expect(companionOf(w, late)).toBeDefined();
+    expect(late.gold).toBe(30);
+    expect(late.runStats.district).toBe(1);
+    run(w, 5, [inp(), inp()]);
+    expect(late.gold).toBe(30); // once only
+    expect(w.entities.filter((e) => e.kind === 'companion')).toHaveLength(1);
+  });
+
+  it("a departed player's companion leaves with them and returns on reconnect", () => {
+    const w = withCompanion('lantern_wisp');
+    const owner = w.playerEntity(0)!;
+    owner.dead = true; // how the net host hides a departed player
+    run(w, 1, inp());
+    expect(companionOf(w, w.players[0]!)).toBeUndefined();
+    owner.dead = false;
+    run(w, 1, inp());
+    expect(companionOf(w, w.players[0]!)).toBeDefined();
   });
 
   it('a companion without an owner disappears', () => {

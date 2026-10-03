@@ -1,7 +1,7 @@
 import { Content } from '../../content';
 import type { CompanionDef } from '../../content/types';
 import { applyDamage } from '../combat/damage';
-import { secs } from '../constants';
+import { MAX_PLAYERS, secs } from '../constants';
 import type { Entity, PlayerState } from '../types';
 import type { World } from '../world';
 import { addStatus, hasStatus, healEntity, isActive, isFoe } from './util';
@@ -47,31 +47,38 @@ export function companionOf(world: World, p: PlayerState): Entity | undefined {
   return undefined;
 }
 
+/** Spawn player `p`'s companion next to its owner (no-op without a companion or a live owner entity). */
+function spawnCompanionFor(world: World, p: PlayerState): void {
+  const def = Content.companions.get(p.companion);
+  const owner = world.get(p.entityId);
+  // A dead player entity = a departed co-op player hidden by the net host (player entities never die).
+  if (!def || !owner || owner.dead) return;
+  const cx = owner.x + owner.w / 2 - owner.facing * COMPANION.offsetX;
+  const cy = owner.y + owner.h / 2 - COMPANION.offsetY;
+  const light = def.role === 'light' ? def.power : COMPANION.glow;
+  world.spawn('companion', def.id, cx - COMPANION.w / 2, cy - COMPANION.h / 2, {
+    w: COMPANION.w,
+    h: COMPANION.h,
+    gravityScale: 0,
+    collides: false,
+    usesPlatforms: false,
+    owner: owner.id,
+    facing: owner.facing,
+    invuln: COMPANION.invuln,
+    kbResist: 1,
+    anim: 'fly',
+    light: { radius: light, color: ROLE_COLOR[def.role], intensity: def.role === 'light' ? 1 : 0.7, flicker: 0.05 },
+    ai: { state: def.role, t: 0, target: 0, phase: 0, n: {} },
+  });
+}
+
 /** Spawn one companion entity for every player that has one (skips players that already do). */
 export function spawnCompanions(world: World): void {
-  for (const p of world.players) {
-    const def = Content.companions.get(p.companion);
-    const owner = world.get(p.entityId);
-    if (!def || !owner || companionOf(world, p)) continue;
-    const cx = owner.x + owner.w / 2 - owner.facing * COMPANION.offsetX;
-    const cy = owner.y + owner.h / 2 - COMPANION.offsetY;
-    const light = def.role === 'light' ? def.power : COMPANION.glow;
-    world.spawn('companion', def.id, cx - COMPANION.w / 2, cy - COMPANION.h / 2, {
-      w: COMPANION.w,
-      h: COMPANION.h,
-      gravityScale: 0,
-      collides: false,
-      usesPlatforms: false,
-      owner: owner.id,
-      facing: owner.facing,
-      invuln: COMPANION.invuln,
-      kbResist: 1,
-      anim: 'fly',
-      light: { radius: light, color: ROLE_COLOR[def.role], intensity: def.role === 'light' ? 1 : 0.7, flicker: 0.05 },
-      ai: { state: def.role, t: 0, target: 0, phase: 0, n: {} },
-    });
-  }
+  for (const p of world.players) if (!companionOf(world, p)) spawnCompanionFor(world, p);
 }
+
+/** Per-player "has a companion" scratch for companionSystem (reset every call). */
+const HAS = new Array<boolean>(MAX_PLAYERS).fill(false);
 
 /** Move toward the hover point behind the owner (smooth, deterministic bob). */
 function followOwner(world: World, c: Entity, o: Entity): void {
@@ -175,19 +182,25 @@ function shield(world: World, c: Entity, o: Entity, p: PlayerState, def: Compani
   world.emit({ type: 'sfx', id: 'companion_shield', x: o.x + o.w / 2, y: o.y });
 }
 
-/** Per-tick companion behaviour. */
+/**
+ * Per-tick companion behaviour. Also keeps the roster right: exactly one companion per player whose
+ * owner entity is alive (a co-op player joining or reconnecting mid-level gets theirs; a departed
+ * player's, an orphan or a duplicate is removed).
+ */
 export function companionSystem(world: World): void {
+  HAS.fill(false);
   const list = world.entities;
   for (let i = 0; i < list.length; i++) {
     const c = list[i]!;
     if (c.kind !== 'companion' || c.dead) continue;
     const o = world.get(c.owner ?? 0);
-    const p = o ? world.players[o.playerIndex ?? -1] : undefined;
+    const p = o && o.kind === 'player' ? world.players[o.playerIndex ?? -1] : undefined;
     const def = Content.companions.get(c.def);
-    if (!o || !p || !def) {
+    if (!o || o.dead || !p || !def || def.id !== p.companion || HAS[p.index]) {
       world.kill(c);
       continue;
     }
+    HAS[p.index] = true;
     c.invuln = COMPANION.invuln;
     c.status.length = 0;
     c.ai ??= { state: def.role, t: 0, target: 0, phase: 0, n: {} };
@@ -210,4 +223,5 @@ export function companionSystem(world: World): void {
         break;
     }
   }
+  for (const p of world.players) if (!HAS[p.index]) spawnCompanionFor(world, p);
 }
