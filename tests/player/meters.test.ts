@@ -66,6 +66,23 @@ describe('stamina', () => {
     expect(p.stamina).toBeLessThanOrEqual(s0 - dashes + Math.floor(120 / METERS.staminaRegenTicks));
   });
 
+  it('a dash pressed just before the cooldown ends is buffered and fires the moment it does', () => {
+    const second = (pressAt: number): number => {
+      const w = world();
+      const p = pl(w);
+      let start = -1;
+      for (let t = 1; t < 60 && start < 0; t++) {
+        run(w, 1, t === 1 || t === pressAt ? { dash: 1 } : {});
+        if (t > 1 && p.ctl.dashT > 0 && p.ctl.dashT === PHYS.dashGroundTicks - 1) start = t;
+      }
+      return start;
+    };
+    const ready = 1 + PHYS.dashGroundTicks + PHYS.dashCooldownTicks; // first tick a new dash may start
+    expect(second(ready - PHYS.dashBufferTicks + 2)).toBe(ready);
+    expect(second(ready - PHYS.dashBufferTicks - 2)).toBe(-1); // pressed too early: dropped
+    expect(second(ready + 3)).toBe(ready + 3);
+  });
+
   it('a dash with no stamina does nothing', () => {
     const w = world();
     const p = pl(w);

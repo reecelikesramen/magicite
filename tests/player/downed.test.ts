@@ -119,12 +119,17 @@ describe('downed & revive (co-op)', () => {
   });
 
   it('a downed player cannot revive another downed player', () => {
-    const w = coop();
+    const w = coop(3);
     down(w, 0);
     down(w, 1);
     run(w, 1);
-    expect(w.run.over).toBe(true);
+    expect(w.run.over).toBe(false); // player 2 is still up (far away, not helping)
+    const e0 = ent(w, 0);
+    place(w, 1, e0.x + e0.w / 2 + 4, e0.y + e0.h);
+    place(w, 2, e0.x + 60, e0.y + e0.h);
+    run(w, 30, {}, { interact: true }, {});
     expect(pl(w, 0).reviveProgress).toBe(0);
+    expect(pl(w, 0).downed).toBe(true);
   });
 });
 
