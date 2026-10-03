@@ -73,7 +73,7 @@ export function placePlayer(world: World, i: number, cx: number, bottom = FLOOR_
 
 /** A floating, inert enemy target (no AI moves it: gravity off, no collisions). */
 export function dummy(world: World, cx: number, cy: number, hp = 50, kind: 'enemy' | 'boss' = 'enemy', def = 'test_dummy'): Entity {
-  return world.spawn(kind, def, cx - 4, cy - 4, { w: 8, h: 8, hp, maxHp: hp, gravityScale: 0, collides: false });
+  return world.spawn(kind, def, cx - 4, cy - 4, { w: 8, h: 8, hp, maxHp: hp, gravityScale: 0, collides: false, kbResist: 1 });
 }
 
 /** Give player `p` skill `id` in the next free slot at `rank`, with full meters. */
