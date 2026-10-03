@@ -18,6 +18,8 @@ import { PREDICTED_PLAYER_KEYS } from './players';
  */
 export const PREDICTED_ENTITY_KEYS: readonly string[] = [
   'x', 'y', 'vx', 'vy', 'onGround', 'facing', 'gravityScale', 'usesPlatforms', 'inLiquid', 'onLadder', 'wallDir', 'hitCeiling',
+  // i-frame / stagger timers: ticked by statusSystem every tick, read by movement (hurt = knockback stagger).
+  'invuln', 'hurt',
 ];
 
 export interface OwnerLayout {
@@ -150,7 +152,8 @@ export function readOwnerDelta(r: ByteReader, base: Float64Array | null, out: Fl
 /**
  * One predicted tick for the local player, mirroring the host pipeline for a single player:
  * playerControlSystem → physicsSystem (per-entity branch) → meleeSystem's swing countdown →
- * playerInputLatchSystem. Keep in sync with src/sim/physics.ts#physicsSystem.
+ * statusSystem's i-frame/stagger timers → playerInputLatchSystem.
+ * Keep in sync with src/sim/physics.ts#physicsSystem and src/sim/combat/status.ts.
  */
 export function predictStep(world: World, p: PlayerState, e: Entity, input: PlayerInput): void {
   controlPlayer(world, p, e, input);
@@ -163,9 +166,23 @@ export function predictStep(world: World, p: PlayerState, e: Entity, input: Play
     s.ticks--;
     if (s.ticks <= 0) e.swing = undefined;
   }
+  if (e.invuln > 0) e.invuln--;
+  if (e.hurt > 0) e.hurt--;
+  latchPrev(p, input);
+}
+
+/**
+ * The button latch (`p.prev[k] = input[k]`) for every latch field the input carries — booleans and
+ * numbers alike (e.g. a numeric dash direction `prev.dash`), so latch fields added by the player
+ * workstream are predicted without touching this file.
+ */
+export function latchPrev(p: PlayerState, input: PlayerInput): void {
   const prev = p.prev as unknown as Record<string, unknown>;
   const inp = input as unknown as Record<string, unknown>;
-  for (const k in prev) if (typeof inp[k] === 'boolean') prev[k] = inp[k];
+  for (const k in prev) {
+    const v = inp[k];
+    if (typeof v === 'boolean' || typeof v === 'number') prev[k] = v;
+  }
 }
 
 /** Copy every non-command field of an input into `dst` (allocation-free once shapes match). */
