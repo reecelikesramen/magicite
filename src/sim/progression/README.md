@@ -25,7 +25,7 @@ the exit with most active players wins, ties → the portal that started it.
 
 ## Blight Wraith (`wraith.ts`)
 
-`levelTicks` timer per level: warnings 90 s / 30 s before the spawn; spawn at 5:00 (10:00 in D1,
+Level timer `levelTime(world)` = `run.ticks − run.levelStart` (real time, set on entry; no per-tick RunState writes): warnings 90 s / 30 s before the spawn; spawn at 5:00 (10:00 in D1,
 2:00 Madcap). Never in towns or the lair; boss districts only on Madcap. Enemy entity
 `blight_wraith` (EnemyDef in `content/enemies.ts` gives contact damage) that this module moves
 itself (position integrated from `px/py`, so other movement is overridden). **AI dispatch should

@@ -6,7 +6,7 @@ import { secs } from '../../src/sim/constants';
 import { physicsSystem } from '../../src/sim/physics';
 import { playerInputLatchSystem } from '../../src/sim/player/controller';
 import { statusSystem } from '../../src/sim/combat/status';
-import { WRAITH, wraithEntity, wraithSpawnTick, wraithSpeed } from '../../src/sim/progression/wraith';
+import { levelTime, WRAITH, wraithEntity, wraithSpawnTick, wraithSpeed } from '../../src/sim/progression/wraith';
 import { progressionSystem } from '../../src/sim/progression/xp';
 import { exitSystem } from '../../src/sim/run';
 import { Tile } from '../../src/sim/tiles';
@@ -26,7 +26,7 @@ function world(info: Partial<LevelInfo> = {}, madcap = false, contact = false): 
 
 /** Fast-forward the level timer to just before `tick`, then step across it collecting events. */
 function crossTick(w: World, tick: number): GameEvent[] {
-  w.run.levelTicks = tick - 2;
+  w.run.levelStart = w.run.ticks - (tick - 1); // the next three steps see level time tick-1, tick, tick+1
   const evs: GameEvent[] = [];
   for (let i = 0; i < 3; i++) {
     w.step([inp()]);
@@ -70,13 +70,26 @@ describe('Blight Wraith timing', () => {
 
   it('the level timer runs from level entry (stepping in real time)', () => {
     const w = world({ district: 2 }, true);
-    run(w, secs(30) - 1, inp());
+    // The first step of a fresh level is level time 0; 1800 ticks (30 s) later the first warning shows.
+    run(w, secs(30), inp());
     expect(w.run.wraithStage).toBe(0);
     run(w, 1, inp());
     expect(w.run.wraithStage).toBe(1);
     run(w, secs(90), inp());
     expect(w.run.wraithStage).toBe(3);
     expect(wraithEntity(w)).toBeDefined();
+  });
+
+  it('RunState stays unchanged while nothing happens (net resends it only on change) and hit-stop does not pause the timer', () => {
+    const w = world({ district: 2 });
+    const quiet = () => JSON.stringify({ ...w.run, ticks: 0 });
+    const before = quiet();
+    run(w, 120, inp());
+    expect(quiet()).toBe(before);
+    const t0 = levelTime(w);
+    w.freeze = 30;
+    run(w, 10, inp());
+    expect(levelTime(w)).toBe(t0 + 10);
   });
 
   it('nothing happens in a town however long you stay', () => {

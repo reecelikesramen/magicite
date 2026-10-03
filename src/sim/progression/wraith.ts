@@ -40,7 +40,12 @@ export const WRAITH = {
   hp: 9999,
 } as const;
 
-/** Tick (of levelTicks) at which the wraith spawns in the current level, or -1 if it never does. */
+/** Ticks since the current level was entered (real time: keeps running through hit-stop). */
+export function levelTime(world: World): number {
+  return world.run.ticks - world.run.levelStart;
+}
+
+/** Level time (ticks, see levelTime) at which the wraith spawns in this level, or -1 if it never does. */
 export function wraithSpawnTick(world: World): number {
   const info = world.level.info;
   const madcap = world.run.difficulty === 'madcap';
@@ -160,15 +165,15 @@ function moveWraith(world: World, w: Entity): void {
 export function wraithSystem(world: World): void {
   const run = world.run;
   if (run.over || !world.level) return;
-  run.levelTicks++;
   const at = wraithSpawnTick(world);
   if (at < 0) return;
-  while (run.wraithStage < WRAITH.warnLeadSecs.length && run.levelTicks >= at - secs(WRAITH.warnLeadSecs[run.wraithStage]!)) {
+  const t = levelTime(world);
+  while (run.wraithStage < WRAITH.warnLeadSecs.length && t >= at - secs(WRAITH.warnLeadSecs[run.wraithStage]!)) {
     world.emit({ type: 'message', text: WRAITH.warnings[run.wraithStage]!, color: WRAITH.color });
     world.emit({ type: 'sfx', id: 'wraith_warning', x: 0, y: 0, volume: 0.6 + 0.2 * run.wraithStage });
     run.wraithStage++;
   }
-  if (run.wraithStage === WRAITH.warnLeadSecs.length && run.levelTicks >= at) {
+  if (run.wraithStage === WRAITH.warnLeadSecs.length && t >= at) {
     run.wraithStage++;
     spawnWraith(world);
   }

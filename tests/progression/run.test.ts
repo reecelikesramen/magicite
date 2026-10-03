@@ -4,6 +4,7 @@ import type { BiomeDef, BossDef } from '../../src/content/types';
 import { Rng } from '../../src/engine/rng';
 import { createRun } from '../../src/sim';
 import { killEntity } from '../../src/sim/combat/damage';
+import { levelTime } from '../../src/sim/progression/wraith';
 import { progressionSystem } from '../../src/sim/progression/xp';
 import { playerInputLatchSystem } from '../../src/sim/player/controller';
 import {
@@ -262,7 +263,7 @@ describe('transitions', () => {
     p2.out = true;
     w.playerEntity(2)!.hp = 0;
     w.players[0]!.skillCooldowns = [500, 20];
-    w.run.levelTicks = 999;
+    w.run.levelStart = w.run.ticks - 999;
     w.run.wraithStage = 3;
     travel(w, 0);
     for (const p of [p1, p2]) {
@@ -271,7 +272,7 @@ describe('transitions', () => {
       expect(w.playerEntity(p.index)!.hp).toBe(1);
     }
     expect(w.players[0]!.skillCooldowns).toEqual([0, 0]);
-    expect(w.run.levelTicks).toBe(0);
+    expect(levelTime(w)).toBe(0);
     expect(w.run.wraithStage).toBe(0);
     expect(w.events.some((e) => e.type === 'revived' && e.player === 1)).toBe(true);
   });

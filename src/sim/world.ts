@@ -73,8 +73,12 @@ export interface RunState {
   // --- Run flow (progression workstream: src/sim/run.ts, src/sim/progression/wraith.ts) ---------
   /** From PlayerSetup.difficulty (any 'madcap' player → madcap): tougher enemies, early Wraith. */
   difficulty: 'normal' | 'madcap';
-  /** Ticks spent in the current level (Blight Wraith timer). Reset on level entry. */
-  levelTicks: number;
+  /**
+   * `ticks` when the current level was entered (Blight Wraith timer: level time = ticks − levelStart,
+   * see `levelTime()`). Stored as a start mark, not a per-tick counter, so RunState only changes on
+   * events (net resends it on change).
+   */
+  levelStart: number;
   /** Blight Wraith progress this level: 0 none, 1–2 warnings shown, 3 spawned. */
   wraithStage: number;
   /** Blight Wraith entity id (0 = none). */
@@ -127,7 +131,7 @@ export class World {
     this.rng = new Rng(seed);
     this.run = {
       seed, path: [], over: false, victory: false, ticks: 0, exited: [],
-      difficulty: 'normal', levelTicks: 0, wraithStage: 0, wraith: 0, portalTimer: 0, portalFirst: -1, bossSeen: false,
+      difficulty: 'normal', levelStart: 0, wraithStage: 0, wraith: 0, portalTimer: 0, portalFirst: -1, bossSeen: false,
     };
   }
 

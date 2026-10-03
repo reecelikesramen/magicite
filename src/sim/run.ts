@@ -152,7 +152,7 @@ export function enterLevel(world: World, req: LevelRequest): void {
   const run = world.run;
   const first = run.path.length === 0;
   if (req.kind !== 'town') run.path.push(req.biome);
-  run.levelTicks = 0;
+  run.levelStart = run.ticks;
   run.wraithStage = 0;
   run.wraith = 0;
   run.portalTimer = 0;

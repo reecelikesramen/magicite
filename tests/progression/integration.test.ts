@@ -27,7 +27,7 @@ function simulate(seed: number) {
     return inp;
   };
   for (let t = 0; t < 900; t++) {
-    if (t === 300) w.run.levelTicks = secs(120) - 5; // fast-forward to the (madcap) wraith
+    if (t === 300) w.run.levelStart = w.run.ticks - (secs(120) - 5); // fast-forward to the (madcap) wraith
     w.step([script(t, 0), script(t, 1)]);
   }
   return w;
