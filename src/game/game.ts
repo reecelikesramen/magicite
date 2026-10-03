@@ -13,15 +13,25 @@ import type { Session } from './session';
  * Presentation modules expose: renderer.draw/handleEvents, ui.layout/update/handleEvents,
  * audio.handleEvents/setListener. Keep this file thin.
  */
+/** A full-screen UI layer that, while active, owns input (menus, pause screen). */
+export interface GameOverlay {
+  active: boolean;
+  layout(screenW: number, screenH: number, scale: number): void;
+  frame(dt: number): void;
+}
+
 export class Game {
   readonly renderer: Renderer;
-  readonly ui = new Hud();
+  ui = new Hud();
   readonly audio = new AudioManager();
   private loop: FixedLoop;
   private localInputs = new Map<number, PlayerInput>();
   private lastW = 0;
   private lastH = 0;
   private lastScale = 0;
+  /** Solo pause: the session is not ticked (online sessions can't pause). */
+  paused = false;
+  overlay: GameOverlay | null = null;
 
   constructor(
     readonly app: Application,
@@ -59,12 +69,26 @@ export class Game {
   /** Replace the session with a fresh run (keeps renderer/UI/audio). */
   restart(): void {
     if (!this.newSession) return;
-    this.session.dispose();
-    this.session = this.newSession();
+    this.setSession(this.newSession());
+  }
+
+  /** Swap to another session (menu demo → run → menu); disposes the old one and resets the HUD. */
+  setSession(next: Session): void {
+    if (next !== this.session) this.session.dispose();
+    this.session = next;
+    this.paused = false;
+    const onRestart = this.ui.onRestart;
+    const idx = this.app.stage.getChildIndex(this.ui.root);
+    this.ui.root.destroy({ children: true });
+    this.ui = new Hud();
+    this.ui.onRestart = onRestart;
+    this.app.stage.addChildAt(this.ui.root, idx);
+    this.lastScale = 0; // force a relayout of the new HUD
     this.audio.setLocalPlayer(this.localPlayer);
   }
 
   private step(): void {
+    if (this.paused) return;
     const world = this.session.world;
     const me = this.localPlayer;
     const e = world.playerEntity(me);
@@ -77,7 +101,12 @@ export class Game {
     this.session.tick(this.localInputs);
   }
 
+  private lastFrame = performance.now();
+
   private frame(alpha: number): void {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
+    this.lastFrame = now;
     const world = this.session.world;
     const me = this.localPlayer;
     const events = this.session.drainEvents();
@@ -90,9 +119,15 @@ export class Game {
       this.lastH = height;
       this.lastScale = this.renderer.scale;
       this.ui.layout(width, height, this.renderer.scale);
+      this.overlay?.layout(width, height, this.renderer.scale);
     }
-    this.ui.handleEvents(events, world, me);
-    this.ui.update(world, me, this.input);
+    const menu = !!this.overlay?.active;
+    this.ui.root.visible = !menu;
+    if (!menu) {
+      this.ui.handleEvents(events, world, me);
+      this.ui.update(world, me, this.input);
+    } else this.input.uiFocus = true;
+    this.overlay?.frame(dt);
     if (focus) this.audio.setListener(focus.x + focus.w / 2, focus.y + focus.h / 2);
     this.audio.handleEvents(events);
     this.input.endFrame();

@@ -1,3 +1,29 @@
+import type { TrysteroOptions } from './net/trysteroTransport';
+
 /** Working title — the project is an original recreation/extension, rename freely. */
 export const GAME_TITLE = 'Shardfall';
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
+
+/**
+ * Network configuration, overridable at build time with Vite env vars (see docs/HOSTING.md):
+ * - VITE_NOSTR_RELAYS: comma-separated Nostr relay URLs for trystero signaling (default: trystero's
+ *   public list)
+ * - VITE_TURN_URL / VITE_TURN_USER / VITE_TURN_CRED: a TURN server for strict NATs
+ * - VITE_DEDICATED_URL: wss:// URL of a dedicated server (src/net/wsTransport) if one is run
+ * - VITE_ROOM_PASSWORD: optional shared password namespacing your rooms
+ */
+const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+
+function trysteroConfig(): Omit<TrysteroOptions, 'roomCode'> {
+  const out: Omit<TrysteroOptions, 'roomCode'> = { appId: 'shardfall-v1' };
+  const relays = env.VITE_NOSTR_RELAYS?.split(',').map((s) => s.trim()).filter(Boolean);
+  if (relays?.length) out.relayUrls = relays;
+  if (env.VITE_TURN_URL) out.turnConfig = [{ urls: env.VITE_TURN_URL, username: env.VITE_TURN_USER, credential: env.VITE_TURN_CRED }];
+  if (env.VITE_ROOM_PASSWORD) out.password = env.VITE_ROOM_PASSWORD;
+  return out;
+}
+
+export const NET_CONFIG = {
+  trystero: trysteroConfig(),
+  dedicatedUrl: env.VITE_DEDICATED_URL ?? '',
+};

@@ -32,16 +32,11 @@ const pageFor = (pixiUrl: string) => `<title>Shardfall</title>
 </style>
 <script type="importmap">${JSON.stringify({ imports: { 'pixi.js': pixiUrl } })}</script>
 <div id="app"></div>
-<div id="help" role="note">
-  <span><b>Click</b> the game to focus</span><span><b>A D</b> move</span><span><b>Space</b> jump · double jump</span>
-  <span><b>Q E</b> dash</span><span><b>Mouse / J</b> use item</span><span><b>1–5</b> hotbar</span><span><b>Tab</b> inventory · <b>Shift+click</b> two items to craft</span><span><b>F</b> portal</span>
-</div>
+<div id="help" role="note"><span><b>Click</b> the game to focus · controls are in the menu</span></div>
 <script>
   (() => {
     const help = document.getElementById('help');
-    let n = 0;
-    const fade = () => { if (++n > 40) help.classList.add('faded'); };
-    addEventListener('keydown', fade);
+    addEventListener('keydown', () => help.classList.add('faded'), { once: true });
     addEventListener('pointerdown', () => { try { window.focus(); } catch {} });
   })();
 </script>

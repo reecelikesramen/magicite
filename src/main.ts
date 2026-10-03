@@ -1,6 +1,7 @@
 import { Application, TextureStyle } from 'pixi.js';
 import { InputManager } from './engine/input';
 import { Game } from './game/game';
+import { App } from './game/app';
 import { LocalSession } from './game/session';
 import { GAME_TITLE } from './config';
 import { getIcon } from './render/sprites';
@@ -25,11 +26,12 @@ async function boot(): Promise<void> {
   setItemIconSource((def) => (resolveSpriteDef(def.sprite) ? getIcon(def.sprite) : null));
 
   const params = new URLSearchParams(location.search);
-  const fixedSeed = params.get('seed');
-  const newSession = () =>
-    new LocalSession(fixedSeed ? Number(fixedSeed) : Math.floor(Math.random() * 1e9), [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }]);
   const input = new InputManager(app.canvas);
-  const game = new Game(app, input, newSession(), newSession);
+  // `?seed=N` skips the menus straight into a solo run (dev/testing); otherwise the title screen.
+  const fixedSeed = params.get('seed');
+  const solo = () => new LocalSession(Number(fixedSeed), [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }]);
+  const game = new Game(app, input, fixedSeed ? solo() : new LocalSession(1, [{ name: 'DEMO', race: 'drifter', hat: '', companion: '' }]), fixedSeed ? solo : undefined);
+  if (!fixedSeed) new App(app, game);
   game.start();
   // Debug handle for tests / console.
   (window as unknown as { game: Game }).game = game;
