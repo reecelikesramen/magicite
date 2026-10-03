@@ -40,7 +40,8 @@ class SkillSlotView extends Container {
   private bg = new Graphics();
   private glyph = new Sprite(skillGlyph('unknown'));
   private shade = solid(0x000000, 1, 1, SLOT - 2, 0, 0.62);
-  private keyLabel = new MiniText('');
+  /** Z / X / C, centred under the slot in the regular font (the 3×5 Z reads like a 2). */
+  private keyLabel: PixelText;
   private secs = new MiniText('', 0xffffff);
   private id = '\0';
   private maxSeen = 0;
@@ -48,8 +49,8 @@ class SkillSlotView extends Container {
   constructor(key: string) {
     super();
     this.glyph.position.set(2, 2);
-    this.keyLabel.text = key;
-    this.keyLabel.position.set(1, 1);
+    this.keyLabel = new PixelText(key, { color: UI.textDim });
+    this.keyLabel.position.set(Math.floor((SLOT - this.keyLabel.textWidth) / 2), SLOT + 1);
     this.addChild(this.bg, this.glyph, this.shade, this.secs, this.keyLabel);
   }
 
@@ -64,7 +65,7 @@ class SkillSlotView extends Container {
       frame(g, 0, 0, SLOT, SLOT, UI.slotEdge, 0.9);
       this.glyph.texture = skillGlyph(info?.path ?? 'unknown');
       this.glyph.visible = !!info;
-      this.keyLabel.alpha = info ? 1 : 0.5;
+      this.keyLabel.alpha = info ? 1 : 0.45;
     }
     if (!skillId) {
       this.shade.visible = false;
@@ -75,7 +76,9 @@ class SkillSlotView extends Container {
     const f = cooldownFrac(cdTicks, skillInfo(skillId).cooldown, this.maxSeen);
     const h = Math.ceil((SLOT - 2) * f);
     this.shade.visible = h > 0;
+    // Top-anchored shade = remaining cooldown; the slot "refills" from the bottom.
     this.shade.height = h;
+    this.keyLabel.color = cdTicks > 0 ? UI.textMuted : UI.textDim;
     const s = cdTicks > 0 ? Math.ceil(cdTicks / TICK_RATE) : 0;
     this.secs.text = s > 0 ? String(s) : '';
     this.secs.position.set(SLOT - 1 - this.secs.textWidth - 1, SLOT - MINI_H - 1);
@@ -188,7 +191,7 @@ export class TopBar extends Container {
       this.xpKey = xpKey;
       this.xp.set(L.xpBar.x, L.xpBar.y, L.xpBar.w, L.xpBar.h, fillPx(p.xp, p.xpToNext, L.xpBar.w - 2), p.xp);
       this.xpText.text = fraction(p.xp, p.xpToNext);
-      this.xpText.position.set(L.xpBar.x + Math.round((L.xpBar.w - this.xpText.textWidth) / 2), L.lv.y);
+      this.xpText.position.set(L.xpBar.x + Math.round((L.xpBar.w - this.xpText.textWidth) / 2), L.xpBar.y + 1);
     }
     this.xp.tick(dt);
     this.gold.text = `x${p.gold}`;

@@ -29,6 +29,15 @@ import { TopBar } from './topbar';
 
 const OUTSIDE: UiTarget = { kind: 'outside' };
 
+interface TipSpec {
+  lines: TipLine[];
+  x: number;
+  y: number;
+  border?: number;
+  /** Right-aligned under (x, y) instead of following the cursor. */
+  below?: boolean;
+}
+
 /**
  * The in-run UI: HUD (level/XP/gold, hotbar, skills, meters), inventory + crafting screen with
  * recipe book, "Select Skill Path" panel, toasts, pickup feed, level/district banners, level-up
@@ -175,7 +184,7 @@ export class Hud {
     this.lastMouse.x = mx;
     this.lastMouse.y = my;
     let captured = false;
-    let tip: { lines: TipLine[]; x: number; y: number; border?: number } | null = null;
+    let tip: TipSpec | null = null;
 
     // Gold popups ("+5 Gold") from wallet changes (gold pickups don't emit 'pickup').
     if (this.lastGold >= 0 && p.gold > this.lastGold) {
@@ -210,7 +219,7 @@ export class Hud {
       if (this.padMode) {
         cursor = this.updatePadCursor(p, input);
       } else {
-        const shift = input.held('craftMod');
+        const shift = input.held('craftMod') || this.keys.clickShift;
         if (input.mousePressed(0)) this.apply(invClick(this.state, p, hover, 'primary', shift), input);
         if (input.mousePressed(2)) this.apply(invClick(this.state, p, hover, 'secondary', shift), input);
       }
@@ -264,14 +273,14 @@ export class Hud {
       const shown = skillHover >= 0 ? skillHover : this.skillKeyboard ? this.skillFocus : -1;
       const sid = p.skillOffer[shown];
       if (sid !== undefined && !tip) {
-        const r = L.buttons[shown]!;
-        tip = { lines: skillTooltip(sid, p.skills[sid] ?? 0), x: skillHover >= 0 ? mx : r.x, y: skillHover >= 0 ? my : r.y + r.h, border: UI.gold };
+        // Anchored under the panel so it never covers the buttons or the caption.
+        tip = { lines: skillTooltip(sid, p.skills[sid] ?? 0), x: L.panel.x + L.panel.w, y: L.panel.y + L.panel.h + 2, border: UI.gold, below: true };
       }
     } else {
       this.skillKeyboard = false;
       this.skillFocus = -1;
     }
-    this.skills.update(p, skillHover, this.skillKeyboard ? this.skillFocus : -1, this.skillKeyboard, this.t);
+    this.skills.update(p, skillHover, this.skillKeyboard ? this.skillFocus : -1, this.skillKeyboard, this.t, skillVisible);
 
     // --- Views ------------------------------------------------------------------------------------
     this.top.update(world, p, e, dt, this.dur, this.inventoryOpen);
@@ -284,7 +293,7 @@ export class Hud {
     } else {
       this.inv.feedbackTimer.tick(dt);
     }
-    if (tip && tip.lines.length) this.tooltip.show(tip.lines, tip.x, tip.y, this.viewW, this.viewH, tip.border);
+    if (tip && tip.lines.length) this.tooltip.show(tip.lines, tip.x, tip.y, this.viewW, this.viewH, tip.border, tip.below ? 'below' : 'cursor');
     else this.tooltip.hide();
 
     this.toasts.tick(dt);
@@ -294,6 +303,8 @@ export class Hud {
     this.pickupView.update(this.pickups, L.pickups.right, L.pickups.bottom);
     this.banner.update(dt, this.viewW, this.viewH);
     this.levelUp.update(dt, this.viewW, this.viewH);
+    // Being downed supersedes celebratory banners.
+    if (p.downed || p.out) this.levelUp.hide();
     this.flash.update(dt, this.viewW, this.viewH);
     this.downed.update(world, playerIndex, dt, this.t, this.viewW, this.viewH);
     this.runOver.update(this.t, this.viewW, this.viewH);
@@ -369,7 +380,7 @@ export class Hud {
     return target;
   }
 
-  private inventoryTip(p: PlayerState, t: UiTarget, fromPad: boolean, mx: number, my: number): { lines: TipLine[]; x: number; y: number; border?: number } | null {
+  private inventoryTip(p: PlayerState, t: UiTarget, fromPad: boolean, mx: number, my: number): TipSpec | null {
     const anchor = (): { x: number; y: number } => {
       const r = targetRect(this.inv.L, t);
       return fromPad && r ? { x: r.x + r.w, y: r.y + r.h } : { x: mx, y: my };

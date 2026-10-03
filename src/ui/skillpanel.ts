@@ -67,8 +67,8 @@ export class SkillPanel extends Container {
   }
 
   /** Returns true when visible. `hover`/`focus` = button index or -1. */
-  update(p: PlayerState, hover: number, focus: number, keyboardFocus: boolean, t: number): boolean {
-    this.visible = skillPanelVisible(p);
+  update(p: PlayerState, hover: number, focus: number, keyboardFocus: boolean, t: number, allowed = true): boolean {
+    this.visible = allowed && skillPanelVisible(p);
     if (!this.visible) return false;
     const offer = p.skillOffer;
     const key = `${offer.join(',')}|${p.skillPicks}|${this.anchorRight},${this.anchorY}|${hover}|${focus}|${keyboardFocus}`;

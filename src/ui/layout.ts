@@ -62,6 +62,8 @@ export interface HudLayout {
   district: { right: number; y: number };
   /** "Select Skill Path" panel anchor (top-right corner). */
   skillPanel: { right: number; y: number };
+  /** Centre-bottom anchors of the Z/X/C key labels drawn under the skill slots. */
+  skillKeys: { cx: number; y: number }[];
   /** Co-op party list (other players) under the hotbar. */
   party: { x: number; y: number };
   /** y of the lowest toast line (toasts stack upward, centred). */
@@ -70,8 +72,9 @@ export interface HudLayout {
   pickups: { right: number; bottom: number };
 }
 
-export const XP_BAR_W = 48;
-export const XP_BAR_H = 5;
+export const XP_BAR_W = 50;
+/** Tall enough to hold the centred 7 px "cur/max" text (plus its 1 px shadow) inside the frame. */
+export const XP_BAR_H = 9;
 const METER_ROW_H = 17;
 const METER_COL_W = 48;
 const BAR_UNIT = 2;
@@ -93,7 +96,7 @@ export function fillPx(cur: number, max: number, inner: number): number {
 /** `lvTextW` = measured width of the "Lv.N" label (the XP bar follows it). */
 export function hudLayout(viewW: number, viewH: number, lvTextW: number): HudLayout {
   const lv = { x: MARGIN, y: 2 };
-  const xpBar = rect(lv.x + lvTextW + 4, 3, XP_BAR_W, XP_BAR_H);
+  const xpBar = rect(lv.x + lvTextW + 4, 1, XP_BAR_W, XP_BAR_H);
   const coin = { x: xpBar.x + xpBar.w + 5, y: 3 };
   const gold = { x: coin.x + 7, y: 2 };
   const hotbar: Rect[] = [];
@@ -116,11 +119,12 @@ export function hudLayout(viewW: number, viewH: number, lvTextW: number): HudLay
     gold,
     hotbar,
     skillBar,
+    skillKeys: skillBar.map((r) => ({ cx: r.x + Math.floor(r.w / 2), y: r.y + r.h + 1 })),
     // Left column: HP over MANA; right column: HUNGER over STAMINA.
     meters: { hp: meter(1, 0), mana: meter(1, 1), hunger: meter(0, 0), stamina: meter(0, 1) },
     district: { right: viewW - MARGIN, y: 2 + 2 * METER_ROW_H + 1 },
     skillPanel: { right: viewW - MARGIN, y: 2 + 2 * METER_ROW_H + 12 },
-    party: { x: MARGIN, y: 30 },
+    party: { x: MARGIN, y: 12 + SLOT + 10 },
     toastBottom: viewH - 14,
     pickups: { right: viewW - MARGIN, bottom: viewH - 13 },
   };
@@ -312,6 +316,13 @@ export function placeTooltip(ax: number, ay: number, w: number, h: number, viewW
   if (y + h > viewH - 1) y = ay - offset - h;
   x = Math.max(1, Math.min(viewW - w - 1, x));
   y = Math.max(1, Math.min(viewH - h - 1, y));
+  return { x: Math.round(x), y: Math.round(y) };
+}
+
+/** Place a w×h box right-aligned to `right`, just below `top` (skill-panel tooltips), clamped to the view. */
+export function placeBelow(right: number, top: number, w: number, h: number, viewW: number, viewH: number): { x: number; y: number } {
+  const x = Math.max(1, Math.min(viewW - w - 1, right - w));
+  const y = Math.max(1, Math.min(viewH - h - 1, top));
   return { x: Math.round(x), y: Math.round(y) };
 }
 

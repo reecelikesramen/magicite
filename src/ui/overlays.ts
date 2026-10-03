@@ -121,6 +121,11 @@ export class Banner extends Container {
     this.timer.start();
   }
 
+  hide(): void {
+    this.timer.age = -1;
+    this.visible = false;
+  }
+
   update(dt: number, viewW: number, viewH: number): void {
     this.timer.tick(dt);
     this.visible = this.timer.active;
@@ -254,7 +259,7 @@ export class RunOverScreen extends Container {
     this.data = rows;
     this.title.text = victory ? 'VICTORY!' : 'RUN OVER';
     this.title.color = victory ? UI.gold : UI.bad;
-    this.subtitle.text = victory ? `${name} shattered the Heartshard` : `${name} has fallen`;
+    this.subtitle.text = victory ? `${name} destroyed the Blightwall!` : `${name} has fallen`;
     for (const r of this.rows) {
       r.label.destroy();
       r.value.destroy();
@@ -281,8 +286,9 @@ export class RunOverScreen extends Container {
     this.dim.width = viewW;
     this.dim.height = viewH;
     const perCol = Math.ceil(this.rows.length / 2);
-    const colW = 104;
-    const w = Math.min(viewW - 6, colW * 2 + 14);
+    const gap = 13;
+    const w = Math.min(viewW - 6, 236);
+    const cw = Math.floor((w - 10 - gap) / 2);
     const h = 30 + perCol * 9 + 18;
     const x = Math.floor((viewW - w) / 2);
     const y = Math.max(2, Math.floor((viewH - h) / 2));
@@ -293,13 +299,14 @@ export class RunOverScreen extends Container {
       g.clear();
       panel(g, { x, y, w, h }, 0.95);
       frame(g, x - 1, y - 1, w + 2, h + 2, this.victory ? UI.gold : UI.downed, 0.8);
+      // Column divider.
+      g.rect(x + 5 + cw + Math.floor(gap / 2), y + 31, 1, perCol * 9 - 2).fill({ color: UI.panelBorder });
       this.title.position.set(x + Math.floor((w - this.title.textWidth) / 2), y + 4);
       this.subtitle.position.set(x + Math.floor((w - this.subtitle.textWidth) / 2), y + 20);
-      const cw = Math.floor((w - 14) / 2);
       this.rows.forEach((r, i) => {
         const col = Math.floor(i / perCol);
         const ry = y + 31 + (i % perCol) * 9;
-        const rx = x + 5 + col * (cw + 4);
+        const rx = x + 5 + col * (cw + gap);
         r.label.position.set(rx, ry);
         r.value.position.set(rx + cw - r.value.textWidth, ry);
       });

@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { GLYPH_H, PixelText, measureText } from '../render/pixelfont';
 import type { TipLine } from './format';
-import { placeTooltip } from './layout';
+import { placeBelow, placeTooltip } from './layout';
 import { UI } from './theme';
 import { frame } from './widgets';
 
@@ -22,7 +22,11 @@ export class Tooltip extends Container {
     this.visible = false;
   }
 
-  show(lines: readonly TipLine[], ax: number, ay: number, viewW: number, viewH: number, border: number = UI.panelBorder): void {
+  /**
+   * Show `lines` near an anchor. `cursor` placement offsets below-right of (ax, ay) and flips at
+   * the view edges; `below` right-aligns the box to ax with its top at ay (panel tooltips).
+   */
+  show(lines: readonly TipLine[], ax: number, ay: number, viewW: number, viewH: number, border: number = UI.panelBorder, placement: 'cursor' | 'below' = 'cursor'): void {
     const key = `${border}|${lines.map((l) => `${l.color}:${l.text}`).join('\n')}`;
     if (key !== this.key) {
       this.key = key;
@@ -43,7 +47,7 @@ export class Tooltip extends Container {
       g.rect(0, 0, this.w, this.h).fill({ color: UI.tooltipBg, alpha: UI.tooltipAlpha });
       frame(g, 0, 0, this.w, this.h, border);
     }
-    const p = placeTooltip(ax, ay, this.w, this.h, viewW, viewH);
+    const p = placement === 'below' ? placeBelow(ax, ay, this.w, this.h, viewW, viewH) : placeTooltip(ax, ay, this.w, this.h, viewW, viewH);
     this.position.set(p.x, p.y);
     this.visible = lines.length > 0;
   }

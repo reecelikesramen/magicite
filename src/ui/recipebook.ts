@@ -104,7 +104,7 @@ export class RecipeBook extends Container {
         if (!e) return;
         row.a.texture = itemIcon(e.a.startsWith('#') ? e.a.slice(1) : e.a);
         row.b.texture = itemIcon(e.b.startsWith('#') ? e.b.slice(1) : e.b);
-        row.c.texture = itemIcon(e.result);
+        row.c.texture = e.result === '?' ? Texture.EMPTY : itemIcon(e.result);
         const label = `${e.result === '?' ? '???' : itemName(e.result)}${e.count > 1 ? ` x${e.count}` : ''}`;
         row.name.text = fitText(label, nameW);
         row.name.color = e.station ? UI.warn : UI.text;

@@ -5,12 +5,25 @@
 
 export class UiKeys {
   private q = new Set<string>();
+  /** Shift was held when a pointer button went down this frame (robust to Shift released before the frame runs). */
+  private shiftClick = false;
   private readonly onKey = (e: KeyboardEvent) => {
     if (!e.repeat) this.q.add(e.code);
   };
+  private readonly onPointer = (e: PointerEvent) => {
+    if (e.shiftKey) this.shiftClick = true;
+  };
 
   constructor() {
-    if (typeof window !== 'undefined') window.addEventListener('keydown', this.onKey);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', this.onKey);
+      window.addEventListener('pointerdown', this.onPointer);
+    }
+  }
+
+  /** True if a click this frame was made with Shift held (craft pick). */
+  get clickShift(): boolean {
+    return this.shiftClick;
   }
 
   pressed(...codes: string[]): boolean {
@@ -25,10 +38,14 @@ export class UiKeys {
 
   endFrame(): void {
     this.q.clear();
+    this.shiftClick = false;
   }
 
   dispose(): void {
-    if (typeof window !== 'undefined') window.removeEventListener('keydown', this.onKey);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.onKey);
+      window.removeEventListener('pointerdown', this.onPointer);
+    }
   }
 }
 

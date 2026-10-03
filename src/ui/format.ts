@@ -211,7 +211,7 @@ export function itemTooltip(id: string, stack: ItemStack | null, opts: TooltipOp
     const max = Math.max(defMaxDurability(def) ?? 0, opts.seenMaxDurability ?? 0, stack.durability);
     stat(`Durability ${stack.durability}/${max}`, frac < 0.25 ? UI.bad : UI.text);
   }
-  if (def.value > 0) stat(`Value ${def.value}g`, UI.gold);
+  if (def.value > 0) stat(`Value ${def.value} gold`, UI.gold);
   const hint = def.equipSlot || def.category === 'hat' || def.category === 'ammo' || def.category === 'accessory'
     ? 'Right-click to equip'
     : def.use === 'consume' || def.consume
