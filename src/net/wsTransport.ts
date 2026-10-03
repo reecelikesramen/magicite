@@ -13,7 +13,10 @@ import { type Channel, type PeerId, TransportBase } from './transport';
  */
 export interface WebSocketLike {
   readonly readyState: number;
+  /** Browser WebSocket. */
   readonly bufferedAmount?: number;
+  /** Bun's ServerWebSocket has no `bufferedAmount` property, only this method. */
+  getBufferedAmount?(): number;
   send(data: Uint8Array): unknown;
   close(code?: number, reason?: string): void;
 }
@@ -41,9 +44,13 @@ function unframe(raw: unknown): { channel: Channel; data: Uint8Array } | null {
   return { channel: tag === TAG_RELIABLE ? 'reliable' : 'unreliable', data: bytes.subarray(1) };
 }
 
+function buffered(ws: WebSocketLike): number {
+  return typeof ws.getBufferedAmount === 'function' ? ws.getBufferedAmount() : (ws.bufferedAmount ?? 0);
+}
+
 function sendFramed(ws: WebSocketLike, channel: Channel, data: Uint8Array): boolean {
   if (ws.readyState !== OPEN) return false;
-  if (channel === 'unreliable' && (ws.bufferedAmount ?? 0) > MAX_UNRELIABLE_BUFFER) return false;
+  if (channel === 'unreliable' && buffered(ws) > MAX_UNRELIABLE_BUFFER) return false;
   ws.send(frame(channel, data));
   return true;
 }

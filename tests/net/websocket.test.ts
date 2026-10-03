@@ -38,6 +38,30 @@ class FakeSocket {
 }
 
 describe('websocket transport', () => {
+  it('drops unreliable frames (never reliable ones) when the socket is backed up, browser and Bun style', () => {
+    const sent: number[] = [];
+    let backlog = 0;
+    // Bun's ServerWebSocket: no bufferedAmount property, only getBufferedAmount().
+    const bunWs = { readyState: 1, getBufferedAmount: () => backlog, send: (d: Uint8Array) => sent.push(d[0]!), close: () => {} };
+    const server = new WebSocketServerTransport();
+    const peer = server.accept(bunWs);
+    server.send(peer, 'unreliable', new Uint8Array([7]));
+    backlog = 1 << 20;
+    server.send(peer, 'unreliable', new Uint8Array([7]));
+    server.send(peer, 'reliable', new Uint8Array([7]));
+    expect(sent).toEqual([2, 1]); // [tag unreliable], (dropped), [tag reliable]
+
+    const browserWs = new FakeSocket();
+    browserWs.readyState = 1;
+    const client = new WebSocketClientTransport(browserWs);
+    const out: Uint8Array[] = [];
+    browserWs.send = (d: Uint8Array) => void out.push(d);
+    browserWs.bufferedAmount = 1 << 20;
+    client.send(WebSocketClientTransport.SERVER, 'unreliable', new Uint8Array([1]));
+    client.send(WebSocketClientTransport.SERVER, 'reliable', new Uint8Array([1]));
+    expect(out.map((d) => d[0])).toEqual([1]);
+  });
+
   it('runs a host and two clients over framed sockets (dedicated-server path)', () => {
     let now = 0;
     const clock = () => now;
