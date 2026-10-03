@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyDamage } from '../../src/sim/combat/damage';
 import { addItem, countItem } from '../../src/sim/items/inventory';
+import { enterLevel, requestFor } from '../../src/sim/run';
 import type { GameEvent } from '../../src/sim/types';
 import { emptyInput } from '../../src/sim/types';
 import { TICK_MS, idle, makeRig, run, scripted } from './harness';
@@ -74,6 +75,33 @@ describe('net sync details', () => {
     expect(countItem(cp, 'wood')).toBe(0);
     expect(cp.knownRecipes.length).toBe(1);
     expect(events.some((e) => e.type === 'craft' && e.result === 'plank')).toBe(true);
+  });
+
+  it('important events still waiting for their render tick survive a level change', () => {
+    const rig = makeRig({ clients: 1, conditions: { latencyMs: 30, jitterMs: 5 }, netSeed: 31 });
+    run(rig, 200);
+    const c = rig.clients[0]!;
+    const hw = rig.host.world;
+    const hp = hw.players[c.playerIndex]!;
+    addItem(hp, 'wood', 2);
+    run(rig, 30, idle, idle);
+    const slot = c.world.players[c.playerIndex]!.inventory.findIndex((s) => s?.id === 'wood');
+    const events: GameEvent[] = [];
+    let craftedAt = -1;
+    for (let t = 0; t < 180; t++) {
+      rig.host.tick(new Map([[0, emptyInput()]]));
+      if (rig.host.drainEvents().some((e) => e.type === 'craft') && craftedAt < 0) craftedAt = t;
+      // Portal right after the host has sent the craft event (one snapshot round later).
+      if (craftedAt >= 0 && t === craftedAt + 2) enterLevel(hw, requestFor(hw, 2));
+      const inp = emptyInput();
+      if (t === 0) inp.commands = [{ type: 'craft', a: slot, b: slot }];
+      c.tick(new Map([[c.playerIndex, inp]]));
+      events.push(...c.drainEvents());
+      rig.net.advance(TICK_MS);
+    }
+    expect(craftedAt).toBeGreaterThan(0);
+    expect(c.epoch).toBe(rig.host.epoch);
+    expect(events.filter((e) => e.type === 'craft')).toHaveLength(1);
   });
 
   it('a client recovers from a 1 s stall (background tab) and predicts cleanly again', () => {

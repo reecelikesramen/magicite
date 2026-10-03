@@ -85,6 +85,8 @@ interface RecvFrame {
 interface QueuedEvent {
   tick: number;
   ev: GameEvent;
+  /** Came on the reliable Events stream (level-ups, crafts, messages…): never silently dropped. */
+  important: boolean;
 }
 
 interface Predicted {
@@ -369,7 +371,7 @@ export class ClientSession implements Session {
       }
       case Msg.Events:
         readEventList(r, this.strings, (tick, ev) => {
-          if (ev && typeof ev === 'object' && typeof (ev as { type?: unknown }).type === 'string') this.events.push({ tick, ev: ev as GameEvent });
+          if (ev && typeof ev === 'object' && typeof (ev as { type?: unknown }).type === 'string') this.events.push({ tick, ev: ev as GameEvent, important: true });
         });
         return;
       default:
@@ -422,6 +424,9 @@ export class ClientSession implements Session {
     this.applied.count = 0;
     this.localApplied = -1;
     this.recvTicks.length = 0;
+    // Cosmetic events of the old level are moot, but reliable ones still waiting for their render
+    // tick (a level-up or craft just before the portal) are released now rather than lost.
+    for (const it of this.events) if (it.important) this.pending.push(it.ev);
     this.events.length = 0;
     this.predicted.length = 0;
     this.predicting = false;
@@ -472,7 +477,7 @@ export class ClientSession implements Session {
     slot.tick = h.tick;
     slot.epoch = h.epoch;
     readEventList(r, this.strings, (tick, ev) => {
-      if (ev && typeof ev === 'object' && typeof (ev as { type?: unknown }).type === 'string') this.events.push({ tick, ev: ev as GameEvent });
+      if (ev && typeof ev === 'object' && typeof (ev as { type?: unknown }).type === 'string') this.events.push({ tick, ev: ev as GameEvent, important: false });
     });
     this.stats.snapshots++;
     this.insertRecvTick(h.tick);
