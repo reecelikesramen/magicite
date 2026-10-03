@@ -276,6 +276,16 @@ describe('transitions', () => {
     expect(w.run.wraithStage).toBe(0);
     expect(w.events.some((e) => e.type === 'revived' && e.player === 1)).toBe(true);
   });
+
+  it('a departed co-op player (entity hidden by the net host) is not revived', () => {
+    const w = portalWorld(2);
+    const p1 = w.players[1]!;
+    p1.out = true;
+    w.playerEntity(1)!.dead = true;
+    travel(w, 0);
+    expect(p1.out).toBe(true);
+    expect(w.events.some((e) => e.type === 'revived')).toBe(false);
+  });
 });
 
 describe('run end', () => {

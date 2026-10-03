@@ -120,7 +120,8 @@ export function reviveParty(world: World): void {
   for (const p of world.players) {
     if (isActive(p)) continue;
     const e = world.get(p.entityId);
-    if (!e) continue;
+    // A dead player entity is a departed co-op player the net host keeps hidden (and `out`).
+    if (!e || e.dead) continue;
     p.downed = false;
     p.out = false;
     p.reviveProgress = 0;
