@@ -228,9 +228,14 @@ function fizzle(world: World, e: Entity, def: CombatProjectileDef): void {
   world.emit({ type: 'particles', preset: `impact_${def.damageType}`, x: e.x + e.w / 2, y: e.y + e.h / 2, count: 4, dirX: -Math.sign(e.vx) });
 }
 
-/** Arrow/knife sticks where it stopped: maybe leaves a recoverable pickup stuck in place. */
+/**
+ * Arrow/knife sticks where it stopped: maybe leaves a recoverable pickup stuck in place. Shots fired from
+ * an item give that item back (fire arrows stay fire arrows); shots with no source item fall back to the
+ * def's recoverItem; skill/scripted shots (`sourceItem` like 'skill:arrow_rain') never leave items, or a
+ * volley skill would be a free ammo farm.
+ */
 function stick(world: World, e: Entity, pc: ProjectileComp, def: CombatProjectileDef): void {
-  const id = pc.sourceItem && Content.items.has(pc.sourceItem) ? pc.sourceItem : def.recoverItem;
+  const id = pc.sourceItem ? (Content.items.has(pc.sourceItem) ? pc.sourceItem : undefined) : def.recoverItem;
   let cx = e.x + e.w / 2;
   let cy = e.y + e.h / 2;
   world.kill(e);
@@ -352,6 +357,13 @@ function hitTarget(world: World, e: Entity, pc: ProjectileComp, def: CombatProje
   return true;
 }
 
+/** A shot stopped by a tile: explode, stick (recoverable) or fizzle. */
+function impact(world: World, e: Entity, pc: ProjectileComp, def: CombatProjectileDef): void {
+  if (def.explode) detonate(world, e, pc, def);
+  else if (def.recoverItem) stick(world, e, pc, def);
+  else fizzle(world, e, def);
+}
+
 function updateProjectile(world: World, e: Entity, pc: ProjectileComp, def: CombatProjectileDef): void {
   const grid = world.level.grid;
   const half = e.w / 2;
@@ -391,9 +403,7 @@ function updateProjectile(world: World, e: Entity, pc: ProjectileComp, def: Comb
         bounced = true;
         break;
       }
-      if (def.explode) detonate(world, e, pc, def);
-      else if (def.recoverItem) stick(world, e, pc, def);
-      else fizzle(world, e, def);
+      impact(world, e, pc, def);
       return;
     }
     for (const t of cands) {
@@ -456,6 +466,17 @@ export function projectileSystem(world: World): void {
       world.kill(e);
       continue;
     }
+    // Projectiles spawned without fireProjectile (e.g. progression skills) may use tile-colliding,
+    // gravity-driven physics: physics then stops them flush against walls/floors where the swept test
+    // below never sees a tile, and they slide or hang until their life ends. Combat owns projectile
+    // flight, so adopt them; if physics already stopped one against a tile this tick, that's its impact.
+    let blocked = false;
+    if (e.collides || e.gravityScale !== 0) {
+      blocked = e.collides && (e.wallDir !== 0 || e.hitCeiling || e.onGround);
+      e.collides = false;
+      e.gravityScale = 0;
+    }
     updateProjectile(world, e, pc, def);
+    if (blocked && !e.dead && !def.ghost && !def.fuse) impact(world, e, pc, def);
   }
 }

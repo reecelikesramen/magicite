@@ -6,6 +6,7 @@ import { physicsSystem } from '../../src/sim/physics';
 import { addPlayer } from '../../src/sim/player/create';
 import { SYSTEMS } from '../../src/sim/systems';
 import { Tile } from '../../src/sim/tiles';
+import type { Entity } from '../../src/sim/types';
 import { World } from '../../src/sim/world';
 import { FLOOR, FLOOR_Y, makeLevel, makeWorld, projectiles, spawnEnemy, step, stepCollect } from './helpers';
 
@@ -78,6 +79,23 @@ describe('projectiles', () => {
     freezeAt = world.tick;
     step(world, 20);
     expect(e.hp).toBe(hp - 1);
+  });
+
+  it('adopts projectiles spawned without fireProjectile (skills): they stop at tiles and leave no ammo', () => {
+    const { world, e } = makeWorld();
+    // Shaped like progression's spawnSkillProjectile: default tile-colliding physics, 'skill:' source.
+    const skillShot = (x: number, y: number, vx: number, vy: number): Entity =>
+      world.spawn('projectile', 't_sticky', x, y, {
+        w: 3, h: 3, vx, vy, team: 'player', owner: e.id,
+        projectile: { def: 't_sticky', owner: e.id, team: 'player', damage: 1, life: 120, pierceLeft: 0, bouncesLeft: 0, hit: [], sourceItem: 'skill:test' },
+      });
+    const down = skillShot(200, 60, 10, 300); // falls onto the floor
+    const side = skillShot(340, 100, 300, 0); // flies into the right wall
+    step(world, 20);
+    expect(down.dead).toBe(true);
+    expect(side.dead).toBe(true);
+    // t_sticky recovers its item 100% of the time from item-fired shots, never from skills.
+    expect(world.entities.some((x) => x.kind === 'pickup')).toBe(false);
   });
 
   it('ghost projectiles pass through walls', () => {
