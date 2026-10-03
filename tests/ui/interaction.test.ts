@@ -81,7 +81,8 @@ describe('equipment slots', () => {
     expect(naturalSlot(Content.items.get('test_arrow'))).toBe('ammo');
     expect(naturalSlot(Content.items.get('wood'))).toBeUndefined();
     expect(isEquippable(Content.items.get('test_tunic'))).toBe(true);
-    expect(isEquippable(Content.items.get('axe'))).toBe(false);
+    expect(isEquippable(Content.items.get('test_axe'))).toBe(false);
+    expect(isEquippable(Content.items.get('test_sword'))).toBe(false);
   });
 
   it('accessory slots accept any accessory; others only their own kind', () => {
@@ -185,7 +186,7 @@ describe('right-click (use / equip / unequip / quick-move)', () => {
   });
 
   it('uses consumables', () => {
-    expect(secondaryCommand(view({ 2: ['meat', 2] }), { kind: 'inv', index: 2 })).toEqual({ type: 'use', slot: 2 });
+    expect(secondaryCommand(view({ 2: ['test_food', 2] }), { kind: 'inv', index: 2 })).toEqual({ type: 'use', slot: 2 });
     expect(secondaryCommand(view({ 2: ['test_potion', 1] }), { kind: 'inv', index: 2 })).toEqual({ type: 'use', slot: 2 });
   });
 
@@ -209,7 +210,7 @@ describe('right-click (use / equip / unequip / quick-move)', () => {
 
   it('right-click clears any pending selection', () => {
     const s = newInvState();
-    const v = view({ 0: ['wood', 3], 2: ['meat', 1] });
+    const v = view({ 0: ['wood', 3], 2: ['test_food', 1] });
     invClick(s, v, slot(0), 'primary', false);
     invClick(s, v, slot(2), 'secondary', false);
     expect(s.held).toBeNull();
@@ -254,7 +255,7 @@ describe('buttons and state hygiene', () => {
 describe('gamepad buttons', () => {
   it('A picks/places, X craft-picks, Y uses, B cancels then closes', () => {
     const s = newInvState();
-    const v = view({ 0: ['wood', 2], 2: ['meat', 1], 4: ['stone', 1] });
+    const v = view({ 0: ['wood', 2], 2: ['test_food', 1], 4: ['stone', 1] });
     padPress(s, v, slot(0), 'a');
     expect(s.held).toEqual({ kind: 'inv', index: 0 });
     expect(padPress(s, v, slot(0), 'b').close).toBeUndefined();

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Content } from '../../src/content';
 import { measureText } from '../../src/render/pixelfont';
 import { TICK_RATE } from '../../src/sim/constants';
 import type { RunStats } from '../../src/sim/types';
@@ -38,8 +39,8 @@ describe('names and text fitting', () => {
 
   it('uses content names and falls back for unknown ids / tags', () => {
     expect(itemName('wood')).toBe('Wood');
-    expect(itemName('meat')).toBe('Raw Meat');
-    expect(itemName('gold_bar')).toBe('Gold Bar');
+    expect(itemName('test_food')).toBe('Test Jerky');
+    expect(itemName('zz_unlisted_bar')).toBe('Zz Unlisted Bar');
     expect(itemName('#metal')).toBe('Any Metal');
   });
 
@@ -63,9 +64,9 @@ describe('names and text fitting', () => {
 
 describe('item tooltips', () => {
   it('starts with the name in its tier colour, then kind and description', () => {
-    const lines = itemTooltip('axe', { id: 'axe', count: 1 });
-    expect(lines[0]).toEqual({ text: 'Axe', color: tierColor(1) });
-    expect(lines[1]!.text).toContain('Axe');
+    const lines = itemTooltip('test_axe', { id: 'test_axe', count: 1 });
+    expect(lines[0]).toEqual({ text: 'Test Hatchet', color: tierColor(1) });
+    expect(lines[1]!.text).toBe('Axe - Tier 1');
     expect(lines.some((l) => l.text.includes('Chops trees'))).toBe(true);
     expect(lines.some((l) => l.text === 'Damage 1')).toBe(true);
     expect(lines.some((l) => l.text === 'Cooldown 0.4s')).toBe(true);
@@ -102,11 +103,13 @@ describe('item tooltips', () => {
 describe('durability', () => {
   it('uses the def max when present, else the largest seen value', () => {
     expect(durabilityFrac({ id: 'test_sword', count: 1, durability: 40 }, { durability: 80 } as never)).toBe(0.5);
-    expect(durabilityFrac({ id: 'axe', count: 1 }, undefined)).toBeNull();
+    expect(durabilityFrac({ id: 'test_axe', count: 1 }, undefined)).toBeNull();
     const mem = new DurabilityMemory();
-    expect(mem.frac({ id: 'axe', count: 1, durability: 40 })).toBe(1);
-    expect(mem.frac({ id: 'axe', count: 1, durability: 10 })).toBe(0.25);
-    expect(mem.seenMax('axe')).toBe(40);
+    expect(mem.frac({ id: 'test_axe', count: 1, durability: 40 })).toBe(1);
+    expect(mem.frac({ id: 'test_axe', count: 1, durability: 10 })).toBe(0.25);
+    expect(mem.seenMax('test_axe')).toBe(40);
+    // A def max wins over what has been seen.
+    expect(mem.frac({ id: 'test_sword', count: 1, durability: 40 })).toBe(0.5);
     expect(mem.frac(null)).toBeNull();
   });
 });
@@ -114,8 +117,8 @@ describe('durability', () => {
 describe('crafting & pickups', () => {
   it('craft feedback strings', () => {
     expect(craftFeedback({ result: null, count: 0, discovered: false }).text).toBe('Nothing happens...');
-    expect(craftFeedback({ result: 'plank', count: 1, discovered: true })).toEqual({ text: 'Discovered: Plank!', color: UI.discover });
-    expect(craftFeedback({ result: 'plank', count: 2, discovered: false }).text).toBe('Crafted Plank x2');
+    expect(craftFeedback({ result: 'test_helmet', count: 1, discovered: true })).toEqual({ text: 'Discovered: Test Helmet!', color: UI.discover });
+    expect(craftFeedback({ result: 'test_food', count: 2, discovered: false }).text).toBe('Crafted Test Jerky x2');
   });
 
   it('pickup popups', () => {
@@ -123,11 +126,11 @@ describe('crafting & pickups', () => {
   });
 
   it('recipe book lines from known recipe keys', () => {
-    const entries = recipeEntries([recipeKey('wood', 'wood'), 'herb+stone']);
+    const entries = recipeEntries([recipeKey('wood', 'wood'), 'zz_herb+zz_rock']);
     expect(entries).toHaveLength(2);
     expect(recipeLine(entries[0]!)).toBe('Wood + Wood = Plank');
     expect(entries[1]!.result).toBe('?');
-    expect(recipeLine(entries[1]!)).toBe('Herb + Stone = ???');
+    expect(recipeLine(entries[1]!)).toBe('Zz Herb + Zz Rock = ???');
     expect(recipeEntries(['garbage'])).toEqual([]);
   });
 });
@@ -149,8 +152,8 @@ describe('event toasts', () => {
   });
 
   it('toasts own craft results only while the inventory is closed', () => {
-    const ev = { type: 'craft', player: 0, a: 'wood', b: 'wood', result: 'plank', count: 1, discovered: true } as const;
-    expect(eventToast(ev, 0, nameOf)?.text).toBe('Discovered: Plank!');
+    const ev = { type: 'craft', player: 0, a: 'test_ring', b: 'test_ring', result: 'test_helmet', count: 1, discovered: true } as const;
+    expect(eventToast(ev, 0, nameOf)?.text).toBe('Discovered: Test Helmet!');
     expect(eventToast(ev, 0, nameOf, true)).toBeNull();
     expect(eventToast(ev, 1, nameOf)).toBeNull();
     expect(eventToast({ ...ev, result: null, discovered: false }, 0, nameOf)?.text).toBe('Nothing happens...');
@@ -175,13 +178,18 @@ describe('level banners', () => {
 });
 
 describe('skills (graceful with empty content)', () => {
-  it('guesses the path from canonical GDD ids and colours by path', () => {
+  // Content.skillPaths / Content.skills are filled by the progression workstream; until then the
+  // UI guesses the path from the GDD's canonical ids and uses fallback colours.
+  const pathColor = (p: 'warrior' | 'mage' | 'ranger') => Content.skillPaths.get(p)?.color ?? PATH_COLORS[p];
+
+  it('knows the path of canonical GDD skill ids and colours by path', () => {
     const s = skillInfo('fire_burst');
     expect(s.path).toBe('mage');
-    expect(s.color).toBe(PATH_COLORS.mage);
+    expect(s.color).toBe(pathColor('mage'));
     expect(s.name).toBe('Fire Burst');
-    expect(skillInfo('whirlwind').color).toBe(PATH_COLORS.warrior);
-    expect(skillInfo('multishot').color).toBe(PATH_COLORS.ranger);
+    expect(skillInfo('whirlwind').color).toBe(pathColor('warrior'));
+    expect(skillInfo('multishot').color).toBe(pathColor('ranger'));
+    expect(new Set([pathColor('warrior'), pathColor('mage'), pathColor('ranger')]).size).toBe(3);
   });
 
   it('renders unknown skills with a neutral placeholder', () => {

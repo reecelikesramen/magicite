@@ -1,7 +1,8 @@
 /**
- * Shared fixtures for UI tests. Registers a few `test_`-prefixed item defs (wearables etc.) in the
- * global content maps for the duration of a test file, since the seed catalogue on this branch has
- * no equipment yet. Vitest isolates test files, so nothing leaks into other suites.
+ * Shared fixtures for UI tests. Registers a few `test_`-prefixed item defs (wearables, a tool, food…)
+ * in the global content maps for the duration of a test file. Tests use these instead of the seed
+ * catalogue's placeholder items so they keep passing when the items workstream replaces it.
+ * Vitest isolates test files, so nothing leaks into other suites.
  */
 import { afterAll, beforeAll } from 'vitest';
 import { Content } from '../../src/content';
@@ -18,6 +19,20 @@ export const TEST_ITEMS: ItemDef[] = [
   { ...base, id: 'test_ring', name: 'Test Ring', category: 'accessory', mods: { lck: 1 } },
   { ...base, id: 'test_arrow', name: 'Test Arrow', category: 'ammo', maxStack: 99, ammoKind: 'arrow' },
   { ...base, id: 'test_potion', name: 'Test Potion', category: 'consumable', maxStack: 10, use: 'consume', consume: { heal: 2 } },
+  { ...base, id: 'test_food', name: 'Test Jerky', category: 'consumable', maxStack: 20, tier: 1, use: 'consume', consume: { food: 2 } },
+  {
+    ...base,
+    id: 'test_axe',
+    name: 'Test Hatchet',
+    category: 'tool',
+    description: 'Chops trees. Hits things.',
+    tier: 1,
+    use: 'swing',
+    damage: 1,
+    cooldown: 0.4,
+    tool: 'axe',
+    toolPower: 1,
+  },
   {
     ...base,
     id: 'test_sword',
