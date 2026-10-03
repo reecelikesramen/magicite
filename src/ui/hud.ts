@@ -18,7 +18,7 @@ import {
 } from './format';
 import { type ClickResult, type InvState, clearSelection, invClick, newInvState, padPress, sanitize, stackAt } from './interaction';
 import { InventoryPanel } from './inventory';
-import { type UiTarget, hitTestButtons, hitTestInventory, navNeighbor, navTargets, targetRect } from './layout';
+import { type Rect, type UiTarget, hitTestButtons, hitTestInventory, navNeighbor, navTargets, targetRect } from './layout';
 import { GamepadNav, UiKeys } from './nav';
 import { ToastQueue } from './notify';
 import { Banner, DownedOverlay, Flash, PickupFeed, RunOverScreen, ToastView } from './overlays';
@@ -74,6 +74,8 @@ export class Hud {
   private readonly keys = new UiKeys();
   private readonly pad = new GamepadNav();
   private readonly navList = navTargets();
+  /** Rects parallel to navList for the current layout (rebuilt on resize). */
+  private navRects: Rect[] = [];
   private padMode = false;
   private cursorIdx = 0;
   private skillFocus = -1;
@@ -112,6 +114,7 @@ export class Hud {
     this.root.scale.set(this.scale);
     this.top.layout(this.viewW, this.viewH);
     this.inv.layout(this.viewW, this.viewH);
+    this.navRects = this.navList.map((t) => targetRect(this.inv.L, t)!);
     this.skills.layout(this.top.L.skillPanel.right, this.top.L.skillPanel.y);
   }
 
@@ -216,9 +219,12 @@ export class Hud {
       if (this.pad.anyPressed()) this.padMode = true;
       else if (mouseMoved || input.mousePressed(0) || input.mousePressed(2)) this.padMode = false;
       hover = this.padMode ? OUTSIDE : hitTestInventory(this.inv.L, mx, my, this.bookOpen);
+      // The skill-path panel floats outside the inventory: clicks there must not count as
+      // "outside" (which would drop the held item) — the skill section handles them.
+      const overSkills = !this.padMode && hover.kind === 'outside' && skillPanelVisible(p) && !this.bookOpen && rectContains(this.skills.L.panel, mx, my);
       if (this.padMode) {
         cursor = this.updatePadCursor(p, input);
-      } else {
+      } else if (!overSkills) {
         const shift = input.held('craftMod') || this.keys.clickShift;
         if (input.mousePressed(0)) this.apply(invClick(this.state, p, hover, 'primary', shift), input);
         if (input.mousePressed(2)) this.apply(invClick(this.state, p, hover, 'secondary', shift), input);
@@ -367,8 +373,12 @@ export class Hud {
   }
 
   private updatePadCursor(p: PlayerState, input: InputManager): UiTarget {
-    const rects = this.navList.map((t) => targetRect(this.inv.L, t)!);
+    if (this.navRects.length !== this.navList.length) this.navRects = this.navList.map((t) => targetRect(this.inv.L, t)!);
+    const rects = this.navRects;
     const pad = this.pad;
+    // Shoulder buttons page the recipe book.
+    if (this.bookOpen && pad.pressed('lb')) this.apply({ commands: [], ui: 'pagePrev' }, input);
+    if (this.bookOpen && pad.pressed('rb')) this.apply({ commands: [], ui: 'pageNext' }, input);
     if (pad.pressed('up')) this.cursorIdx = navNeighbor(rects, this.cursorIdx, 0, -1);
     if (pad.pressed('down')) this.cursorIdx = navNeighbor(rects, this.cursorIdx, 0, 1);
     if (pad.pressed('left')) this.cursorIdx = navNeighbor(rects, this.cursorIdx, -1, 0);
