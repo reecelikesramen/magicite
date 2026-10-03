@@ -55,7 +55,9 @@ describe('traversal graph (movement capabilities)', () => {
   });
 
   it('jumps gaps within the horizontal reach, not wider ones', () => {
+    // Landing `reachLow` columns away crosses a gap one tile narrower than that.
     for (let g = 1; g < MOVE.reachLow; g++) expect(reachable(gap(g)), `gap ${g}`).toBe(true);
+    expect(reachable(gap(MOVE.reachLow)), `gap ${MOVE.reachLow}`).toBe(false);
     expect(reachable(gap(MOVE.reachLow + 1))).toBe(false);
   });
 

@@ -147,5 +147,5 @@ export function decorPlacement(key: string): DecorPlacement {
   return CEILING_DECOR.has(key) ? 'ceiling' : 'floor';
 }
 
-/** Town look per biome: facade wall + roof tiles. */
+/** Hanging lantern light (district tunnels, town eaves and lamp posts). */
 export const LANTERN_LIGHT = { color: 0xffb040, radius: 28, intensity: 1 };

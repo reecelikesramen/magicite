@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Content } from '../../src/content';
 import { rectsOverlap } from '../../src/engine/math';
 import { TILE } from '../../src/sim/constants';
-import { checkLevel, generateLevel, gridHash, TOWN_SIZE, type GeneratedLevel, type LevelRequest } from '../../src/sim/gen';
+import { checkLevel, generateLevel, gridHash, MAX_DISTRICT_W, TOWN_SIZE, type GeneratedLevel, type LevelRequest } from '../../src/sim/gen';
 import { SAFE_RADIUS } from '../../src/sim/gen/populate';
 import { arenaSize } from '../../src/sim/gen/structures';
 import { rectHitsSolid } from '../../src/sim/gen/validate';
@@ -103,6 +103,8 @@ describe.each(COMBAT_BIOMES)('level gen: %s', (biome) => {
       portalChecks(l, req);
       expect(l.locked).toBe(true);
       expect(l.info.isBoss).toBe(true);
+      // The arena replaces part of the route instead of stretching the level past the GDD's width.
+      expect(l.grid.w).toBeLessThanOrEqual(MAX_DISTRICT_W);
       const arena = l.arena!;
       expect(arena).toBeDefined();
       expect(arena.w).toBe(a.w * TILE);
@@ -134,6 +136,9 @@ describe.each(COMBAT_BIOMES)('level gen: %s', (biome) => {
       for (const role of ['npc_merchant', 'npc_trader', 'npc_smith', 'npc_outfitter', 'npc_fence']) expect(npcs).toContain(role);
       expect(l.spawns.filter((s) => s.kind === 'enemy' && s.def !== 'chicken')).toEqual([]);
       expect(l.spawns.filter((s) => s.def === 'chicken').length).toBeGreaterThan(0);
+      // Shopkeepers, stalls and chickens each stand on their own street tile.
+      const tiles = l.spawns.filter((s) => s.kind === 'npc' && s.def !== 'npc_shrine').map((s) => Math.floor(s.x / TILE));
+      expect(new Set(tiles).size).toBe(tiles.length);
       expect(l.lights.length).toBeGreaterThan(3);
       // Brick / wood facades with back walls.
       let built = 0;
@@ -190,13 +195,32 @@ describe('level gen: misc', () => {
       const b = generateLevel({ seed: i, district: 7, biome: 'woods', kind: 'normal', nextBiomes: NEXT });
       shallow += a.spawns.filter((s) => s.kind === 'enemy').length / a.grid.w;
       deep += b.spawns.filter((s) => s.kind === 'enemy').length / b.grid.w;
-      for (const s of [...a.spawns, ...b.spawns]) if (s.kind === 'enemy') expect(Math.hypot(s.x - a.spawn.x, s.y - a.spawn.y) > 0).toBe(true);
+      for (const l of [a, b]) {
+        for (const s of l.spawns) {
+          if (s.kind !== 'enemy') continue;
+          const dx = (s.x - l.spawn.x) / TILE;
+          const dy = (s.y - l.spawn.y) / TILE;
+          expect(dx * dx + dy * dy, `${s.def} at ${s.x},${s.y}`).toBeGreaterThanOrEqual(SAFE_RADIUS * SAFE_RADIUS);
+        }
+      }
     }
     expect(shallow).toBeGreaterThan(0);
     expect(deep).toBeGreaterThan(shallow);
   });
 
   it('generates within the time budget', () => {
+    // Normally filled by the sweeps above; measure here too when this test runs on its own.
+    if (Object.keys(timings).length === 0) {
+      for (const biome of COMBAT_BIOMES) {
+        let total = 0;
+        for (let i = 0; i < 5; i++) {
+          const t0 = performance.now();
+          generateLevel(request(biome, 'normal', i));
+          total += performance.now() - t0;
+        }
+        timings[`${biome}/normal`] = total / 5;
+      }
+    }
     const keys = Object.keys(timings);
     // eslint-disable-next-line no-console
     console.log('gen avg ms/level:', keys.map((k) => `${k}=${timings[k]!.toFixed(1)}`).join(' '));
