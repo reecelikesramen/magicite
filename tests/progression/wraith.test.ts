@@ -124,6 +124,14 @@ describe('Blight Wraith behaviour', () => {
     expect(Math.hypot(wr.x + wr.w / 2 - (pe.x + pe.w / 2), wr.y + wr.h / 2 - (pe.y + pe.h / 2))).toBeLessThan(16);
   });
 
+  it('never spawns on top of a player lingering at the level edge', () => {
+    const w = world({ district: 2 });
+    const pe = placePlayer(w, 0, 20);
+    crossTick(w, secs(300));
+    const wr = wraithEntity(w)!;
+    expect(Math.abs(wr.x - pe.x)).toBeGreaterThan(100);
+  });
+
   it('accelerates over time up to a cap', () => {
     expect(wraithSpeed(0)).toBe(WRAITH.baseSpeed);
     expect(wraithSpeed(secs(10))).toBeGreaterThan(wraithSpeed(secs(5)));

@@ -66,7 +66,11 @@ export function spawnWraith(world: World): Entity {
   }
   const w = d?.w ?? 12;
   const h = d?.h ?? 14;
-  const x = Math.max(4, (rear ? rear.x : world.level.spawn.x) - WRAITH.spawnBehind);
+  const rx = rear ? rear.x : world.level.spawn.x;
+  const maxX = world.level.grid.pixelWidth - w - 4;
+  // Behind (left of) the rearmost player; if the level edge is too close, come from ahead instead.
+  let x = rx - WRAITH.spawnBehind;
+  if (x < 4) x = Math.min(maxX, rx + WRAITH.spawnBehind);
   const y = Math.max(4, (rear ? rear.y : world.level.spawn.y - h) - WRAITH.spawnAbove);
   const e = world.spawn('enemy', WRAITH.def, x, y, {
     w,
