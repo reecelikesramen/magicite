@@ -275,7 +275,10 @@ describe('net sessions over a lossy loopback', () => {
     expect(p.out).toBe(false);
     expect(e.dead).toBe(false);
     expect(e.hp).toBe(0);
-    expect({ x: e.x, y: e.y }).toEqual(pos); // no free teleport to the party either
+    // No free teleport to the party either. While the crashed client's inputs were missing the host
+    // repeated its last input for at most MAX_INPUT_REPEAT ticks (a short downed crawl), then went idle.
+    expect(e.y).toBe(pos.y);
+    expect(Math.abs(e.x - pos.x)).toBeLessThan(3);
 
     // Away during a level change → enters the new level like everyone else (standing, ≥ 1 HP).
     const token = rig.clients[rig.clients.length - 1]!.token;

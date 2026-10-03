@@ -1,7 +1,7 @@
 import { maybeItem } from '../content';
 import type { Session } from '../game/session';
 import { World } from '../sim';
-import { MAX_PLAYERS } from '../sim/constants';
+import { MAX_PLAYERS, TICK_RATE } from '../sim/constants';
 import type { Entity, GameEvent, PlayerInput, PlayerState } from '../sim/types';
 import { emptyInput } from '../sim/types';
 import type { Level, PlayerSetup } from '../sim/world';
@@ -9,13 +9,13 @@ import { ByteReader, ByteWriter } from './codec';
 import { applyEdits, gridHash, regenerateLevel } from './levelsync';
 import { blankEntity, connectingLevel, mirrorAdd, mirrorClear, mirrorRemoveWhere } from './mirror';
 import { type PublicPlayerView, applyPublicView, makePlayerTemplate } from './players';
-import { OwnerAccess, PREDICTED_ENTITY_KEYS, PredictionHistory, copyInput, predictStep, readOwnerDelta } from './predict';
+import { MAX_INPUT_REPEAT, OwnerAccess, PREDICTED_ENTITY_KEYS, PredictionHistory, copyInput, neutralizeInput, predictStep, readOwnerDelta } from './predict';
 import {
   INPUT_REDUNDANCY, Msg, PROTOCOL_VERSION, type SnapshotHeader, emptySnapshotHeader, encodeCommands, encodeHello,
   encodeInputPacket, encodePing, encodeReason, openHostPacket, quantizeInput, readEventList, readLevelChange,
   readPlayersSection, readPrivateState, readSnapshotHeader, readTileEdits, readWelcome, readWorldState,
 } from './protocol';
-import { ENTITY_FIELDS, EntityFrame, FX, FY, NF, applyRow, fieldIdx, fieldMask, fieldsUnder, readEntityDelta } from './snapshot';
+import { ENTITY_FIELDS, EntityFrame, FVX, FVY, FX, FY, NF, applyRow, fieldIdx, fieldMask, fieldsUnder, readEntityDelta } from './snapshot';
 import { createStringTable } from './strings';
 import type { Channel, PeerId, Transport } from './transport';
 
@@ -101,6 +101,9 @@ const F_SWING = fieldIdx('swing');
 const F_SWING_TICKS = fieldIdx('swing.ticks');
 /** Fields the client predicts (or manages) for its own player: never overwritten from rows. */
 const LOCAL_SKIP = fieldMask([...PREDICTED_ENTITY_KEYS, 'anim', 'age', 'held', ...fieldsUnder('swing').map((i) => ENTITY_FIELDS[i]!.key)]);
+/** Longest snapshot gap bridged by velocity extrapolation (≈100 ms). */
+const MAX_EXTRAPOLATE_TICKS = 6;
+
 /** Interpolated fields (written by the interpolator, not by row application). */
 const REMOTE_SKIP = fieldMask(['x', 'y']);
 const SWING_FIELDS = fieldsUnder('swing');
@@ -652,6 +655,7 @@ export class ClientSession implements Session {
       copyInput(this.repeatInput, prev);
       this.repeatInput.select = -1;
       this.repeatInput.skill = -1;
+      if (k - j > MAX_INPUT_REPEAT) neutralizeInput(this.repeatInput);
       return this.repeatInput;
     }
     return EMPTY;
@@ -821,16 +825,20 @@ export class ClientSession implements Session {
       const off = i * NF;
       let x = fa.rows[off + FX]! / 16;
       let y = fa.rows[off + FY]! / 16;
-      if (fb) {
-        const j = fb.indexOf(id);
-        if (j >= 0) {
-          const bx = fb.rows[j * NF + FX]! / 16;
-          const by = fb.rows[j * NF + FY]! / 16;
-          if (Math.abs(bx - x) < TELEPORT_PX && Math.abs(by - y) < TELEPORT_PX) {
-            x += (bx - x) * t;
-            y += (by - y) * t;
-          }
+      const j = fb ? fb.indexOf(id) : -1;
+      if (fb && j >= 0) {
+        const bx = fb.rows[j * NF + FX]! / 16;
+        const by = fb.rows[j * NF + FY]! / 16;
+        if (Math.abs(bx - x) < TELEPORT_PX && Math.abs(by - y) < TELEPORT_PX) {
+          x += (bx - x) * t;
+          y += (by - y) * t;
         }
+      } else if (R > a.tick) {
+        // Buffer starved (loss/jitter): extrapolate briefly along the last known velocity instead of
+        // freezing and then jumping when the next snapshot lands.
+        const dt = Math.min(R - a.tick, MAX_EXTRAPOLATE_TICKS) / TICK_RATE;
+        x += (fa.rows[off + FVX]! / 2) * dt;
+        y += (fa.rows[off + FVY]! / 2) * dt;
       }
       e.px = e.x;
       e.py = e.y;

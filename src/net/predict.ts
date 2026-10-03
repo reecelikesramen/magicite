@@ -1,5 +1,4 @@
-import { groundBelow, integrate } from '../sim/physics';
-import { controlPlayer } from '../sim/player/controller';
+import { predictPlayer } from '../sim/player/predict';
 import type { Entity, PlayerInput, PlayerState } from '../sim/types';
 import { emptyInput } from '../sim/types';
 import type { World } from '../sim/world';
@@ -30,7 +29,7 @@ export const PREDICTED_ENTITY_KEYS: readonly string[] = [
  * matter for movement, the divergence still shows up in the compared motion fields.
  */
 export const CARRIED_ONLY_KEYS: ReadonlySet<string> = new Set([
-  'ctl.mineX', 'ctl.mineY', 'ctl.mineTicks',
+  'ctl.mineX', 'ctl.mineY', 'ctl.mineTicks', 'ctl.safeX', 'ctl.safeY',
   'ctl.manaT', 'ctl.hungerT', 'ctl.starveT', 'ctl.downedT', 'ctl.levelKey',
 ]);
 
@@ -174,25 +173,12 @@ export function readOwnerDelta(r: ByteReader, base: Float64Array | null, out: Fl
 }
 
 /**
- * One predicted tick for the local player, mirroring the host pipeline for a single player:
- * playerControlSystem → physicsSystem (per-entity branch) → meleeSystem's swing countdown →
- * statusSystem's i-frame/stagger timers → playerInputLatchSystem.
- * Keep in sync with src/sim/physics.ts#physicsSystem and src/sim/combat/status.ts.
+ * One predicted tick for the local player: the player workstream's per-player step
+ * (src/sim/player/predict.ts#predictPlayer — controller, physics, swing countdown, i-frame/stagger
+ * timers, stamina regen, input latch).
  */
 export function predictStep(world: World, p: PlayerState, e: Entity, input: PlayerInput): void {
-  controlPlayer(world, p, e, input);
-  if (!e.dead) {
-    if (e.gravityScale === 0 && e.vx === 0 && e.vy === 0) e.onGround = e.collides && groundBelow(world.level.grid, e);
-    else integrate(world, e);
-  }
-  const s = e.swing;
-  if (s) {
-    s.ticks--;
-    if (s.ticks <= 0) e.swing = undefined;
-  }
-  if (e.invuln > 0) e.invuln--;
-  if (e.hurt > 0) e.hurt--;
-  latchPrev(p, input);
+  predictPlayer(world, p, e, input);
 }
 
 /**
@@ -210,6 +196,27 @@ export function latchPrev(p: PlayerState, input: PlayerInput): void {
 }
 
 /** Copy every non-command field of an input into `dst` (allocation-free once shapes match). */
+/**
+ * How many consecutive ticks the host repeats a client's last input when inputs stop arriving
+ * (≈133 ms: covers jitter and short loss bursts). Beyond that the client is treated as idle
+ * (neutral movement/actions) so a stalled or crashed peer doesn't keep running, jumping or
+ * crawling until the disconnect timeout. Client prediction mirrors this rule.
+ */
+export const MAX_INPUT_REPEAT = 8;
+
+/** Drop held movement/actions, keep aim (used past MAX_INPUT_REPEAT missing ticks). */
+export function neutralizeInput(inp: PlayerInput): void {
+  inp.moveX = 0;
+  inp.moveY = 0;
+  inp.jump = false;
+  inp.attack = false;
+  inp.alt = false;
+  inp.interact = false;
+  inp.dash = 0;
+  inp.select = -1;
+  inp.skill = -1;
+}
+
 export function copyInput(dst: PlayerInput, src: PlayerInput): PlayerInput {
   const d = dst as unknown as Record<string, unknown>;
   const s = src as unknown as Record<string, unknown>;

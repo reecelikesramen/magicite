@@ -9,7 +9,7 @@ import type { Level, PlayerSetup, World } from '../sim/world';
 import { ByteReader, ByteWriter, CollectingSink, bytesEqual, writeValue } from './codec';
 import { type TileEdits, TileTracker, regenerateLevel } from './levelsync';
 import { SLOW_PRIVATE_KEYS, privateKeys, publicView } from './players';
-import { OwnerAccess, buildOwnerLayout, copyInput, writeOwnerDelta } from './predict';
+import { MAX_INPUT_REPEAT, OwnerAccess, buildOwnerLayout, copyInput, neutralizeInput, writeOwnerDelta } from './predict';
 import {
   HostEncoder, Msg, PROTOCOL_VERSION, type SnapshotHeader, decodeCommands, decodeHello, decodeInputPacket, emptySnapshotHeader,
   encodePong, encodeReason, writeEventList, writeLevelChange, writePrivateState, writeSnapshotHeader, writeTileEdits,
@@ -101,8 +101,10 @@ interface RemoteClient {
   token: string;
   owner: OwnerAccess;
   inputs: InputRing;
-  /** Last real input (repeated when one is missing). */
+  /** Last real input (repeated when one is missing, up to MAX_INPUT_REPEAT ticks). */
   last: PlayerInput;
+  /** Consecutive ticks without a real input. */
+  missStreak: number;
   /** Input handed to the world this tick. */
   cur: PlayerInput;
   commands: PlayerCommand[];
@@ -277,12 +279,18 @@ export class HostSession implements Session {
     for (const c of this.clients.values()) {
       const inp = c.inputs.take(T);
       if (DEBUG && T < 100) console.log(`host T=${T} input ${inp ? `jump=${inp.jump} mx=${inp.moveX}` : 'MISSING'} newest=${c.newestInput}`);
-      if (inp) copyInput(c.last, inp);
-      else if (c.firstInput >= 0 && T > c.firstInput) c.misses++;
+      if (inp) {
+        copyInput(c.last, inp);
+        c.missStreak = 0;
+      } else {
+        if (c.firstInput >= 0 && T > c.firstInput) c.misses++;
+        c.missStreak++;
+      }
       copyInput(c.cur, c.last);
       if (!inp) {
         c.cur.select = -1;
         c.cur.skill = -1;
+        if (c.missStreak > MAX_INPUT_REPEAT) neutralizeInput(c.cur);
       }
       c.cur.commands = c.commands.length ? c.commands.splice(0) : NO_COMMANDS;
       this.inputs[c.index] = c.cur;
@@ -432,7 +440,7 @@ export class HostSession implements Session {
     const token = prior ? hello.token : this.makeToken();
     const owner = new OwnerAccess(buildOwnerLayout(p, e));
     const c: RemoteClient = {
-      peer, index, token, owner, inputs: new InputRing(), last: emptyInput(), cur: emptyInput(), commands: [], ackTick: 0,
+      peer, index, token, owner, inputs: new InputRing(), last: emptyInput(), missStreak: 0, cur: emptyInput(), commands: [], ackTick: 0,
       sent: Array.from({ length: RING }, () => ({
         tick: -1, epoch: 0, slot: 0, inc: new Int32Array(64), count: 0, owner: new Float64Array(owner.n), hasOwner: false,
         pubVer: new Int32Array(MAX_PLAYERS), defs: [],
