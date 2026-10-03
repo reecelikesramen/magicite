@@ -6,7 +6,7 @@ import type { Entity, PlayerState } from '../sim/types';
 import type { World } from '../sim/world';
 import { animFrame, heldRestAngle, heldSpriteKey, spriteKeyFor, swingAngle } from './entity-keys';
 import { flicker, type LightPool } from './lights';
-import { emitPreset } from './particles/presets';
+import { emitOpts, emitPreset } from './particles/presets';
 import type { ParticleSystem } from './particles/system';
 import { setFlashFrames, setFrames, spriteSet, type FrameSet } from './sprites/atlas';
 import { animFps } from './sprites/registry';
@@ -301,11 +301,11 @@ export class EntityViews {
     // Jump puffs / landing dust (render-side juice derived from state changes).
     if (e.kind === 'player' || e.kind === 'enemy') {
       if (e.onGround && !v.prevGround && v.prevVy > 140) {
-        emitPreset(ps, 'dust_land', ax - 2, iy + e.h - 1, { count: 3, dirX: -1 });
-        emitPreset(ps, 'dust_land', ax + 2, iy + e.h - 1, { count: 3, dirX: 1 });
+        emitPreset(ps, 'dust_land', ax - 2, iy + e.h - 1, emitOpts(3, undefined, -1));
+        emitPreset(ps, 'dust_land', ax + 2, iy + e.h - 1, emitOpts(3, undefined, 1));
       } else if (!e.onGround && v.prevGround && e.vy < -60 && e.kind === 'player') emitPreset(ps, 'jump_puff', ax, iy + e.h - 1);
       // Dash streaks: much faster than walking (the controller's dash burst).
-      if (e.kind === 'player' && (e.anim === 'dash' || Math.abs(e.vx) > DASH_SPEED) && ps.rand() < 0.7) emitPreset(ps, 'dash', ax - e.facing * 3, iy + e.h * 0.5, { count: 1, dirX: -e.facing });
+      if (e.kind === 'player' && (e.anim === 'dash' || Math.abs(e.vx) > DASH_SPEED) && ps.rand() < 0.7) emitPreset(ps, 'dash', ax - e.facing * 3, iy + e.h * 0.5, emitOpts(1, undefined, -e.facing));
       v.prevGround = e.onGround;
       v.prevVy = e.vy;
     }
@@ -322,7 +322,7 @@ export class EntityViews {
     if (dx * dx + dy * dy < 25) return;
     v.trailX = ax;
     v.trailY = ay;
-    emitPreset(ps, trail, ax, ay, { count: 1, color: def?.light?.color });
+    emitPreset(ps, trail, ax, ay, emitOpts(1, e.light?.color ?? def?.light?.color));
   }
 
   private updateHeld(v: View, e: Entity, p: PlayerState | undefined, ax: number, ay: number): void {

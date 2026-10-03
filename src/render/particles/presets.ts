@@ -105,8 +105,22 @@ export interface EmitOptions {
   dirY?: number;
 }
 
+const NO_OPTS: EmitOptions = Object.freeze({});
+
+/** Reusable options for per-frame emitters (fill, call, done; never keep a reference). */
+export const scratchEmit: EmitOptions = {};
+
+/** `scratchEmit` reset and filled with the given values. */
+export function emitOpts(count?: number, color?: number, dirX?: number, dirY?: number): EmitOptions {
+  scratchEmit.count = count;
+  scratchEmit.color = color;
+  scratchEmit.dirX = dirX;
+  scratchEmit.dirY = dirY;
+  return scratchEmit;
+}
+
 /** Emit `preset` at (x,y). Returns the number of particles spawned. */
-export function emitPreset(ps: ParticleSystem, name: string | Preset, x: number, y: number, opts: EmitOptions = {}): number {
+export function emitPreset(ps: ParticleSystem, name: string | Preset, x: number, y: number, opts: EmitOptions = NO_OPTS): number {
   const p = typeof name === 'string' ? resolvePreset(name) : name;
   const n = Math.max(0, Math.min(200, Math.round(opts.count ?? p.count)));
   let base = p.angle;

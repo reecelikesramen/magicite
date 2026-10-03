@@ -13,7 +13,7 @@ import { EntityViews } from './entities';
 import { flicker, LightPool } from './lights';
 import { damageColor, WorldOverlay } from './overlay';
 import { resolveAmbient, updateAmbient } from './particles/ambient';
-import { emitPreset } from './particles/presets';
+import { emitOpts, emitPreset } from './particles/presets';
 import { ParticleSystem } from './particles/system';
 import { ParticleView } from './particles/view';
 import { flushAtlas, registerBuiltinSprites, setFrames, spriteSet } from './sprites';
@@ -99,8 +99,8 @@ export class Renderer {
     const n = (tx1 - tx0 + 1) * this.bubbleDt * (kind === 'lava' ? 0.6 : 0.25);
     if (ps.rand() > n) return;
     const x = (tx0 + ps.rand() * (tx1 - tx0 + 1)) * TILE;
-    if (kind === 'lava') emitPreset(ps, 'embers', x, ty * TILE, { count: 1 });
-    else emitPreset(ps, 'bubble', x, ty * TILE + 3, { count: 1 });
+    if (kind === 'lava') emitPreset(ps, 'embers', x, ty * TILE, emitOpts(1));
+    else emitPreset(ps, 'bubble', x, ty * TILE + 3, emitOpts(1));
   };
 
   constructor(private readonly app: Application) {
