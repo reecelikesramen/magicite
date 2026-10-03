@@ -48,6 +48,7 @@ export const FIXTURE_ITEMS: ItemDef[] = [
     ...base, id: 't_elixir', name: 'Test Elixir', category: 'consumable', maxStack: 10, use: 'consume',
     consume: { permanent: { atk: 1, maxHp: 1 }, status: [{ id: 'haste', duration: 3, chance: 1 }] },
   },
+  { ...base, id: 't_scroll', name: 'Test Scroll', category: 'consumable', maxStack: 10, use: 'consume', consume: { special: 't_unknown_special' } },
   { ...base, id: 't_block', name: 'Test Block', category: 'placeable', maxStack: 99, use: 'place', places: Tile.WOOD },
   { ...base, id: 't_torch', name: 'Test Torch', category: 'placeable', maxStack: 99, use: 'place', placesProp: 'torch' },
   { ...base, id: 't_shield', name: 'Test Shield', category: 'accessory', maxStack: 1, equipSlot: 'trinket', tags: ['shield'] },

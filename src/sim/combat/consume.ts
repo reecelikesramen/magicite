@@ -44,7 +44,10 @@ function applyPermanent(world: World, p: PlayerState, e: Entity, mods: StatMods)
   if (hpGain > 0) heal(world, e, hpGain);
 }
 
-/** Named special effects of consumables ("handled by name in sim"). Unknown names do nothing. */
+/** Consume specials implemented here (applySpecial). */
+const KNOWN_SPECIALS: readonly string[] = ['cleanse', 'full_restore', 'recall', 'teleport_exit'];
+
+/** Named special effects of consumables ("handled by name in sim"). */
 function applySpecial(world: World, p: PlayerState, e: Entity, special: string): void {
   switch (special) {
     case 'cleanse':
@@ -89,12 +92,17 @@ export function applyConsumeEffect(world: World, p: PlayerState, e: Entity, c: C
   if (c.special) applySpecial(world, p, e, c.special);
 }
 
-/** Eat / drink / read the item in `slot`. Returns true if something was consumed. */
+/**
+ * Eat / drink / read the item in `slot`. Returns true if something was consumed. An item whose
+ * `consume.special` this module doesn't implement (e.g. the items workstream's mystery potions, recipe
+ * scrolls, repair kits) is refused rather than used up for nothing.
+ */
 export function consumeFromSlot(world: World, p: PlayerState, slot: number): boolean {
   const stack = p.inventory[slot];
   const def = maybeItem(stack?.id);
   const e = world.get(p.entityId);
   if (!def?.consume || !e || p.downed || p.out) return false;
+  if (def.consume.special && !KNOWN_SPECIALS.includes(def.consume.special)) return false;
   applyConsumeEffect(world, p, e, def.consume);
   takeOne(p, slot);
   const drink = def.tags?.includes('drink') || /potion|elixir|tonic|brew/.test(def.id);

@@ -42,6 +42,14 @@ describe('consume', () => {
     expect(p.inventory[0]).toBeNull();
   });
 
+  it('consumables with a special this module does not implement are not wasted', () => {
+    const { world, p } = makeWorld();
+    give(p, 't_scroll', 2);
+    step(world, 1, tap(0, 0));
+    expect(p.inventory[0]?.count).toBe(2);
+    expect(consumeFromSlot(world, p, 0)).toBe(false);
+  });
+
   it('consumeFromSlot works from any slot (UI "use" command)', () => {
     const { world, p, e } = makeWorld();
     p.inventory[12] = { id: 't_potion', count: 1 };
