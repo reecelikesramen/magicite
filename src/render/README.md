@@ -28,12 +28,15 @@ by whole screen pixels (smooth scrolling, crisp pixels). Tunables: `LOOK` in `re
   `defineSpriteFamily(name, key => def | null)` from `render/sprites`. Default origin = bottom-centre
   (placed on the entity's bottom-centre; projectiles on their centre). Draw facing **right**.
   `meta`: `emissive` (unlit), `glow` (halo colour), `rotate` (along velocity), `bob`, `variants`.
-  Anim names follow `e.anim` with fallbacks (`run→move/walk`, `downed→dead`, …). Unknown keys get a
-  labelled placeholder. Held items: `held_<item sprite>` overrides the generic `held:<kind>:<mat>`.
-  Players use `<race.sprite>#<playerIndex>` unless `<race.sprite>` itself is defined.
+  Anim names follow `e.anim` with fallbacks (`run→move/walk`, `dash→run`, `swim→fall`, `crawl→downed`, …).
+  Unknown keys get a labelled placeholder, except `effect` entities (skill areas / controllers), which
+  stay invisible until someone defines their key. Held items: `held_<item sprite>` overrides the generic `held:<kind>:<mat>`.
+  Players use `<race.sprite>#<playerIndex>` unless real art (an explicit def or a family above
+  `BUILTIN_PRIORITY`) resolves `<race.sprite>` itself.
 - **Particles**: emit `{ type: 'particles', preset, x, y, count?, color?, dirX?, dirY? }`.
-  Presets in `particles/presets.ts` (+ aliases; unknown names → generic burst). Biome ambient
-  particles from `BiomeDef.ambientParticles`: `fireflies embers snow spores spores_pink sparkles dust`.
+  Presets in `particles/presets.ts` (+ aliases for every name the other workstreams emit; unknown names →
+  generic burst). Biome ambient particles from `BiomeDef.ambientParticles`: `fireflies embers snow spores
+  spores_pink sparkles dust bubbles` (+ aliases such as `crystal_motes`, `blight_motes`; unknown → the family's kind).
 - **Lights**: `e.light` (radius px, colour, intensity, flicker), `level.lights`, `ProjectileDef.light`,
   lava surfaces and glowing fringe/special tiles (merged runs from the chunk scan).
 - **Events used**: `particles damage heal death shake hitstop tileBroken resourceHit levelUp downed

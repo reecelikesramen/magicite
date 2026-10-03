@@ -129,6 +129,11 @@ export class EntityViews {
       }
       if (!v) v = this.create(e, players);
       v.seen = frame;
+      // Effects without art are logic-only hitboxes / controllers (skill areas): no placeholder box.
+      if (e.kind === 'effect' && v.set.placeholder) {
+        v.sprite.visible = false;
+        continue;
+      }
       this.updateView(v, e, ix, iy, dt, players, halos, ps);
     }
     // Release views of entities that no longer exist (compact in place, no allocation).
