@@ -1,0 +1,183 @@
+import { describe, expect, it } from 'vitest';
+import { measureText } from '../../src/render/pixelfont';
+import { TICK_RATE } from '../../src/sim/constants';
+import type { RunStats } from '../../src/sim/types';
+import {
+  DurabilityMemory,
+  craftFeedback,
+  durabilityFrac,
+  fitText,
+  formatTime,
+  fraction,
+  humanize,
+  itemName,
+  itemTooltip,
+  levelBanner,
+  modLines,
+  pickupText,
+  recipeEntries,
+  recipeKey,
+  recipeLine,
+  runSummary,
+  skillInfo,
+  stripDistrictPrefix,
+  wrapText,
+} from '../../src/ui/format';
+import { PATH_COLORS, UI, tierColor } from '../../src/ui/theme';
+import { useTestItems } from './fixtures';
+
+useTestItems();
+
+describe('names and text fitting', () => {
+  it('humanizes ids', () => {
+    expect(humanize('iron_bar')).toBe('Iron Bar');
+    expect(humanize('bossKills')).toBe('Boss Kills');
+    expect(humanize('#metal')).toBe('Metal');
+  });
+
+  it('uses content names and falls back for unknown ids / tags', () => {
+    expect(itemName('wood')).toBe('Wood');
+    expect(itemName('meat')).toBe('Raw Meat');
+    expect(itemName('gold_bar')).toBe('Gold Bar');
+    expect(itemName('#metal')).toBe('Any Metal');
+  });
+
+  it('formats cur/max as whole numbers', () => {
+    expect(fraction(5, 8)).toBe('5/8');
+    expect(fraction(2.7, 4)).toBe('2/4');
+    expect(fraction(-1, 3)).toBe('0/3');
+  });
+
+  it('wraps to the pixel width and fits with ellipsis', () => {
+    const lines = wrapText('Chops trees and hits things quite hard indeed', 60);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const l of lines) expect(measureText(l)).toBeLessThanOrEqual(60);
+    expect(lines.join(' ')).toBe('Chops trees and hits things quite hard indeed');
+    expect(fitText('SHORT', 100)).toBe('SHORT');
+    const fit = fitText('A VERY LONG CHARACTER NAME', 40);
+    expect(fit.endsWith('..')).toBe(true);
+    expect(measureText(fit)).toBeLessThanOrEqual(40);
+  });
+});
+
+describe('item tooltips', () => {
+  it('starts with the name in its tier colour, then kind and description', () => {
+    const lines = itemTooltip('axe', { id: 'axe', count: 1 });
+    expect(lines[0]).toEqual({ text: 'Axe', color: tierColor(1) });
+    expect(lines[1]!.text).toContain('Axe');
+    expect(lines.some((l) => l.text.includes('Chops trees'))).toBe(true);
+    expect(lines.some((l) => l.text === 'Damage 1')).toBe(true);
+    expect(lines.some((l) => l.text === 'Cooldown 0.4s')).toBe(true);
+    expect(lines.some((l) => l.text === 'Axe power 1')).toBe(true);
+  });
+
+  it('lists on-hit effects, mods, durability and an action hint', () => {
+    const sword = itemTooltip('test_sword', { id: 'test_sword', count: 1, durability: 15 });
+    expect(sword[0]!.color).toBe(tierColor(3));
+    expect(sword.some((l) => l.text === '25% bleed on hit')).toBe(true);
+    const dur = sword.find((l) => l.text.startsWith('Durability'))!;
+    expect(dur.text).toBe('Durability 15/80');
+    expect(dur.color).toBe(UI.bad);
+    const tunic = itemTooltip('test_tunic', null).map((l) => l.text);
+    expect(tunic).toContain('+2 DEF');
+    expect(tunic).toContain('+10% Speed');
+    expect(tunic).toContain('Right-click to equip');
+    expect(itemTooltip('test_potion', null).map((l) => l.text)).toContain('Right-click to use');
+    expect(itemTooltip('test_potion', null).map((l) => l.text)).toContain('+2 HP');
+  });
+
+  it('handles unknown items', () => {
+    const lines = itemTooltip('mystery_thing', null);
+    expect(lines[0]!.text).toBe('Mystery Thing');
+    expect(lines[1]!.text).toBe('Unknown item');
+  });
+
+  it('formats stat mods', () => {
+    expect(modLines({ atk: 2, def: -1, critChance: 0.05, resist: { fire: 0.25 } })).toEqual(['+2 ATK', '-1 DEF', '+5% Crit', '+25% fire res']);
+    expect(modLines(undefined)).toEqual([]);
+  });
+});
+
+describe('durability', () => {
+  it('uses the def max when present, else the largest seen value', () => {
+    expect(durabilityFrac({ id: 'test_sword', count: 1, durability: 40 }, { durability: 80 } as never)).toBe(0.5);
+    expect(durabilityFrac({ id: 'axe', count: 1 }, undefined)).toBeNull();
+    const mem = new DurabilityMemory();
+    expect(mem.frac({ id: 'axe', count: 1, durability: 40 })).toBe(1);
+    expect(mem.frac({ id: 'axe', count: 1, durability: 10 })).toBe(0.25);
+    expect(mem.seenMax('axe')).toBe(40);
+    expect(mem.frac(null)).toBeNull();
+  });
+});
+
+describe('crafting & pickups', () => {
+  it('craft feedback strings', () => {
+    expect(craftFeedback({ result: null, count: 0, discovered: false }).text).toBe('Nothing happens...');
+    expect(craftFeedback({ result: 'plank', count: 1, discovered: true })).toEqual({ text: 'Discovered: Plank!', color: UI.discover });
+    expect(craftFeedback({ result: 'plank', count: 2, discovered: false }).text).toBe('Crafted Plank x2');
+  });
+
+  it('pickup popups', () => {
+    expect(pickupText(3, 'wood')).toBe('+3 Wood');
+  });
+
+  it('recipe book lines from known recipe keys', () => {
+    const entries = recipeEntries([recipeKey('wood', 'wood'), 'herb+stone']);
+    expect(entries).toHaveLength(2);
+    expect(recipeLine(entries[0]!)).toBe('Wood + Wood = Plank');
+    expect(entries[1]!.result).toBe('?');
+    expect(recipeLine(entries[1]!)).toBe('Herb + Stone = ???');
+    expect(recipeEntries(['garbage'])).toEqual([]);
+  });
+});
+
+describe('level banners', () => {
+  it('strips the "District N:" prefix for the big title', () => {
+    expect(stripDistrictPrefix('District 3: Hollow Deep')).toBe('Hollow Deep');
+    expect(stripDistrictPrefix('Hollow Deep')).toBe('Hollow Deep');
+    expect(levelBanner({ district: 1, name: 'District 1: Mossgrave Woods', isTown: false, isBoss: false })).toEqual({ kicker: 'District 1', title: 'Mossgrave Woods', sub: '' });
+  });
+
+  it('labels towns and boss districts', () => {
+    expect(levelBanner({ district: 2, name: 'Fenmire Town', isTown: true, isBoss: false }).kicker).toBe('Town');
+    expect(levelBanner({ district: 3, name: 'District 3: Hollow Deep', isTown: false, isBoss: true }).sub).toContain('giant monster');
+  });
+});
+
+describe('skills (graceful with empty content)', () => {
+  it('guesses the path from canonical GDD ids and colours by path', () => {
+    const s = skillInfo('fire_burst');
+    expect(s.path).toBe('mage');
+    expect(s.color).toBe(PATH_COLORS.mage);
+    expect(s.name).toBe('Fire Burst');
+    expect(skillInfo('whirlwind').color).toBe(PATH_COLORS.warrior);
+    expect(skillInfo('multishot').color).toBe(PATH_COLORS.ranger);
+  });
+
+  it('renders unknown skills with a neutral placeholder', () => {
+    const s = skillInfo('zzz');
+    expect(s.path).toBe('');
+    expect(s.description.length).toBeGreaterThan(0);
+    expect(s.known).toBe(false);
+  });
+});
+
+describe('run summary', () => {
+  it('formats play time', () => {
+    expect(formatTime(0)).toBe('0:00');
+    expect(formatTime(75 * TICK_RATE)).toBe('1:15');
+    expect(formatTime(3725 * TICK_RATE)).toBe('1:02:05');
+  });
+
+  it('lists reached district, level, time and every run stat', () => {
+    const stats = { kills: 23, bossKills: 1, damageDealt: 141, damageTaken: 19, itemsCrafted: 12, recipesDiscovered: 4, treesChopped: 9, oresMined: 7, bugsCaught: 0, plantsHarvested: 0, goldEarned: 312, deaths: 0, revives: 0, districtsCleared: 3, ticksPlayed: 600, wraithEscapes: 2 } as RunStats;
+    const rows = runSummary(stats, { level: 5, district: 4 });
+    expect(rows[0]).toEqual(['Reached', 'District 4']);
+    expect(rows[1]).toEqual(['Level', '5']);
+    expect(rows[2]).toEqual(['Time', '0:10']);
+    expect(rows).toContainEqual(['Monsters slain', '23']);
+    expect(rows).toContainEqual(['Gold earned', '312']);
+    expect(rows).toContainEqual(['Wraith Escapes', '2']);
+    expect(rows.some(([l]) => l === 'Ticks Played')).toBe(false);
+  });
+});
