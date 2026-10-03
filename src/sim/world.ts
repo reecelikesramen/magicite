@@ -67,6 +67,21 @@ export interface RunState {
   ticks: number;
   /** Players who have entered the exit portal this level. */
   exited: number[];
+  // --- Run flow (progression workstream: src/sim/run.ts, src/sim/progression/wraith.ts) ---------
+  /** From PlayerSetup.difficulty (any 'madcap' player → madcap): tougher enemies, early Wraith. */
+  difficulty: 'normal' | 'madcap';
+  /** Ticks spent in the current level (Blight Wraith timer). Reset on level entry. */
+  levelTicks: number;
+  /** Blight Wraith progress this level: 0 none, 1–2 warnings shown, 3 spawned. */
+  wraithStage: number;
+  /** Blight Wraith entity id (0 = none). */
+  wraith: number;
+  /** Party portal countdown in ticks (0 = idle). */
+  portalTimer: number;
+  /** Exit index whose use started the countdown (wins vote ties); -1 = none. */
+  portalFirst: number;
+  /** A boss was seen alive in this level (its exits unlock once none remain). */
+  bossSeen: boolean;
 }
 
 export interface PlayerSetup {
@@ -107,7 +122,10 @@ export class World {
     private readonly systems: readonly System[],
   ) {
     this.rng = new Rng(seed);
-    this.run = { seed, path: [], over: false, victory: false, ticks: 0, exited: [] };
+    this.run = {
+      seed, path: [], over: false, victory: false, ticks: 0, exited: [],
+      difficulty: 'normal', levelTicks: 0, wraithStage: 0, wraith: 0, portalTimer: 0, portalFirst: -1, bossSeen: false,
+    };
   }
 
   /** Advance one fixed tick. */
