@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fireProjectile } from '../../src/sim/combat/projectiles';
+import { throwAngle } from '../../src/sim/combat/use';
 import { secs } from '../../src/sim/constants';
 import { FLOOR_Y, give, makeWorld, projectiles, spawnEnemy, step, stepCollect, tap } from './helpers';
 
@@ -136,6 +137,22 @@ describe('throw', () => {
     const vy0 = k.vy;
     step(world, 10);
     expect(k.vy).toBeGreaterThan(vy0);
+  });
+
+  it('gravity throws are aimed to come down on the cursor', () => {
+    // Knife at 60 px, bomb at 45 px: both used to drop short onto the floor in front of the thrower.
+    for (const [item, x] of [['t_knife', 140], ['t_bomb', 125]] as const) {
+      const { world, p } = makeWorld();
+      give(p, item, 2);
+      const d = spawnEnemy(world, 't_dummy', x, FLOOR_Y, { kbResist: 1 });
+      step(world, 150, tap(x, FLOOR_Y - 4));
+      expect(d.hp, item).toBeLessThan(100);
+    }
+    const ang = throwAngle(80, 0, 270, 260, 0);
+    expect(ang).toBeLessThan(0); // a little above the horizontal…
+    expect(ang).toBeGreaterThan(-0.3); // …but the flat arc, not a lob
+    expect(throwAngle(-80, 0, 270, 260, Math.PI)).toBeCloseTo(Math.PI - ang, 6); // mirrored to the left
+    expect(throwAngle(1, 50, 270, 260, Math.PI / 2)).toBe(Math.PI / 2); // straight down keeps the aim
   });
 
   it('thrown items need a fresh press (no hold-to-repeat)', () => {

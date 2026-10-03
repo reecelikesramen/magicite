@@ -92,6 +92,30 @@ function muzzle(world: World, e: Entity, angle: number, out: { x: number; y: num
 
 const mz = { x: 0, y: 0 };
 
+/**
+ * Launch angle (radians, y down) for a shot under gravity `g` (px/s²) at `speed` (px/s) to pass through a
+ * target `dx, dy` px away: the flatter of the two ballistic arcs, or a 45° lob toward it when it's out of
+ * reach. Targets (almost) straight above/below, and gravity-free shots, keep the plain aim angle.
+ */
+export function throwAngle(dx: number, dy: number, speed: number, g: number, aim: number): number {
+  const ax = Math.abs(dx);
+  if (g <= 0 || speed <= 0 || ax < 4) return aim;
+  const v2 = speed * speed;
+  const disc = v2 * v2 - g * (g * ax * ax - 2 * dy * v2);
+  const up = disc >= 0 ? Math.atan((v2 - Math.sqrt(disc)) / (g * ax)) : Math.PI / 4;
+  return dx >= 0 ? -up : Math.PI + up;
+}
+
+/**
+ * Muzzle point (into `mz`) and launch angle toward the cursor: the plain aim for flat shots, a ballistic
+ * arc for gravity shots (sling stones, thrown knives, bombs) so they come down on the cursor.
+ */
+function aimShot(world: World, e: Entity, input: PlayerInput, angle: number, speed: number, gravity: number): number {
+  const a = throwAngle(input.aimX - (e.x + e.w / 2), input.aimY - (e.y + e.h / 2), speed, gravity, angle);
+  muzzle(world, e, a, mz);
+  return a === angle ? angle : throwAngle(input.aimX - mz.x, input.aimY - mz.y, speed, gravity, angle);
+}
+
 function fail(world: World, p: PlayerState, e: Entity, press: boolean, text: string, sfx: string): void {
   p.useCooldown = secs(COMBAT.failCooldown);
   if (!press) return;
@@ -115,7 +139,7 @@ function useMelee(world: World, p: PlayerState, e: Entity, def: ItemDef | undefi
   }
 }
 
-function useShoot(world: World, p: PlayerState, e: Entity, def: ItemDef, angle: number, press: boolean): void {
+function useShoot(world: World, p: PlayerState, e: Entity, def: ItemDef, angle: number, input: PlayerInput, press: boolean): void {
   const ammo = findAmmo(p, def.ammoType);
   if (!ammo) {
     fail(world, p, e, press, `No ${def.ammoType ?? 'ammo'} left!`, 'empty');
@@ -126,8 +150,10 @@ function useShoot(world: World, p: PlayerState, e: Entity, def: ItemDef, angle: 
   spendAmmo(p, ammo);
   const type = def.damageType ?? projDef(projId)!.damageType;
   const roll = computeDamage(world, p, def, (def.damage ?? 0) + (ammo.def.damage ?? 0), type, { attacker: e, stat: 'dex', noCrit: true });
-  muzzle(world, e, angle, mz);
-  fireProjectile(world, e, projId, mz.x, mz.y, angle, { damage: roll.amount, speedMul: rangedSpeedMul(def), sourceItem: ammo.def.id });
+  const pd = projDef(projId)!;
+  const speedMul = rangedSpeedMul(def);
+  const a = aimShot(world, e, input, angle, pd.speed * speedMul, pd.gravity);
+  fireProjectile(world, e, projId, mz.x, mz.y, a, { damage: roll.amount, speedMul, sourceItem: ammo.def.id });
   p.useCooldown = useCooldownTicks(p, def, 'shoot');
   world.emit({ type: 'sfx', id: projId === 'bolt' ? 'shoot_crossbow' : 'shoot_bow', x: mz.x, y: mz.y });
   wearStack(world, p, { inv: p.selected });
@@ -151,8 +177,8 @@ function useCast(world: World, p: PlayerState, e: Entity, def: ItemDef, angle: n
     const tx = cx + Math.max(-12 * TILE, Math.min(12 * TILE, input.aimX - cx));
     fireProjectile(world, e, pd.id, tx, input.aimY, Math.PI / 2, opts);
   } else {
-    muzzle(world, e, angle, mz);
-    fireProjectile(world, e, pd.id, mz.x, mz.y, angle, opts);
+    const a = aimShot(world, e, input, angle, pd.speed * opts.speedMul, pd.gravity);
+    fireProjectile(world, e, pd.id, mz.x, mz.y, a, opts);
   }
   p.useCooldown = useCooldownTicks(p, def, 'cast');
   world.emit({ type: 'sfx', id: 'cast', x: e.x + e.w / 2, y: e.y });
@@ -165,14 +191,11 @@ function useThrow(world: World, p: PlayerState, e: Entity, def: ItemDef, angle: 
   if (!pd) return;
   const cx = e.x + e.w / 2;
   const cy = e.y + e.h / 2;
-  // Throw strength follows the aim distance; a little loft makes lobs land near the cursor.
-  const d = Math.hypot(input.aimX - cx, input.aimY - cy);
-  const power = Math.max(COMBAT.throwPower.min, Math.min(1, d / COMBAT.throwPower.fullAt));
-  const loft = pd.gravity > 0 ? (Math.cos(angle) >= 0 ? -0.12 : 0.12) : 0;
+  const speedMul = rangedSpeedMul(def);
+  const a = aimShot(world, e, input, angle, pd.speed * speedMul, pd.gravity);
   const roll = computeDamage(world, p, def, def.damage ?? 0, def.damageType ?? pd.damageType, { attacker: e, stat: 'dex', noCrit: true });
   takeOne(p, p.selected);
-  muzzle(world, e, angle, mz);
-  fireProjectile(world, e, pd.id, mz.x, mz.y, angle + loft, { damage: roll.amount, speedMul: power * rangedSpeedMul(def), sourceItem: def.id });
+  fireProjectile(world, e, pd.id, mz.x, mz.y, a, { damage: roll.amount, speedMul, sourceItem: def.id });
   p.useCooldown = useCooldownTicks(p, def, 'throw');
   world.emit({ type: 'sfx', id: 'throw', x: cx, y: cy });
 }
@@ -193,7 +216,7 @@ export function useHeld(world: World, p: PlayerState, e: Entity, input: PlayerIn
       useMelee(world, p, e, def, angle, input);
       return;
     case 'shoot':
-      useShoot(world, p, e, def, angle, press);
+      useShoot(world, p, e, def, angle, input, press);
       return;
     case 'cast':
       useCast(world, p, e, def, angle, input, press);

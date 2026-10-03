@@ -56,8 +56,6 @@ export const COMBAT = {
   failCooldown: 0.35,
   /** Default use cooldowns (seconds) when an item has none. */
   defaultCooldown: { swing: 0.4, thrust: 0.45, shoot: 0.5, cast: 0.6, throw: 0.45, consume: 0.6, place: 0.18 },
-  /** Thrown projectiles: speed multiplier for a full-distance aim, and minimum. */
-  throwPower: { min: 0.55, fullAt: 96 },
   mining: {
     /** Max distance (px) from the user's centre to the near edge of a mined tile (~2 tiles). */
     reach: 2 * TILE + 4,
