@@ -6,19 +6,25 @@ GDD §3 / §5 / §10 / §11. Everything under `src/sim` is pure and deterministi
 ## Tick integration
 
 - `progressionSystem` (exported from `xp.ts`, implemented in `system.ts`, slot fixed in `systems.ts`):
-  `chooseSkill` commands → skill offers → cooldowns + `PlayerInput.skill` activation → skill effect
-  entities → companions → Blight Wraith. Skill picks are processed even during hit-stop.
+  per-player run start for co-op players who joined mid-run (`startPlayer`: race start gold, run
+  stats) → `chooseSkill` commands → skill offers → cooldowns + `PlayerInput.skill` activation → skill
+  effect entities → companions (also keeps exactly one per player with a live owner entity: spawns
+  late joiners' / reconnecting players', removes departed players') → Blight Wraith. Skill picks are
+  processed even during hit-stop.
 - `exitSystem` (`run.ts`): boss watch (victory / arena unlock), defensive party-wipe check, portal
   countdown + majority vote → `travel`.
-- Level entry (`enterLevel`): spawns gen SpawnSpecs, applies Madcap enemy HP, revives downed/out
-  players at 1 HP, resets skill cooldowns, spawns companions, resets per-level `world.run` fields.
+- Level entry (`enterLevel`): records `level.request` (net level sync), spawns gen SpawnSpecs,
+  unseals a locked level whose boss can never appear (no boss entity / no spawn spec with a known
+  BossDef), applies Madcap enemy HP, revives downed/out players at 1 HP (not departed ones: dead
+  player entity), resets skill cooldowns, spawns companions, resets per-level `world.run` fields.
 
 ## Run flow
 
 `D1 (woods) → 3 portals (biomes allowed at the next depth, from BiomeDef.depths) → town (district =
 the one just cleared, biome = chosen) → gate → D2 …`; D3/6/9/12/15/18 are `kind: 'boss'`
 (`level.locked` until a boss seen alive is gone); D20's single portal (`biome: 'lair'`) leads straight
-to the lair (D21, no town, no exits). Killing `blightwall` (or any boss in the lair) → `run.victory`,
+to the lair (D21, no town, no exits). Killing `blightwall` (or, in the lair, every boss gone once one
+was seen — a boss-kind minion dying alone does not count) → `run.victory`,
 `run.over`, `runOver{victory:true}`. Portal options are seeded from (run seed, district, route), not
 `world.rng`. Solo portal use is immediate; co-op starts a 5 s countdown (message each second); at zero
 the exit with most active players wins, ties → the portal that started it.
