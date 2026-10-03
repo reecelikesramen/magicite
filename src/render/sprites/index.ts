@@ -38,3 +38,7 @@ export function registerBuiltinSprites(): void {
   registerCreatureSprites();
   registerNatureSprites();
 }
+
+// Built-ins are available as soon as anything imports this module (e.g. the HUD asking for item icons
+// before the Renderer exists). They sit at BUILTIN_PRIORITY, so registration order never matters.
+registerBuiltinSprites();
