@@ -47,6 +47,8 @@ export { gridHash } from './grid';
 
 /** Town level size (GDD §8: flat ≈ 90×30 street). */
 export const TOWN_SIZE = { w: [90, 100] as [number, number], h: 30 };
+/** Widest district (GDD §8: ≈ 160–260 tiles). Boss districts trade route length for their arena. */
+export const MAX_DISTRICT_W = 260;
 
 /**
  * Generate a level. PURE function of the request (and the static content tables): clients
@@ -71,7 +73,7 @@ export function generateLevel(req: LevelRequest): GeneratedLevel {
     h = rng.int(biome.size.h[0], biome.size.h[1]);
     if (req.kind === 'boss') {
       const a = arenaSize(biome.boss);
-      w = w - 30 + a.w + 4;
+      w = Math.min(w - 30 + a.w + 4, MAX_DISTRICT_W);
       h = Math.max(h, a.h + 14);
     }
   }
