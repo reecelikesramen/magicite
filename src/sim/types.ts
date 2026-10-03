@@ -88,6 +88,22 @@ export interface MeleeSwing {
   item: string;
 }
 
+/** One purchasable shop line (see src/sim/items/shop.ts). */
+export interface ShopEntry {
+  item: string;
+  /** Units left in stock (0 = sold out). */
+  count: number;
+  /** Gold per unit. */
+  price: number;
+}
+
+/** Shop NPC state: stock rolled once per NPC from the level seed (deterministic on every peer). */
+export interface ShopComp {
+  stock: ShopEntry[];
+  /** Shrine only: already prayed here this visit. */
+  used?: boolean;
+}
+
 export interface LightComp {
   radius: number;
   color: number;
@@ -151,6 +167,8 @@ export interface Entity {
   resource?: ResourceComp;
   swing?: MeleeSwing;
   light?: LightComp;
+  /** Shop NPCs: stock and prices (items workstream). */
+  shop?: ShopComp;
   /** Item id held/visible (players, armed enemies). */
   held?: string;
   /** Owner entity (companions, summons). */
@@ -307,7 +325,11 @@ export type PlayerCommand =
   | { type: 'chooseSkill'; path: string }
   | { type: 'buy'; npc: number; index: number }
   | { type: 'sell'; slot: number; count: number }
-  | { type: 'sort' };
+  | { type: 'sort' }
+  /** Split an inventory stack: half (rounded down) moves to the first empty slot. */
+  | { type: 'split'; slot: number }
+  /** Repair a worn item: at a nearby smith (gold) or by spending a repair_kit. */
+  | { type: 'repair'; slot: SlotRef };
 
 export type SlotRef = { kind: 'inv'; index: number } | { kind: 'equip'; slot: EquipSlot };
 
