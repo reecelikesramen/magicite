@@ -34,6 +34,8 @@ export interface BiomeStyle {
   trunk: number[];
   leaves: number[];
   ambientParticles: string;
+  /** The family's own ambient kind (used when `ambientParticles` names a kind the renderer lacks). */
+  ambientDefault: string;
   /** Portal interior / emissive accent for this biome (used for colour-coded exits). */
   portal: number;
 }
@@ -239,6 +241,7 @@ export function biomeStyle(id: string, def?: BiomeDef): BiomeStyle {
     trunk: k.trunk,
     leaves: k.leaves,
     ambientParticles: def?.ambientParticles || k.ambientParticles,
+    ambientDefault: k.ambientParticles,
     portal: PORTAL[family],
   };
   cache.set(key, style);

@@ -12,7 +12,7 @@ import { Compositor } from './compositor';
 import { EntityViews } from './entities';
 import { flicker, LightPool } from './lights';
 import { damageColor, WorldOverlay } from './overlay';
-import { updateAmbient } from './particles/ambient';
+import { resolveAmbient, updateAmbient } from './particles/ambient';
 import { emitPreset } from './particles/presets';
 import { ParticleSystem } from './particles/system';
 import { ParticleView } from './particles/view';
@@ -78,6 +78,8 @@ export class Renderer {
   private emitters: Emitter[] = [];
   private level: Level | null = null;
   private style: BiomeStyle = biomeStyle('woods');
+  /** Ambient particle kind of the level (content name, or the family default for unknown names). */
+  private ambientKind = 'fireflies';
   private lastNow = 0;
   private time = 0;
   private flash = 0;
@@ -142,6 +144,8 @@ export class Renderer {
     this.gridRef = level.grid;
     const def = Content.biomes.get(level.info.biome);
     this.style = biomeStyle(level.info.biome, def);
+    const amb = this.style.ambientParticles;
+    this.ambientKind = resolveAmbient(amb) !== undefined || amb === 'none' ? amb : this.style.ambientDefault;
     this.chunks.setLevel(level.grid, this.style);
     this.background.setStyle(this.style, level.info.seed + level.info.district);
     this.entities.clear();
@@ -363,7 +367,7 @@ export class Renderer {
     }
     this.entities.sync(world, alpha, dt, view, this.style, lights, halos, this.particles);
     this.liquidBubbles(view, dt);
-    updateAmbient(this.particles, this.style.ambientParticles, view, this.solidFn);
+    updateAmbient(this.particles, this.ambientKind, view, this.solidFn);
     this.particles.update(dt, this.time, this.solidFn);
     this.particleView.sync(this.particles, view, lights, halos);
     lights.end();

@@ -2,7 +2,7 @@ import { PF, type ParticleSystem, type SolidFn } from './system';
 
 /**
  * Biome ambient particles (BiomeDef.ambientParticles) kept alive around the camera:
- * fireflies, embers, snow, spores, sparkles, dust. Pure.
+ * fireflies, embers, snow, spores, sparkles, dust, bubbles. Pure.
  */
 export interface AmbientKind {
   /** Particles per 100×100 px of view. */
@@ -59,7 +59,29 @@ export const AMBIENT: Record<string, AmbientKind> = {
       ps.spawn(x, y, ps.range(-3, 3), ps.range(-2, 3), ps.range(6, 12), 1, pick(ps, [0x6a5e52, 0x8a7a6a]), PF.WANDER | PF.AMBIENT);
     },
   },
+  bubbles: {
+    density: 0.7,
+    spawn(ps, x, y) {
+      ps.spawn(x, y, ps.range(-2, 2), ps.range(-12, -5), ps.range(4, 8), 1, pick(ps, [0xbfe4ff, 0x8ad0f0, 0xe0f8ff]), PF.GLOW | PF.WANDER | PF.AMBIENT);
+    },
+  },
 };
+
+/** Other names content may use for the same ambient kinds (e.g. the gen workstream's biome defs). */
+const AMBIENT_ALIASES: Record<string, string> = {
+  firefly: 'fireflies', glowflies: 'fireflies',
+  ember: 'embers', ash: 'embers', sparks: 'embers',
+  snowfall: 'snow', flurries: 'snow',
+  spore: 'spores', fen_spores: 'spores', blight_motes: 'spores_pink', blight_spores: 'spores_pink', pink_spores: 'spores_pink',
+  sparkle: 'sparkles', crystal_motes: 'sparkles', crystal_sparkles: 'sparkles', motes: 'sparkles',
+  dust_motes: 'dust', cave_dust: 'dust',
+  bubble: 'bubbles',
+};
+
+/** The ambient kind for a content name (canonical names, then aliases); undefined if unknown or 'none'. */
+export function resolveAmbient(name: string): AmbientKind | undefined {
+  return AMBIENT[name] ?? AMBIENT[AMBIENT_ALIASES[name] ?? ''];
+}
 
 export interface ViewBox {
   x: number;
@@ -70,7 +92,7 @@ export interface ViewBox {
 
 /** Top up ambient particles of `kind` inside (and slightly beyond) the view. Returns spawned count. */
 export function updateAmbient(ps: ParticleSystem, kind: string, view: ViewBox, solid?: SolidFn, maxPerFrame = 6): number {
-  const k = AMBIENT[kind];
+  const k = resolveAmbient(kind);
   if (!k) return 0;
   const m = 24;
   ps.cullAmbient(view.x - m * 2, view.y - m * 2, view.x + view.w + m * 2, view.y + view.h + m * 2);

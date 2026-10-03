@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { lightTint, flicker } from '../../src/render/lights';
 import { damageColor, DAMAGE_COLORS } from '../../src/render/overlay';
-import { AMBIENT, updateAmbient } from '../../src/render/particles/ambient';
+import { AMBIENT, resolveAmbient, updateAmbient } from '../../src/render/particles/ambient';
+import { biomeStyle } from '../../src/render/style';
 import { emitPreset, GENERIC, PRESETS, resolvePreset } from '../../src/render/particles/presets';
 import { PF, ParticleSystem } from '../../src/render/particles/system';
 
@@ -90,6 +91,21 @@ describe('ambient particles', () => {
     updateAmbient(ps, 'fireflies', { x: 5000, y: 5000, w: 320, h: 180 });
     ps.update(0.01, 0);
     for (let i = 0; i < ps.count; i++) expect(ps.x[i]).toBeGreaterThan(4000);
+  });
+
+  it('resolves the names biome content uses (aliases) and has a kind for every family default', () => {
+    // Names used by the gen workstream's biome defs and the render spec.
+    for (const name of ['fireflies', 'spores', 'dust', 'snow', 'crystal_motes', 'embers', 'blight_motes', 'bubbles']) {
+      expect(resolveAmbient(name), name).toBeDefined();
+    }
+    expect(resolveAmbient('crystal_motes')).toBe(AMBIENT.sparkles);
+    expect(resolveAmbient('blight_motes')).toBe(AMBIENT.spores_pink);
+    expect(resolveAmbient('none')).toBeUndefined();
+    for (const fam of ['woods', 'fen', 'hollow', 'rime', 'amethyst', 'cinder', 'lair']) {
+      expect(resolveAmbient(biomeStyle(fam).ambientDefault), fam).toBeDefined();
+    }
+    const ps = new ParticleSystem(256);
+    expect(updateAmbient(ps, 'crystal_motes', { x: 0, y: 0, w: 320, h: 180 })).toBeGreaterThan(0);
   });
 
   it('never spawns inside solid tiles and ignores unknown kinds', () => {
