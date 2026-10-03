@@ -45,6 +45,25 @@ describe('client prediction step', () => {
     expect(he.hurt).toBe(0);
   });
 
+  it('carried-only entries are restored on rewind but never trigger one', () => {
+    const w = soloWorld(5);
+    const p = w.players[0]!;
+    const e = w.playerEntity(0)!;
+    const acc = new OwnerAccess(buildOwnerLayout(p, e));
+    const a = new Float64Array(acc.n);
+    const b = new Float64Array(acc.n);
+    acc.capture(p, e, a);
+    p.ctl.mineTicks = 17;
+    acc.capture(p, e, b);
+    expect(acc.equal(a, 0, b, 0)).toBe(true);
+    p.ctl.mineTicks = 0;
+    acc.restore(p, e, b);
+    expect(p.ctl.mineTicks).toBe(17);
+    e.x += 0.25;
+    acc.capture(p, e, b);
+    expect(acc.equal(a, 0, b, 0)).toBe(false);
+  });
+
   it('latches numeric button fields too (e.g. a dash direction added by the player workstream)', () => {
     const p = { prev: { jump: false, attack: false, interact: false, alt: false, dash: 0 } } as unknown as PlayerState;
     const inp = { ...emptyInput(), jump: true, dash: -1 } as unknown as PlayerInput;

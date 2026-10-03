@@ -22,6 +22,18 @@ export const PREDICTED_ENTITY_KEYS: readonly string[] = [
   'invuln', 'hurt',
 ];
 
+/**
+ * Owner-vector entries that are restored on a rewind but never *compared*: state the host advances
+ * in systems the client does not run (mining progress, meter timers and level bookkeeping that the
+ * player workstream keeps in `ctl`). Comparing them would force a rewind + replay on every snapshot
+ * (e.g. a hunger timer ticks every tick) without ever changing what the player sees; if they do
+ * matter for movement, the divergence still shows up in the compared motion fields.
+ */
+export const CARRIED_ONLY_KEYS: ReadonlySet<string> = new Set([
+  'ctl.mineX', 'ctl.mineY', 'ctl.mineTicks',
+  'ctl.manaT', 'ctl.hungerT', 'ctl.starveT', 'ctl.downedT', 'ctl.levelKey',
+]);
+
 export interface OwnerLayout {
   /** 'e.x', 'ctl.coyote', 'prev.jump', 'p.stamina' … */
   keys: string[];
@@ -59,6 +71,8 @@ export class OwnerAccess {
   private sect: Uint8Array;
   private names: string[];
   private bools: Uint8Array;
+  /** Indices compared by `equal` (everything except CARRIED_ONLY_KEYS). */
+  private readonly cmp: Int32Array;
   /** Index of e.x / e.y in the vector (for correction smoothing). */
   readonly ix: number;
   readonly iy: number;
@@ -75,6 +89,7 @@ export class OwnerAccess {
       this.names.push(key.slice(dot + 1));
       this.bools[i] = layout.bools[i] ? 1 : 0;
     });
+    this.cmp = Int32Array.from(layout.keys.flatMap((k, i) => (CARRIED_ONLY_KEYS.has(k) ? [] : [i])));
     this.ix = layout.keys.indexOf('e.x');
     this.iy = layout.keys.indexOf('e.y');
   }
@@ -99,10 +114,19 @@ export class OwnerAccess {
     }
   }
 
-  /** Exact comparison of two vectors (NaN in `a` = unknown → unequal). */
+  /** Exact comparison of two vectors over the compared entries (NaN in `a` = unknown → unequal). */
   equal(a: Float64Array, aOff: number, b: Float64Array, bOff: number): boolean {
-    for (let i = 0; i < this.n; i++) if (a[aOff + i] !== b[bOff + i]) return false;
+    const cmp = this.cmp;
+    for (let j = 0; j < cmp.length; j++) {
+      const i = cmp[j]!;
+      if (a[aOff + i] !== b[bOff + i]) return false;
+    }
     return true;
+  }
+
+  /** True if entry `i` takes part in `equal`. */
+  compared(i: number): boolean {
+    return !CARRIED_ONLY_KEYS.has(this.layout.keys[i]!);
   }
 }
 

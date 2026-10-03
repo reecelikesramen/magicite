@@ -4,7 +4,7 @@ import { addItem, countItem } from '../../src/sim/items/inventory';
 import { enterLevel, requestFor } from '../../src/sim/run';
 import type { GameEvent } from '../../src/sim/types';
 import { emptyInput } from '../../src/sim/types';
-import { TICK_MS, idle, makeRig, run, scripted } from './harness';
+import { TICK_MS, idle, makeRig, run, scripted, step } from './harness';
 
 describe('net sync details', () => {
   it('outside forces (knockback) are reconciled and the visual correction decays', () => {
@@ -27,6 +27,22 @@ describe('net sync details', () => {
     // Non-predicted fields of the own player come from the host.
     expect(ce.hp).toBe(pe.hp);
     expect(pe.hp).toBeLessThan(hp0);
+  });
+
+  it('host-only bookkeeping kept in ctl (mining progress, meter timers) does not force rewinds', () => {
+    const rig = makeRig({ clients: 1, conditions: { latencyMs: 60, jitterMs: 10 }, netSeed: 33 });
+    for (const e of rig.host.world.entities) if (e.kind === 'enemy') e.dead = true;
+    run(rig, 240);
+    const c = rig.clients[0]!;
+    const hp = rig.host.world.players[c.playerIndex]!;
+    const before = c.stats.reconciles;
+    for (let t = 0; t < 300; t++) {
+      hp.ctl.mineTicks = (hp.ctl.mineTicks + 1) % 40; // what the mining code does every tick
+      hp.ctl.mineX = 10 + (t % 3);
+      step(rig);
+    }
+    expect(c.stats.reconciles - before).toBe(0);
+    expect(c.stats.corrections).toBe(0);
   });
 
   it('remote entities are interpolated smoothly despite loss and jitter', () => {

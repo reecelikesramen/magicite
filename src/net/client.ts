@@ -616,7 +616,7 @@ export class ClientSession implements Session {
     if (DEBUG && wasPredicting) {
       const diffs: string[] = [];
       if (hs < 0) diffs.push('no-history');
-      else for (let i = 0; i < owner.n; i++) if (hist.states[hs + i] !== N.owner[i]) diffs.push(`${owner.layout.keys[i]}: ${hist.states[hs + i]} vs ${N.owner[i]}`);
+      else for (let i = 0; i < owner.n; i++) if (owner.compared(i) && hist.states[hs + i] !== N.owner[i]) diffs.push(`${owner.layout.keys[i]}: ${hist.states[hs + i]} vs ${N.owner[i]}`);
       if (hs >= 0 && hist.states[hs + owner.n] !== serverSwing) diffs.push(`swing ${hist.states[hs + owner.n]} vs ${serverSwing}`);
       console.log(`reconcile S=${S} pred=${this.predTick}`, diffs.join(', '));
     }

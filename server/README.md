@@ -63,6 +63,9 @@ Notes for integrators:
   same level the player comes back exactly as they left (position, downed/out); after a level change
   they enter the new level standing like everyone else. Treat the token as a secret.
 - UI actions go into `PlayerInput.commands` exactly as offline; the client sends them reliably.
+- Prediction contract (src/net/predict.ts): the owner's entity motion fields, every `ctl`/`prev` field
+  and `PREDICTED_PLAYER_KEYS` are rewound exactly. `ctl` fields the *host alone* advances (mining
+  progress, meter timers) belong in `CARRIED_ONLY_KEYS`, or every snapshot forces a rewind.
 - `client.stats` (RTT, corrections, lead, interpolation delay, input misses) and `host.clientStats()`
   (per-client bytes, misses, ack lag) are meant for a debug overlay.
 - Local test without network: `const net = new LoopbackNetwork({ conditions: { latencyMs: 60, jitterMs: 15, loss: 0.05 } })`,
