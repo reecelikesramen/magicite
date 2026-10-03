@@ -159,9 +159,10 @@ export function revealRecipe(world: World, p: PlayerState): string | null {
   const maxTier = tierForDistrict(world.level?.info.district ?? 1) + 1;
   const near: string[] = [];
   const any: string[] = [];
+  // Recipe keys are unique (Content throws on a duplicate pair), so no de-duplication is needed.
   for (const r of Content.recipeList) {
     const key = recipeKey(r.a, r.b);
-    if (p.knownRecipes.includes(key) || any.includes(key)) continue;
+    if (p.knownRecipes.includes(key)) continue;
     any.push(key);
     if ((Content.items.get(r.result)?.tier ?? 1) <= maxTier) near.push(key);
   }

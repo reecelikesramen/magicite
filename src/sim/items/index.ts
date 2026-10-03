@@ -1,7 +1,11 @@
 /** Public API of the items sim (inventory, crafting, equipment, consumables, shops, loot, repair). */
 export { commandSystem, runCommand, dropItem, splitStack, DROP_DELAY } from './commands';
 export { craft, findRecipe, stationAvailable, STATION_RANGE, type CraftOutcome } from './craft';
-export { applyConsume, useItemFromInventory, drinkMystery, revealRecipe, mostWorn, giveStatus, MYSTERY_TABLE } from './consume';
+export {
+  applyConsume, useItemFromInventory, drinkMystery, revealRecipe, mostWorn, giveStatus, MYSTERY_TABLE,
+  applyPermanent, healEntity, restoreDurability, KIT_REPAIR,
+} from './consume';
+export { deny, playerSfx } from './fx';
 export { equipFromInventory, unequip, swapSlots, slotAccepts, naturalSlot, isAccessorySlot, EQUIP_SLOTS } from './equip';
 export {
   addItem, addStack, makeStack, cloneStack, canMerge, countItem, removeItem, roomFor, firstEmpty, takeFromSlot, heldStack,
