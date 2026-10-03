@@ -20,7 +20,7 @@ import {
 import { type ClickResult, type InvState, clearSelection, invClick, newInvState, padPress, sanitize, stackAt } from './interaction';
 import { InventoryPanel } from './inventory';
 import { type Rect, type UiTarget, hitTestButtons, hitTestInventory, navNeighbor, navTargets, targetRect } from './layout';
-import { GamepadNav, UiKeys } from './nav';
+import { GAMEPLAY_PAD_BTNS, GamepadNav, HoldLatch, UiKeys } from './nav';
 import { ToastQueue } from './notify';
 import { Banner, DownedOverlay, Flash, PickupFeed, RunOverScreen, ToastView } from './overlays';
 import { SkillPanel, chooseSkillCommand, moveFocus, skillPanelVisible, skillTooltip } from './skillpanel';
@@ -74,6 +74,10 @@ export class Hud {
   private readonly dur = new DurabilityMemory();
   private readonly keys = new UiKeys();
   private readonly pad = new GamepadNav();
+  /** Keeps the pointer captured until release after a press the UI consumed. */
+  private readonly pressLatch = new HoldLatch();
+  /** Keeps uiFocus until the pad's gameplay buttons are released after a menu ends. */
+  private readonly focusLatch = new HoldLatch();
   private readonly navList = navTargets();
   /** Rects parallel to navList for the current layout (rebuilt on resize). */
   private navRects: Rect[] = [];
@@ -176,6 +180,8 @@ export class Hud {
     if (!p) {
       input.pointerCaptured = false;
       input.uiFocus = false;
+      this.pressLatch.reset();
+      this.focusLatch.reset();
       this.keys.endFrame();
       return;
     }
@@ -186,6 +192,9 @@ export class Hud {
     this.lastMouse.x = mx;
     this.lastMouse.y = my;
     let captured = false;
+    /** A mouse press this frame was handled by the UI (see pressLatch). */
+    let consumedPress = false;
+    const anyPress = input.mousePressed(0) || input.mousePressed(2);
     let tip: TipSpec | null = null;
 
     // Gold popups ("+5 Gold") from wallet changes (gold pickups don't emit 'pickup').
@@ -224,6 +233,8 @@ export class Hud {
       if (this.padMode) {
         cursor = this.updatePadCursor(p, input);
       } else if (!overSkills) {
+        // Judged before the click is applied: a drop-outside click empties the hand.
+        if (anyPress && (hover.kind !== 'outside' || this.state.held)) consumedPress = true;
         const shift = input.held('craftMod') || this.keys.clickShift;
         if (input.mousePressed(0)) this.apply(invClick(this.state, p, hover, 'primary', shift), input);
         if (input.mousePressed(2)) this.apply(invClick(this.state, p, hover, 'secondary', shift), input);
@@ -238,7 +249,10 @@ export class Hud {
     if (skillVisible) {
       const L = this.skills.L;
       skillHover = this.padMode && this.inventoryOpen ? -1 : hitTestButtons(L.buttons, mx, my);
-      if (rectContains(L.panel, mx, my)) captured = true;
+      if (rectContains(L.panel, mx, my)) {
+        captured = true;
+        consumedPress ||= anyPress;
+      }
       const offerKey = `${p.skillPicks}|${p.skillOffer.join(',')}`;
       if (this.pendingSkillT > 0) {
         this.pendingSkillT -= dt;
@@ -318,8 +332,12 @@ export class Hud {
     this.downed.update(world, playerIndex, dt, this.t, this.viewW, this.viewH, noticeTop);
     this.runOver.update(this.t, this.viewW, this.viewH);
 
-    input.pointerCaptured = captured;
-    input.uiFocus = (this.inventoryOpen && this.padMode) || this.skillKeyboard || this.runOver.shown;
+    // A consumed press stays captured until released: otherwise dropping an item outside the panel
+    // (or picking a skill, which hides the panel) turns the still-held button into an attack.
+    input.pointerCaptured = this.pressLatch.update(consumedPress, input.mouseLeft || input.mouseRight) || captured;
+    // Likewise a menu confirmed with pad A must not jump once focus ends while A is still down.
+    const focus = (this.inventoryOpen && this.padMode) || this.skillKeyboard || this.runOver.shown;
+    input.uiFocus = this.focusLatch.update(focus, this.pad.anyHeld(GAMEPLAY_PAD_BTNS));
     this.keys.endFrame();
   }
 

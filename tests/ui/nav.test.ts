@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GamepadNav } from '../../src/ui/nav';
+import { GAMEPLAY_PAD_BTNS, GamepadNav, HoldLatch } from '../../src/ui/nav';
 
 /** A minimal standard-mapping pad the test can poke. */
 function fakePad() {
@@ -67,11 +67,56 @@ describe('GamepadNav', () => {
     expect(nav.pressed('down')).toBe(true);
   });
 
+  it('anyHeld sees the gameplay buttons (A jump, X/RT attack, Y interact, LB/RB dash)', () => {
+    const nav = new GamepadNav();
+    nav.poll(1 / 60);
+    expect(nav.anyHeld(GAMEPLAY_PAD_BTNS)).toBe(false);
+    pad.buttons[7]!.pressed = true;
+    nav.poll(1 / 60);
+    expect(nav.anyHeld(GAMEPLAY_PAD_BTNS)).toBe(true);
+    pad.buttons[7]!.pressed = false;
+    pad.buttons[1]!.pressed = true; // B is menu-only
+    nav.poll(1 / 60);
+    expect(nav.anyHeld(GAMEPLAY_PAD_BTNS)).toBe(false);
+  });
+
   it('is inert without a connected pad', () => {
     vi.stubGlobal('navigator', { getGamepads: () => [null] });
     const nav = new GamepadNav();
     nav.poll(1 / 60);
     expect(nav.connected).toBe(false);
     expect(nav.anyPressed()).toBe(false);
+  });
+});
+
+describe('HoldLatch (UI presses never leak into gameplay)', () => {
+  it('a consumed click stays captured until the button is released', () => {
+    const l = new HoldLatch();
+    // Frame of the click that drops the held item outside the panel: consumed.
+    expect(l.update(true, true)).toBe(true);
+    // The hand is empty and the cursor is over the world, but the button is still down.
+    expect(l.update(false, true)).toBe(true);
+    expect(l.update(false, true)).toBe(true);
+    // Released: gameplay gets the mouse back.
+    expect(l.update(false, false)).toBe(false);
+    // A later press in the world is not captured.
+    expect(l.update(false, true)).toBe(false);
+  });
+
+  it('confirming a menu with A keeps focus until A is released (no jump)', () => {
+    const l = new HoldLatch();
+    expect(l.update(true, false)).toBe(true); // skill panel focused
+    expect(l.update(true, true)).toBe(true); // A goes down: pick sent, focus ends next frame
+    expect(l.update(false, true)).toBe(true); // A still held → still suppressed
+    expect(l.update(false, false)).toBe(false);
+  });
+
+  it('releases at once when nothing is held, and reset() clears it', () => {
+    const l = new HoldLatch();
+    l.update(true, false);
+    expect(l.update(false, false)).toBe(false);
+    l.update(true, true);
+    l.reset();
+    expect(l.update(false, true)).toBe(false);
   });
 });

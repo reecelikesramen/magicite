@@ -49,10 +49,34 @@ export class UiKeys {
   }
 }
 
-export type PadBtn = 'a' | 'b' | 'x' | 'y' | 'lb' | 'rb' | 'back' | 'start' | 'up' | 'down' | 'left' | 'right';
+export type PadBtn = 'a' | 'b' | 'x' | 'y' | 'lb' | 'rb' | 'lt' | 'rt' | 'back' | 'start' | 'up' | 'down' | 'left' | 'right';
 
 /** Standard-mapping button indices. */
-const PAD_INDEX: Record<PadBtn, number> = { a: 0, b: 1, x: 2, y: 3, lb: 4, rb: 5, back: 8, start: 9, up: 12, down: 13, left: 14, right: 15 };
+const PAD_INDEX: Record<PadBtn, number> = { a: 0, b: 1, x: 2, y: 3, lb: 4, rb: 5, lt: 6, rt: 7, back: 8, start: 9, up: 12, down: 13, left: 14, right: 15 };
+
+/** Pad buttons InputManager.sample() turns into gameplay (jump, attack, interact, alt, dash). */
+export const GAMEPLAY_PAD_BTNS: readonly PadBtn[] = ['a', 'x', 'y', 'lb', 'rb', 'lt', 'rt'];
+
+/**
+ * "Stay on until released": once `update(true, …)` is seen, keeps returning true while `held`
+ * stays true after the trigger ends. The Hud uses it so a press the UI consumed never leaks
+ * into gameplay — a click that dropped an item outside the panel (or picked a skill, hiding the
+ * panel) keeps the pointer captured until the mouse button is released, and confirming a menu
+ * with pad A keeps `uiFocus` until A is released (otherwise the still-held A reads as a jump).
+ */
+export class HoldLatch {
+  private latched = false;
+
+  update(trigger: boolean, held: boolean): boolean {
+    if (trigger) this.latched = true;
+    else if (!held) this.latched = false;
+    return this.latched;
+  }
+
+  reset(): void {
+    this.latched = false;
+  }
+}
 const N = 17;
 
 export class GamepadNav {
@@ -109,6 +133,11 @@ export class GamepadNav {
 
   held(b: PadBtn): boolean {
     return this.now[PAD_INDEX[b]]!;
+  }
+
+  anyHeld(btns: readonly PadBtn[]): boolean {
+    for (const b of btns) if (this.now[PAD_INDEX[b]]) return true;
+    return false;
   }
 
   /** Any face/d-pad press this frame (switches the UI into gamepad mode). */
