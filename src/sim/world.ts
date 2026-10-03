@@ -1,6 +1,7 @@
 import { Rng, type RngState } from '../engine/rng';
 import type { Rect } from '../engine/math';
 import { MAX_PLAYERS } from './constants';
+import type { LevelRequest } from './gen';
 import type { TileGrid } from './tiles';
 import type { BaseStats, Entity, EntityKind, GameEvent, PlayerInput, PlayerState, Team } from './types';
 import { emptyInput } from './types';
@@ -55,6 +56,8 @@ export interface Level {
   arena?: Rect;
   spawns: SpawnSpec[];
   lights: StaticLight[];
+  /** The request this level was generated from (net clients regenerate the level from it). */
+  request?: LevelRequest;
 }
 
 export interface RunState {
@@ -67,6 +70,25 @@ export interface RunState {
   ticks: number;
   /** Players who have entered the exit portal this level. */
   exited: number[];
+  // --- Run flow (progression workstream: src/sim/run.ts, src/sim/progression/wraith.ts) ---------
+  /** From PlayerSetup.difficulty (any 'madcap' player → madcap): tougher enemies, early Wraith. */
+  difficulty: 'normal' | 'madcap';
+  /**
+   * `ticks` when the current level was entered (Blight Wraith timer: level time = ticks − levelStart,
+   * see `levelTime()`). Stored as a start mark, not a per-tick counter, so RunState only changes on
+   * events (net resends it on change).
+   */
+  levelStart: number;
+  /** Blight Wraith progress this level: 0 none, 1–2 warnings shown, 3 spawned. */
+  wraithStage: number;
+  /** Blight Wraith entity id (0 = none). */
+  wraith: number;
+  /** Party portal countdown in ticks (0 = idle). */
+  portalTimer: number;
+  /** Exit index whose use started the countdown (wins vote ties); -1 = none. */
+  portalFirst: number;
+  /** A boss was seen alive in this level (its exits unlock once none remain). */
+  bossSeen: boolean;
 }
 
 export interface PlayerSetup {
@@ -107,7 +129,10 @@ export class World {
     private readonly systems: readonly System[],
   ) {
     this.rng = new Rng(seed);
-    this.run = { seed, path: [], over: false, victory: false, ticks: 0, exited: [] };
+    this.run = {
+      seed, path: [], over: false, victory: false, ticks: 0, exited: [],
+      difficulty: 'normal', levelStart: 0, wraithStage: 0, wraith: 0, portalTimer: 0, portalFirst: -1, bossSeen: false,
+    };
   }
 
   /** Advance one fixed tick. */

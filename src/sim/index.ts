@@ -1,5 +1,6 @@
 /** Public entry point of the simulation. Pure TS, no DOM: runs in the browser, Bun/Deno servers and tests. */
 import { addPlayer } from './player/create';
+import { runDifficulty } from './progression/difficulty';
 import { enterLevel, requestFor } from './run';
 import { SYSTEMS } from './systems';
 import { World, type PlayerSetup } from './world';
@@ -11,6 +12,7 @@ export * from './types';
 /** Create a world, add players, and load district 1. */
 export function createRun(seed: number, setups: PlayerSetup[]): World {
   const world = new World(seed, SYSTEMS);
+  world.run.difficulty = runDifficulty(setups);
   for (const s of setups) addPlayer(world, s);
   enterLevel(world, requestFor(world, 1));
   return world;
