@@ -280,10 +280,21 @@ describe('AudioManager sfx', () => {
 
   it('applies volume settings to the buses', () => {
     const { fake, am } = setup();
+    am.setVolumes({ music: 0.5, sfx: 0.5 }); // before unlock: remembered
     am.unlock();
     am.setVolumes({ master: 0.25 });
-    const gains = fake.created.filter((n) => n.kind === 'gain') as unknown as { gain: { value: number } }[];
-    expect(gains.some((g) => Math.abs(g.gain.value - 0.25) < 1e-9)).toBe(true);
+    type G = FakeNode & { gain: { value: number } };
+    const gains = fake.created.filter((n) => n.kind === 'gain') as G[];
+    const master = gains.find((g) => g.outputs.some((o) => o.kind === 'compressor'))!;
+    expect(master.gain.value).toBeCloseTo(0.25, 9);
+    const buses = gains.filter((g) => g.outputs.includes(master));
+    expect(buses.length).toBe(2); // music + sfx
+    const before = buses.map((b) => b.gain.value);
+    for (const v of before) expect(v).toBeGreaterThan(0);
+    am.setVolumes({ music: 0, sfx: 0 });
+    expect(buses.map((b) => b.gain.value)).toEqual([0, 0]);
+    am.setVolumes({ music: 1, sfx: 1 });
+    buses.forEach((b, i) => expect(b.gain.value).toBeCloseTo(before[i]! * 2, 9));
   });
 });
 
