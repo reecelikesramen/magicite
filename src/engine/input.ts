@@ -45,6 +45,12 @@ export class InputManager {
   screenToWorld: (sx: number, sy: number) => { x: number; y: number } = (x, y) => ({ x, y });
   /** True while the UI wants pointer input (inventory open) so clicks don't attack. */
   pointerCaptured = false;
+  /**
+   * True while a UI menu has keyboard/gamepad focus (gamepad inventory cursor, skill-path pick,
+   * run-over screen): movement/actions are suppressed so menu keys don't also jump or attack.
+   * Aim and queued UI commands still flow.
+   */
+  uiFocus = false;
   private queuedCommands: PlayerInput['commands'] = [];
   private keys = DEFAULT_KEYS;
 
@@ -146,6 +152,11 @@ export class InputManager {
     }
     for (let i = 0; i < 5; i++) if (this.pressed(`slot${i + 1}` as Action)) inp.select = i;
     for (let i = 0; i < 3; i++) if (this.pressed(`skill${i + 1}` as Action)) inp.skill = i;
+    if (this.uiFocus) {
+      inp.moveX = inp.moveY = 0;
+      inp.jump = inp.attack = inp.alt = inp.interact = false;
+      inp.select = inp.skill = -1;
+    }
     inp.commands = this.queuedCommands;
     this.queuedCommands = [];
     return inp;

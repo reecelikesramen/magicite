@@ -77,6 +77,25 @@ export function durabilityFrac(stack: ItemStack | null, def: ItemDef | undefined
   return max > 0 ? Math.max(0, Math.min(1, stack.durability / max)) : null;
 }
 
+/**
+ * Remembers the largest durability seen per item id so a bar can be drawn even when the item
+ * def has no explicit max (fresh items are first seen at full durability).
+ */
+export class DurabilityMemory {
+  private max = new Map<string, number>();
+
+  frac(stack: ItemStack | null): number | null {
+    if (!stack || stack.durability === undefined) return null;
+    const prev = this.max.get(stack.id) ?? 0;
+    if (stack.durability > prev) this.max.set(stack.id, stack.durability);
+    return durabilityFrac(stack, Content.items.get(stack.id), this.max.get(stack.id));
+  }
+
+  seenMax(id: string): number | undefined {
+    return this.max.get(id);
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Tooltips
 // ---------------------------------------------------------------------------------------------
