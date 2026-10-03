@@ -68,11 +68,13 @@ const BREAK_BY_TOOL: Readonly<Record<string, string>> = {
  * crack like rock), else by def id prefix (tree_*, rock_*, chest_*, bug_*, plants…).
  */
 export function resourceBreakSfx(def: string): string {
+  // Containers first: chests/pots are opened by hand, so the tool table would call them 'harvest'.
+  if (def.startsWith('chest_')) return 'chest_open';
+  if (def === 'pot' || def.startsWith('pot_')) return 'break';
   const tool = Content.resources.get(def)?.tool;
   if (tool !== undefined && Object.prototype.hasOwnProperty.call(BREAK_BY_TOOL, tool)) return BREAK_BY_TOOL[tool]!;
   if (def.startsWith('tree_')) return 'tree_fall';
   if (def.startsWith('rock_')) return 'rock_break';
-  if (def.startsWith('chest_')) return 'chest_open';
   if (def.startsWith('bug_')) return 'pickup';
   if (def.startsWith('plant_') || def.startsWith('bush_') || def.endsWith('_patch')) return 'harvest';
   return 'break';

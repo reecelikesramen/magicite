@@ -132,6 +132,7 @@ describe('GameEvent → sound mapping', () => {
     expect(resourceBreakSfx('pot')).toBe('break');
     // Content defs decide by their harvesting tool, whatever the id looks like.
     for (const def of Content.resources.values()) {
+      if (def.id.startsWith('chest_') || def.id === 'pot' || def.id.startsWith('pot_')) continue; // containers: checked above
       const want = def.tool === 'axe' ? 'tree_fall' : def.tool === 'pickaxe' || def.tool === 'hammer' ? 'rock_break' : def.tool === 'net' ? 'pickup' : 'harvest';
       expect(resourceBreakSfx(def.id), def.id).toBe(want);
     }
