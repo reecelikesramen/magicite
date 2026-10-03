@@ -253,6 +253,21 @@ describe('AudioManager sfx', () => {
     expect(sources(fakes[1]!).length).toBe(1);
   });
 
+  it('survives malformed events (NaN position / volume / pitch) without leaking a voice slot', async () => {
+    const { fake, am } = await ready();
+    am.handleEvents([
+      { type: 'sfx', id: 'hit', x: NaN, y: 0 },
+      { type: 'sfx', id: 'coin', x: 1, y: 1, volume: NaN },
+    ]);
+    expect(sources(fake).length).toBe(0);
+    am.handleEvents([{ type: 'sfx', id: 'jump', x: 1, y: 1, pitch: NaN }]);
+    const src = sources(fake)[0] as unknown as { playbackRate: { value: number } };
+    expect(src.playbackRate.value).toBe(1);
+    fake.currentTime += 0.1;
+    am.handleEvents([{ type: 'sfx', id: 'hit', x: 1, y: 1 }]);
+    expect(sources(fake).length).toBe(2);
+  });
+
   it('is silent while the context is suspended, and unlock resumes it', async () => {
     const { fake, am } = await ready();
     fake.state = 'suspended';

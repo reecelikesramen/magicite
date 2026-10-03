@@ -322,12 +322,15 @@ export class AudioManager {
       gain *= s.gain;
       pan = s.pan;
     }
-    if (gain < 0.01) return false;
+    // `!(>=)` also rejects NaN (a sim event with an undefined coordinate or volume): AudioParams throw on
+    // non-finite values, and that would happen after the voice limiter had already counted the voice.
+    if (!(gain >= 0.01)) return false;
+    if (!Number.isFinite(gain)) gain = 1;
     const buf = this.getBuffer(key);
     if (!buf) return false;
     const vary = preset.vary ?? DEFAULT_VARY;
     let rate = pitch * (1 + (Math.random() * 2 - 1) * vary);
-    rate = rate < 0.25 ? 0.25 : rate > 4 ? 4 : rate;
+    rate = !Number.isFinite(rate) ? 1 : rate < 0.25 ? 0.25 : rate > 4 ? 4 : rate;
     const now = ctx.currentTime;
     if (!this.limiter.tryStart(key, now, buf.duration / rate, preset.voices ?? DEFAULT_VOICES, preset.gap ?? DEFAULT_GAP)) return false;
     try {
