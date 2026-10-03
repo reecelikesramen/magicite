@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ClientSession } from '../../src/net/client';
+import { applyDamage } from '../../src/sim/combat/damage';
 import { enterLevel, requestFor } from '../../src/sim/run';
 import { Tile } from '../../src/sim/tiles';
 import type { World } from '../../src/sim/world';
@@ -219,6 +220,76 @@ describe('net sessions over a lossy loopback', () => {
     run(rig, 30);
     expect(a.state).toBe('disconnected');
     expect(b2.state).toBe('disconnected');
+  });
+
+  it('(f2) a reconnect that beats crash detection takes the slot over instead of adding a player', () => {
+    const rig = makeRig({ clients: 1, conditions: { latencyMs: 30, jitterMs: 5 }, netSeed: 41 });
+    run(rig, 200);
+    const events: string[] = [];
+    rig.host.onPlayerLeave = (i, name, reason) => events.push(`leave ${i} ${name} ${reason}`);
+    rig.host.onPlayerJoin = (i, name, re) => events.push(`join ${i} ${name} ${re}`);
+    const old = rig.clients[0]!;
+    const index = old.playerIndex;
+    // "Page reload": a new connection with the saved token while the old one still looks alive.
+    const fresh = addClient(rig, 'P1', old.token);
+    run(rig, 120);
+    expect(fresh.state).toBe('joined');
+    expect(fresh.playerIndex).toBe(index);
+    expect(fresh.token).toBe(old.token);
+    expect(rig.host.world.players.length).toBe(2);
+    expect(rig.host.remoteCount).toBe(1);
+    expect(old.state).toBe('disconnected');
+    expect(old.reason).toBe('replaced');
+    expect(events).toEqual([`leave ${index} P1 replaced`, `join ${index} P1 true`]);
+    run(rig, 120, idle, idle);
+    expect(playerError(rig, fresh)).toBeLessThanOrEqual(1);
+  });
+
+  it('(f3) leaving does not revive a downed player in the same level; after a level change they stand up', () => {
+    const rig = makeRig({ clients: 1, conditions: { latencyMs: 30 }, netSeed: 43 });
+    run(rig, 200);
+    const hw = rig.host.world;
+    const c = rig.clients[0]!;
+    const index = c.playerIndex;
+    const p = hw.players[index]!;
+    const e = hw.get(p.entityId)!;
+    applyDamage(hw, e, e.hp + 10);
+    expect(p.downed).toBe(true);
+    run(rig, 10);
+    const pos = { x: e.x, y: e.y };
+
+    const crashAndRejoin = (name: string): ClientSession => {
+      const token = rig.clients[rig.clients.length - 1]!.token;
+      rig.clientT[rig.clientT.length - 1]!.crash();
+      run(rig, 150); // crash detection (2 s)
+      expect(p.out).toBe(true); // hidden while away
+      const back = addClient(rig, name, token);
+      run(rig, 60);
+      expect(back.state).toBe('joined');
+      expect(back.playerIndex).toBe(index);
+      return back;
+    };
+
+    crashAndRejoin('P1');
+    expect(p.downed).toBe(true);
+    expect(p.out).toBe(false);
+    expect(e.dead).toBe(false);
+    expect(e.hp).toBe(0);
+    expect({ x: e.x, y: e.y }).toEqual(pos); // no free teleport to the party either
+
+    // Away during a level change → enters the new level like everyone else (standing, ≥ 1 HP).
+    const token = rig.clients[rig.clients.length - 1]!.token;
+    rig.clientT[rig.clientT.length - 1]!.crash();
+    run(rig, 150);
+    enterLevel(hw, requestFor(hw, 2));
+    run(rig, 10);
+    const back = addClient(rig, 'P1', token);
+    run(rig, 120);
+    expect(back.playerIndex).toBe(index);
+    expect(p.downed).toBe(false);
+    expect(p.out).toBe(false);
+    expect(e.hp).toBeGreaterThanOrEqual(1);
+    expect(back.epoch).toBe(rig.host.epoch);
   });
 
   it('own predicted events are not duplicated by the host echo', () => {

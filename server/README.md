@@ -20,7 +20,7 @@ required server of ours: by default players connect peer-to-peer over WebRTC, wi
 | **P2P listen server** (default) | Host and clients `joinTrysteroRoom({ roomCode })`; the host runs `HostSession`, the others `ClientSession`. Signaling over public Nostr relays; game traffic is direct WebRTC. | Normal play. Zero infrastructure. |
 | P2P + self-hosted signaling | Same, with `relayUrls: ['wss://relay.example.org']` (any Nostr relay: `strfry`, `nostr-rs-relay`), or another trystero strategy via `joinRoom` (`@trystero-p2p/torrent`, `…/mqtt`, `…/supabase`, `…/firebase`). | Public relays are flaky/blocked, or for privacy. |
 | P2P + TURN | Pass `turnConfig` (e.g. Cloudflare Realtime TURN, coturn). | Players behind symmetric NAT / strict firewalls. |
-| **Dedicated server** | `bun server/dedicated.ts` (WebSocket, no local player); clients use `connectWebSocket('wss://…')`. | Always-on rooms, WebRTC-less webviews (some Linux WebKitGTK), LAN parties. |
+| **Dedicated server** | `bun server/dedicated.ts` (WebSocket, no local player); clients use `connectWebSocket('wss://…')`. The run holds still while nobody is connected. | Always-on rooms, WebRTC-less webviews (some Linux WebKitGTK), LAN parties. |
 | Relay fallback (planned) | A Cloudflare Worker + Durable Object per room code that forwards `wsTransport` frames between the host and clients. Same framing as the dedicated server, so `WebSocketClientTransport` works unchanged; the host side needs a small "relay host" transport. | When P2P cannot connect at all. |
 
 ## Wiring a lobby (for the menus/lobby workstream)
@@ -58,6 +58,10 @@ Notes for integrators:
 - Drive `session.tick()` from the normal `FixedLoop` (60 Hz). Keep the host's tab visible (or move the
   host loop into a Worker later): browsers throttle `requestAnimationFrame` in background tabs.
 - `client.localPlayers` is filled on Welcome (`[assignedIndex]`); `Game.localPlayer` already reads it.
+- Reconnects: a Hello carrying a saved token reclaims that player's slot — also from a connection the
+  host still thinks is alive (page reload), which is then dropped with reason `'replaced'`. Within the
+  same level the player comes back exactly as they left (position, downed/out); after a level change
+  they enter the new level standing like everyone else. Treat the token as a secret.
 - UI actions go into `PlayerInput.commands` exactly as offline; the client sends them reliably.
 - `client.stats` (RTT, corrections, lead, interpolation delay, input misses) and `host.clientStats()`
   (per-client bytes, misses, ack lag) are meant for a debug overlay.

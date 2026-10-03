@@ -139,6 +139,15 @@ export interface HostClientStats {
   ackLagTicks: number;
 }
 
+/** A remote player who left (or crashed): their slot is kept for a reconnect with the token. */
+interface Departed {
+  index: number;
+  /** Level epoch at departure: a reconnect into the same level restores the death state below. */
+  epoch: number;
+  downed: boolean;
+  out: boolean;
+}
+
 interface QueuedPacket {
   peer: PeerId;
   channel: Channel;
@@ -177,8 +186,8 @@ export class HostSession implements Session {
   private readonly scratchInputs: [PlayerInput, PlayerInput] = [emptyInput(), emptyInput()];
   private readonly inputs: PlayerInput[] = [];
   private readonly clients = new Map<PeerId, RemoteClient>();
-  /** Reconnect token → player index of departed remote players. */
-  private readonly departed = new Map<string, number>();
+  /** Reconnect token → departed remote player. */
+  private readonly departed = new Map<string, Departed>();
   private readonly queue: QueuedPacket[] = [];
   private readonly unsubs: (() => void)[] = [];
   private pending: GameEvent[] = [];
@@ -258,6 +267,9 @@ export class HostSession implements Session {
     if (this.disposed) return;
     this.processIncoming();
     this.checkTimeouts();
+    // A host without local players (dedicated server) holds the run still while nobody is connected:
+    // no Blight timer before the first join, and departed (= out) players can't wipe the party.
+    if (this.localPlayers.length === 0 && this.clients.size === 0) return;
     const world = this.world;
     const T = world.tick;
     for (let i = 0; i < MAX_PLAYERS; i++) this.inputs[i] = EMPTY_INPUT;
@@ -379,11 +391,22 @@ export class HostSession implements Session {
     if (hello.stringHash !== this.strings.hash) return this.reject(peer, 'content mismatch: different game build');
     const world = this.world;
     let index = -1;
-    let reconnect = false;
-    if (hello.token && this.departed.has(hello.token)) {
-      index = this.departed.get(hello.token)!;
+    let prior: Departed | undefined;
+    if (hello.token) {
+      // A reconnect (page reload, network switch) usually arrives before the old connection has been
+      // detected as dead: the newer connection takes the slot over instead of creating a second player.
+      for (const old of this.clients.values()) {
+        if (old.token === hello.token) {
+          this.dropClient(old, 'replaced');
+          break;
+        }
+      }
+      prior = this.departed.get(hello.token);
+    }
+    const reconnect = prior !== undefined;
+    if (prior) {
+      index = prior.index;
       this.departed.delete(hello.token);
-      reconnect = true;
     } else {
       if (world.players.length >= this.maxPlayers) return this.reject(peer, 'game is full');
       const p = addPlayer(world, hello.setup);
@@ -391,12 +414,22 @@ export class HostSession implements Session {
     }
     const p = world.players[index]!;
     const e = world.get(p.entityId)!;
-    if (reconnect) {
-      p.out = false;
+    if (prior) {
       e.dead = false;
-    }
-    this.placeNearParty(index);
-    const token = reconnect ? hello.token : this.makeToken();
+      if (prior.epoch === this.epoch) {
+        // Same level: leaving must not revive a downed/out player (GDD: out for the district), nor
+        // teleport anyone to the party — they come back where and how they left.
+        p.downed = prior.downed;
+        p.out = prior.out;
+      } else {
+        // The party moved on meanwhile; like everyone else they enter the new level standing (≥ 1 HP).
+        p.downed = false;
+        p.out = false;
+        if (e.hp < 1) e.hp = 1;
+        this.placeNearParty(index);
+      }
+    } else this.placeNearParty(index);
+    const token = prior ? hello.token : this.makeToken();
     const owner = new OwnerAccess(buildOwnerLayout(p, e));
     const c: RemoteClient = {
       peer, index, token, owner, inputs: new InputRing(), last: emptyInput(), cur: emptyInput(), commands: [], ackTick: 0,
@@ -430,9 +463,14 @@ export class HostSession implements Session {
     this.transport.send(peer, 'reliable', encodeReason(Msg.Reject, reason, true));
   }
 
+  /** Reconnect tokens are bearer secrets (they reclaim a slot, even from a live connection). */
   private makeToken(): string {
+    const words = new Uint32Array(4);
+    const c = (globalThis as { crypto?: { getRandomValues?: (a: Uint32Array) => Uint32Array } }).crypto;
+    if (c?.getRandomValues) c.getRandomValues(words);
+    else for (let i = 0; i < 4; i++) words[i] = this.tokenRng.nextU32();
     let s = '';
-    for (let i = 0; i < 4; i++) s += this.tokenRng.nextU32().toString(36);
+    for (let i = 0; i < 4; i++) s += words[i]!.toString(36).padStart(7, '0');
     return s;
   }
 
@@ -468,11 +506,11 @@ export class HostSession implements Session {
     if (!this.clients.delete(c.peer)) return;
     const p = this.world.players[c.index];
     if (p) {
-      this.departed.set(c.token, c.index);
+      this.departed.set(c.token, { index: c.index, epoch: this.epoch, downed: p.downed, out: p.out });
       this.hidePlayer(c.index);
       this.onPlayerLeave?.(c.index, p.name, reason);
     }
-    if (reason === 'timed out') this.transport.send(c.peer, 'reliable', encodeReason(Msg.Leave, reason, true));
+    if (reason === 'timed out' || reason === 'replaced') this.transport.send(c.peer, 'reliable', encodeReason(Msg.Leave, reason, true));
   }
 
   private hidePlayer(index: number): void {
@@ -491,7 +529,7 @@ export class HostSession implements Session {
 
   /** Departed players stay out even if a system revives `out` players on a new level. */
   private assertDeparted(): void {
-    for (const index of this.departed.values()) {
+    for (const { index } of this.departed.values()) {
       const p = this.world.players[index];
       if (p && !p.out) this.hidePlayer(index);
       else if (p) {

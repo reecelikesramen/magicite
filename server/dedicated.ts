@@ -6,7 +6,7 @@
  *
  * Clients connect with `connectWebSocket('ws://host:8787')` (src/net/wsTransport.ts) and a normal
  * ClientSession. The server has no local players; the run starts when the first player joins and
- * keeps going while anyone is connected. See server/README.md.
+ * holds still whenever nobody is connected (HostSession does not step an empty world). See server/README.md.
  */
 import { HostSession } from '../src/net/host';
 import { type WebSocketLike, WebSocketServerTransport } from '../src/net/wsTransport';

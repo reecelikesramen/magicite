@@ -61,6 +61,9 @@ describe('websocket transport', () => {
       pairs.push({ c, s });
       clients.push(new ClientSession({ transport, setup: setupFor(name), clock }));
     };
+    // Nobody connected yet: the run does not start (no Blight timer ticking on an empty server).
+    for (let t = 0; t < 30; t++) host.tick(new Map());
+    expect(host.world.tick).toBe(0);
     connect('A');
     connect('B');
     for (let t = 0; t < 300; t++) {
@@ -86,5 +89,13 @@ describe('websocket transport', () => {
     host.tick(new Map());
     expect(host.world.players[1]!.out).toBe(true);
     expect(host.remoteCount).toBe(1);
+
+    // Last player gone → the world holds still until someone (re)joins.
+    pairs[0]!.c.close();
+    host.tick(new Map());
+    const frozen = host.world.tick;
+    for (let t = 0; t < 60; t++) host.tick(new Map());
+    expect(host.world.tick).toBe(frozen);
+    expect(host.world.run.over).toBe(false);
   });
 });
