@@ -64,6 +64,17 @@ describe('presets', () => {
     expect(resolvePreset('totally_new_effect')).toBe(GENERIC);
   });
 
+  it('maps the preset names other workstreams emit to real presets (not the generic burst)', () => {
+    const emitted = [
+      'airjump', 'arrow_break', 'block', 'bounce', 'cast', 'clink', 'deflect', 'dig', 'explosion', 'fizzle', 'immune',
+      'item_break', 'place', 'pogo', 'status_shield', 'steam', 'teleport', 'tile_break', 'blessing', 'mystery', 'repair',
+      'lava_burn', 'poof', 'revive', 'spike', 'arcane_ward', 'blink', 'dash', 'ember_trail', 'feathers', 'fire_burst',
+      'frost_nova', 'heal', 'iron_skin', 'level_up', 'lightning', 'shield', 'skill_learn', 'slam', 'slash', 'smoke',
+      'trap_snap', 'war_cry', 'whirlwind', 'wraith', 'wraith_spawn', 'zap', 'wood_chips', 'rock_chips',
+    ];
+    for (const name of emitted) expect(resolvePreset(name), name).not.toBe(GENERIC);
+  });
+
   it('event colour and count override the preset', () => {
     const ps = new ParticleSystem(64);
     expect(emitPreset(ps, 'wood_chips', 0, 0, { count: 3, color: 0x123456 })).toBe(3);

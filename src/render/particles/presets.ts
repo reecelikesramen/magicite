@@ -58,6 +58,10 @@ export const PRESETS: Record<string, Preset> = {
   bubble: { count: 1, life: [0.6, 1.2], speed: [8, 16], angle: UP, spread: 0.3, gravity: -10, drag: 1, size: [1, 1], colors: [0xbfe4ff], flags: PF.FADE },
   trail_fire: { count: 1, life: [0.15, 0.3], speed: [0, 8], angle: UP, spread: ALL, gravity: -20, drag: 2, size: [1, 1], colors: [0xffb030, 0xff8020], flags: PF.GLOW | PF.FADE },
   trail_magic: { count: 1, life: [0.2, 0.4], speed: [0, 10], angle: 0, spread: ALL, gravity: 0, drag: 2, size: [1, 1], colors: [0xffffff, 0x80ffff, 0xd090ff], flags: PF.GLOW | PF.FADE },
+  dust_puff: { count: 6, life: [0.3, 0.6], speed: [8, 28], angle: UP, spread: ALL, gravity: -15, drag: 4, size: [1, 2], colors: [0x8a7a6a, 0x6a5a4a, 0xa89a88], flags: PF.FADE, jitter: 3 },
+  steam: { count: 8, life: [0.5, 1.0], speed: [8, 24], angle: UP, spread: 0.6, gravity: -40, drag: 2, size: [1, 2], colors: [0xd8e0e8, 0xb8c4d0, 0xf0f4f8], flags: PF.FADE, jitter: 3 },
+  frost: { count: 14, life: [0.3, 0.7], speed: [20, 70], angle: 0, spread: ALL, gravity: 20, drag: 3, size: [1, 1], colors: [0xe0f8ff, 0x9ad8f0, 0xffffff], flags: PF.GLOW | PF.FADE, jitter: 2 },
+  zap: { count: 8, life: [0.08, 0.2], speed: [60, 140], angle: 0, spread: ALL, gravity: 0, drag: 8, size: [1, 1], colors: [0xffffff, 0xfff080, 0xe9e682], flags: PF.GLOW | PF.FADE | PF.LIGHT },
   trail_dots: { count: 1, life: [0.12, 0.2], speed: [0, 0], angle: 0, spread: 0, gravity: 0, drag: 0, size: [1, 1], colors: [0xd8d8d8], flags: PF.FADE },
 };
 
@@ -74,6 +78,15 @@ const ALIASES: Record<string, string> = {
   sparkle: 'magic', arcane: 'magic', cast: 'magic', coin: 'coin_sparkle', gold: 'coin_sparkle',
   level_up: 'levelup', explode: 'explosion', bomb: 'explosion', death: 'death_burst',
   regen: 'heal', water: 'splash', fire_trail: 'trail_fire', magic_trail: 'trail_magic',
+  // Names emitted by the combat / player / progression / items workstreams.
+  tile_break: 'dust_puff', clink: 'hit_spark', block: 'hit_spark', deflect: 'hit_spark', bounce: 'hit_spark',
+  slash: 'hit_spark', item_break: 'rock_chips', arrow_break: 'wood_chips', trap_snap: 'rock_chips',
+  fizzle: 'smoke', immune: 'poof', place: 'dust_puff', pogo: 'jump_puff', slam: 'dust_land', spike: 'blood',
+  lava_burn: 'fire', fire_burst: 'fire', ember_trail: 'trail_fire', revive: 'heal', repair: 'coin_sparkle',
+  teleport: 'magic', blink: 'magic', mystery: 'magic', status_shield: 'magic', shield: 'magic', iron_skin: 'magic',
+  arcane_ward: 'magic', war_cry: 'magic', blessing: 'levelup', skill_learn: 'levelup', whirlwind: 'dash',
+  frost_nova: 'frost', ice: 'frost', freeze: 'frost', lightning: 'zap', thunder: 'zap', shock: 'zap',
+  wraith: 'smoke', wraith_spawn: 'smoke', feathers: 'poof', vapor: 'steam',
 };
 
 export function resolvePreset(name: string): Preset {
