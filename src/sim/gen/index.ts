@@ -15,7 +15,8 @@
  * - chests / pots (`kind: 'resource'`, defs chest_wood / chest_iron / pot): `lootTier` (0 pot,
  *   1 wooden, 2 iron, +1 for `secret: 1` sealed rooms, +district/6), roll loot from it.
  * - enemies: `point` = the spawn-point kind they were placed on (ground/air/ceiling/turret).
- * - boss: `arena: 1`. npcs: `role` (= def). chickens: `critter: 1` (kind 'npc' unless an enemy def
+ * - boss: `arena: 1`, plus `doorX0 doorY0 doorX1 doorY1` (tiles, inclusive) of the opening in the arena's
+ *   left wall in boss districts — fill it with BEDROCK while the fight runs (GDD: arena locks). npcs: `role` (= def). chickens: `critter: 1` (kind 'npc' unless an enemy def
  *   named 'chicken' exists). props: `decor: 1`, `hang: 1` when hanging from a ceiling (y = bottom
  *   of the cell under the ceiling).
  * - ceiling resources (placement 'ceiling'): y = the ceiling surface (spawn.ts hangs them below).
@@ -184,5 +185,8 @@ function bossSpawn(ctx: GenCtx, biome: BiomeDef, a: TRect, at: number): void {
       break;
     }
   }
-  ctx.spawns.push({ kind: 'boss', def: biome.boss, x: x * TILE + TILE / 2, y: (a.y1 + 1) * TILE, data: { arena: 1 } });
+  const data: Record<string, number> = { arena: 1 };
+  const door = ctx.arenaDoor;
+  if (door) Object.assign(data, { doorX0: door.x0, doorY0: door.y0, doorX1: door.x1, doorY1: door.y1 });
+  ctx.spawns.push({ kind: 'boss', def: biome.boss, x: x * TILE + TILE / 2, y: (a.y1 + 1) * TILE, data });
 }

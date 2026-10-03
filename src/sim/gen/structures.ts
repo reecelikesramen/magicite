@@ -106,6 +106,7 @@ export function buildArena(ctx: GenCtx, x0: number, floorRow: number, size: Aren
     for (let y = floorRow - 4; y < floorRow; y++) grid.fg[y * w + x] = Tile.AIR;
     grid.fg[floorRow * w + x] = Tile.GROUND;
   }
+  ctx.arenaDoor = { x0, y0: floorRow - 4, x1: ix0 - 1, y1: floorRow - 1 };
   // Exit ledge (3 tiles up) with the portals, against the right wall.
   let fightX1 = ix1;
   if (exitBiomes) {

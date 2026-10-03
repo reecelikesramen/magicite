@@ -67,6 +67,8 @@ export interface GenCtx {
   exits: ExitPortal[];
   /** Boss arena interior (tiles). */
   arena?: TRect;
+  /** Opening in the arena's left wall (tiles); the boss fight seals it. */
+  arenaDoor?: TRect;
   spawns: SpawnSpec[];
   points: SpawnPoint[];
   lights: StaticLight[];

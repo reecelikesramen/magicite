@@ -113,6 +113,10 @@ describe.each(COMBAT_BIOMES)('level gen: %s', (biome) => {
       for (const e of l.exits) expect(rectsOverlap(e, arena)).toBe(true);
       // No regular enemies inside the arena.
       for (const s of l.spawns) if (s.kind === 'enemy') expect(s.x < arena.x - TILE || s.x > arena.x + arena.w + TILE).toBe(true);
+      // The door in the arena's left wall is open (air), right next to the arena interior.
+      const d = bosses[0]!.data!;
+      expect(Number(d.doorX1) + 1).toBe(arena.x / TILE);
+      for (let x = Number(d.doorX0); x <= Number(d.doorX1); x++) for (let y = Number(d.doorY0); y <= Number(d.doorY1); y++) expect(l.grid.get(x, y)).toBe(0);
     });
   });
 
