@@ -64,6 +64,15 @@ export const PROJECTILES: CombatProjectileDef[] = [
     id: 'arcane_orb', sprite: 'proj_arcane_orb', speed: 130, gravity: 0, size: 5, life: 2.5, pierce: 0, damageType: 'magic',
     trail: 'trail_arcane', light: { radius: 36, color: 0xb070ff }, homing: 4, ghost: true, knockback: 50,
   },
+  // Non-canonical, referenced by the items catalogue (ws/items): the spark wand's bolt and the sling's stone.
+  {
+    id: 'spark', sprite: 'proj_spark', speed: 280, gravity: 0, size: 3, life: 0.6, pierce: 0, damageType: 'magic',
+    trail: 'trail_spark', light: { radius: 20, color: 0xfff080 }, knockback: 40,
+  },
+  {
+    id: 'pebble', sprite: 'proj_pebble', speed: 230, gravity: 300, size: 3, life: 1.2, pierce: 0, damageType: 'physical',
+    recoverItem: ifItem('stone'), recoverChance: 0.5, knockback: 70,
+  },
   // --- Player: thrown (DEX) ------------------------------------------------------------------
   {
     id: 'bomb', sprite: 'proj_bomb', speed: 170, gravity: 520, size: 5, life: 1.6, pierce: 0, bounces: 6, damageType: 'physical',
