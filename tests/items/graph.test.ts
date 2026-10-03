@@ -76,6 +76,20 @@ describe('recipe graph', () => {
     }
   });
 
+  it('WORLD_MATERIALS only lists raw world output, never crafted intermediates (keeps the reachability tests honest)', () => {
+    const crafted = new Set(RECIPES.map((r) => r.result));
+    // Gathered *and* craftable: trees drop sticks, animals drop raw meat.
+    const alsoGathered = new Set(['stick']);
+    for (const id of WORLD_MATERIALS) {
+      const d = Content.items.get(id);
+      expect(d, id).toBeDefined();
+      expect(['material', 'consumable'], id).toContain(d!.category);
+      expect(d!.tags ?? [], id).not.toContain('part');
+      if (crafted.has(id)) expect(alsoGathered.has(id), `${id} is crafted; is it really a world drop?`).toBe(true);
+      expect(d!.tier, id).toBeLessThanOrEqual(5);
+    }
+  });
+
   it('every gathered material feeds at least one recipe (or is useful on its own)', () => {
     const used = new Set<string>();
     for (const r of RECIPES) used.add(r.a).add(r.b);

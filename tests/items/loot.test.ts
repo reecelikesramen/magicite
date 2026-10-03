@@ -79,11 +79,12 @@ describe('containers', () => {
 
   it('opening a chest spawns its loot as pickups and counts it', () => {
     const { w, p, e } = rig(8);
-    const before = w.entities.filter((o) => o.kind === 'pickup').length;
+    const known = new Set(w.entities.map((o) => o.id));
     const loot = openChest(w, 'chest_iron', e.x + 20, e.y + e.h, { player: 0, lootTier: 2 });
-    const pickups = w.entities.filter((o) => o.kind === 'pickup');
-    const goldCoins = pickups.filter((o) => o.pickup!.gold > 0);
-    expect(pickups.length - before).toBe(loot.items.length + goldCoins.length);
+    const spawned = w.entities.filter((o) => o.kind === 'pickup' && !known.has(o.id));
+    const goldCoins = spawned.filter((o) => o.pickup!.gold > 0);
+    const items = spawned.filter((o) => o.pickup!.gold === 0).map((o) => o.pickup!.item);
+    expect(items).toEqual(loot.items);
     expect(goldCoins.reduce((n, o) => n + o.pickup!.gold, 0)).toBe(loot.gold);
     expect(p.runStats.chestsOpened).toBe(1);
     expect(loot.items.length).toBeGreaterThanOrEqual(1);
