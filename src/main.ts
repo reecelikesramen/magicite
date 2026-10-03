@@ -31,7 +31,7 @@ async function boot(): Promise<void> {
   const fixedSeed = params.get('seed');
   const solo = () => new LocalSession(Number(fixedSeed), [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }]);
   const game = new Game(app, input, fixedSeed ? solo() : new LocalSession(1, [{ name: 'DEMO', race: 'drifter', hat: '', companion: '' }]), fixedSeed ? solo : undefined);
-  if (!fixedSeed) new App(app, game);
+  if (!fixedSeed) (window as unknown as { app: App }).app = new App(app, game);
   game.start();
   // Debug handle for tests / console.
   (window as unknown as { game: Game }).game = game;

@@ -14,10 +14,29 @@ export const VERSION = '0.2.0';
  */
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
 
+/**
+ * Page-level overrides for testing and self-hosting without a rebuild:
+ * - `?relay=wss://a,wss://b` — signaling relays (e.g. `bun server/relay.ts`)
+ * - `?ice=none` — no STUN/TURN (same machine / LAN only); `?ice=stun:host:3478,turn:...` — custom list
+ */
+const query = (() => {
+  try {
+    return new URLSearchParams(globalThis.location?.search ?? '');
+  } catch {
+    return new URLSearchParams();
+  }
+})();
+
+const list = (s: string | null | undefined) => (s ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+
 function trysteroConfig(): Omit<TrysteroOptions, 'roomCode'> {
   const out: Omit<TrysteroOptions, 'roomCode'> = { appId: 'shardfall-v1' };
-  const relays = env.VITE_NOSTR_RELAYS?.split(',').map((s) => s.trim()).filter(Boolean);
-  if (relays?.length) out.relayUrls = relays;
+  const relays = query.has('relay') ? list(query.get('relay')) : list(env.VITE_NOSTR_RELAYS);
+  if (relays.length) out.relayUrls = relays;
+  if (query.has('ice')) {
+    const ice = query.get('ice');
+    out.rtcConfig = { iceServers: ice === 'none' ? [] : list(ice).map((urls) => ({ urls })) };
+  }
   if (env.VITE_TURN_URL) out.turnConfig = [{ urls: env.VITE_TURN_URL, username: env.VITE_TURN_USER, credential: env.VITE_TURN_CRED }];
   if (env.VITE_ROOM_PASSWORD) out.password = env.VITE_ROOM_PASSWORD;
   return out;

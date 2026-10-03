@@ -87,6 +87,11 @@ export class App implements GameOverlay {
     this.show('title');
   }
 
+  /** Debug/E2E view of the menu state (window.app.status()). */
+  status(): { screen: Screen; purpose: Purpose; roomCode: string; message: string } {
+    return { screen: this.screen, purpose: this.purpose, roomCode: formatRoomCode(this.roomCode), message: this.message };
+  }
+
   // --------------------------------------------------------------------------------------------
   // GameOverlay
   // --------------------------------------------------------------------------------------------
@@ -203,11 +208,13 @@ export class App implements GameOverlay {
   // --------------------------------------------------------------------------------------------
 
   private handleInput(): void {
-    const keys = this.keyQ.splice(0);
+    let keys = this.keyQ.splice(0);
     if (this.screen === 'title') {
-      if (keys.length || this.pointer.clicked) this.show('main');
+      if (!keys.length && !this.pointer.clicked) return;
       this.pointer.clicked = false;
-      return;
+      // Only the first key dismisses the title; later keys from the same frame navigate the menu.
+      keys = keys.slice(1);
+      this.show('main');
     }
     for (const k of keys) {
       if (this.textEdit(k)) continue;
@@ -375,67 +382,92 @@ export class App implements GameOverlay {
     }
     if (this.purpose === 'host') {
       this.roomCode = normalizeRoomCode(makeRoomCode());
-      await this.connect(async () => {
-        const transport = await joinTrysteroRoom({ roomCode: formatRoomCode(this.roomCode), ...NET_CONFIG.trystero });
+      await this.connect(async (track) => {
+        const transport = track(await joinTrysteroRoom({ roomCode: formatRoomCode(this.roomCode), ...NET_CONFIG.trystero }));
         const host = new HostSession({ transport, seed: Math.floor(Math.random() * 1e9), setups: [setup] });
         host.onPlayerJoin = (_i, name, reconnect) => this.toast(`${name} ${reconnect ? 'reconnected' : 'joined'}`);
         host.onPlayerLeave = (_i, name, reason) => this.toast(`${name} left (${reason})`);
-        return { transport, session: host };
+        return host;
       });
-      this.toast(`Room ${formatRoomCode(this.roomCode)} - share it! (Esc shows it again)`, 8);
+      if (this.screen === 'playing') this.toast(`Room ${formatRoomCode(this.roomCode)} - share it! (Esc shows it again)`, 8);
       return;
     }
-    await this.connect(async () => {
+    await this.connect(async (track) => {
       const code = formatRoomCode(this.roomCode);
-      const transport = await joinTrysteroRoom({ roomCode: code, ...NET_CONFIG.trystero });
+      const transport = track(await joinTrysteroRoom({ roomCode: code, ...NET_CONFIG.trystero }));
       const client = new ClientSession({ transport, setup, token: storageGet(TOKEN_KEY + normalizeRoomCode(code)) ?? undefined });
+      if (this.transport !== transport) throw new Error('cancelled');
+      // The client only processes packets when ticked: run it behind the "Connecting" menu.
+      this.game.setSession(client);
+      this.game.ui.onRestart = () => this.toMain();
       await new Promise<void>((resolve, reject) => {
         client.onStateChange = (state, reason) => {
           if (state === 'joined') {
             storageSet(TOKEN_KEY + normalizeRoomCode(code), client.token);
             resolve();
-          } else if (state === 'rejected') reject(new Error(reason ?? 'rejected'));
+          } else if (state === 'rejected') reject(new Error(reason || 'rejected'));
           else if (state === 'disconnected') {
             if (this.screen === 'playing' || this.screen === 'pause') {
-              this.toast(`Disconnected: ${reason ?? 'host left'}`, 6);
+              this.toast(`Disconnected: ${reason || 'host left'}`, 6);
               this.toMain();
-            } else reject(new Error(reason ?? 'disconnected'));
+            } else reject(new Error(reason || 'disconnected'));
           }
         };
       });
-      return { transport, session: client };
+      return client;
     });
   }
 
-  /** Run a connect attempt with a timeout and a cancel button; swaps the session on success. */
-  private async connect(open: () => Promise<{ transport: Transport; session: Session }>): Promise<void> {
+  /**
+   * Run a connect attempt with a timeout and a cancel button; swaps the session on success. `open`
+   * registers its transport with `track` as soon as it exists so a timeout/cancel can close it.
+   */
+  private async connect(open: (track: (t: Transport) => Transport) => Promise<Session>): Promise<void> {
     const token = ++this.connectToken;
     this.show('connecting');
     this.message = this.purpose === 'host' ? 'Opening room...' : 'Finding the host...';
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const track = (t: Transport) => {
+      // A cancelled attempt that finishes late just closes its own transport.
+      if (token !== this.connectToken) t.close();
+      else this.transport = t;
+      return t;
+    };
     try {
-      const result = await Promise.race([
-        open(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out - is the host online?')), CONNECT_TIMEOUT_MS)),
+      const session = await Promise.race([
+        open(track),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('timed out - is the host online?')), CONNECT_TIMEOUT_MS);
+        }),
       ]);
       if (token !== this.connectToken) {
-        result.session.dispose();
-        result.transport.close();
+        if (this.game.session !== session) session.dispose();
         return;
       }
-      this.transport = result.transport;
-      this.game.setSession(result.session);
+      this.game.setSession(session);
       this.game.ui.onRestart = () => this.toMain();
       this.show('playing');
     } catch (err) {
       if (token !== this.connectToken) return;
+      this.abandonConnection();
       this.show(this.purpose === 'join' ? 'join' : 'main');
       this.message = `!Could not connect: ${(err as Error).message}`;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
   private cancelConnect(): void {
     this.connectToken++;
+    this.abandonConnection();
     this.show(this.purpose === 'join' ? 'join' : 'main');
+  }
+
+  /** Drop a half-open connection: close its transport and put the demo world back. */
+  private abandonConnection(): void {
+    this.transport?.close();
+    this.transport = null;
+    if (!(this.game.session instanceof LocalSession)) this.game.setSession(this.demoSession());
   }
 
   /** Leave the current run (any mode) and return to the main menu over the demo world. */

@@ -12,7 +12,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "bun run typecheck && bun run test"
+    "check": "bun run typecheck && bun run test",
+    "relay": "bun server/relay.ts",
+    "server": "bun server/dedicated.ts",
+    "e2e:mp": "bun scripts/mp-e2e.ts"
   },
   "dependencies": {
     "pixi-filters": "^6.1.5",
