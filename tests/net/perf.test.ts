@@ -36,8 +36,7 @@ describe('net performance', () => {
     const r = new ByteReader();
     const inputs = setups.map(() => scripted(0, 0));
     let bytes = 0;
-    let rounds = 0;
-    let elapsed = 0;
+    const samples: number[] = [];
     for (let round = 0; round < 400; round++) {
       for (let s = 0; s < 2; s++) {
         for (let i = 0; i < 4; i++) inputs[i] = scripted(round * 2 + s, i);
@@ -61,13 +60,15 @@ describe('net performance', () => {
         readEntityDelta(r.reset(pkt), hasBase ? decoded[c]![prev]! : null, decoded[c]![cur]!);
       }
       const dt = performance.now() - t0;
-      if (round >= 50) {
-        elapsed += dt;
-        rounds++;
-      }
+      if (round >= 50) samples.push(dt);
     }
-    const avg = elapsed / rounds;
-    console.log(`[net] snapshot round (capture ${world.entities.length} entities + 4× interest/encode/decode): ${avg.toFixed(3)} ms avg, ${(bytes / 400 / 4).toFixed(0)} B/client/snapshot`);
+    // Median, not mean: the suite runs test files in parallel workers, and a single GC pause or
+    // descheduled slice would otherwise dominate the average and make this assertion flaky.
+    samples.sort((a, b) => a - b);
+    const median = samples[samples.length >> 1]!;
+    const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+    const p90 = samples[Math.floor(samples.length * 0.9)]!;
+    console.log(`[net] snapshot round (capture ${world.entities.length} entities + 4× interest/encode/decode): median ${median.toFixed(3)} ms, avg ${avg.toFixed(3)} ms, p90 ${p90.toFixed(3)} ms, ${(bytes / 400 / 4).toFixed(0)} B/client/snapshot`);
     // Decoded client frames equal the host's interest-filtered rows.
     const f = frames[1]!;
     for (let c = 0; c < 4; c++) {
@@ -79,7 +80,7 @@ describe('net performance', () => {
       }
     }
     void clientStrings;
-    expect(avg).toBeLessThan(1);
+    expect(median).toBeLessThan(1);
   });
 
   it('host tick cost with 3 remote clients and ~200 entities (logged)', () => {
