@@ -74,7 +74,7 @@ export class ParticleView {
       s.tint = ps.color[i]!;
       s.alpha = a;
       if (glow && halos && nh < this.maxHalos) {
-        halos.add(x, y, 3 + size * 1.5, ps.color[i]!, 0.55 * a);
+        halos.add(x, y, 2.5 + size * 1.5, ps.color[i]!, 0.3 * a);
         nh++;
       }
       if (f & PF.LIGHT && lights && nl < this.maxLights) {

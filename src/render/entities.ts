@@ -42,6 +42,9 @@ export interface ViewRect {
   h: number;
 }
 
+/** Horizontal speed (px/s) above which players leave a dash streak. */
+const DASH_SPEED = 120;
+
 /** Tunables of how entities light the world. */
 export const ENTITY_LIGHT = {
   /** Player light radius multiplier and centre over-exposure. */
@@ -109,6 +112,7 @@ export class EntityViews {
       const cy = iy + e.h / 2;
       // Lights reach beyond the entity, so test them before culling the sprite.
       if (e.light) this.addLight(e, cx, cy, view, style, lights);
+      else if (e.kind === 'projectile') this.projectileLight(e, cx, cy, lights, halos);
       const onScreen = cx > vx0 && cx < vx1 && iy + e.h > vy0 && iy < vy1;
       let v = this.views.get(e.id);
       if (!onScreen) {
@@ -144,6 +148,15 @@ export class EntityViews {
     if (l.flicker) k *= 1 - l.flicker * flicker(e.id, this.time);
     const color = isPlayer ? style.pal.playerLight || l.color : l.color;
     lights.add(cx, cy - (isPlayer ? 2 : 0), r, color, k);
+  }
+
+  /** Projectiles whose def declares a light but whose entity carries none. */
+  private projectileLight(e: Entity, cx: number, cy: number, lights: LightPool, halos: LightPool): void {
+    const def = e.projectile ? Content.projectiles.get(e.projectile.def) : undefined;
+    const l = def?.light;
+    if (!l) return;
+    lights.add(cx, cy, l.radius * ENTITY_LIGHT.radius, l.color, 0.9);
+    halos.add(cx, cy, Math.max(5, l.radius * 0.3), l.color, 0.5);
   }
 
   private create(e: Entity, players: readonly PlayerState[]): View {
@@ -255,6 +268,8 @@ export class EntityViews {
         emitPreset(ps, 'dust_land', ax - 2, iy + e.h - 1, { count: 3, dirX: -1 });
         emitPreset(ps, 'dust_land', ax + 2, iy + e.h - 1, { count: 3, dirX: 1 });
       } else if (!e.onGround && v.prevGround && e.vy < -60 && e.kind === 'player') emitPreset(ps, 'jump_puff', ax, iy + e.h - 1);
+      // Dash streaks: much faster than walking (the controller's dash burst).
+      if (e.kind === 'player' && Math.abs(e.vx) > DASH_SPEED && ps.rand() < 0.7) emitPreset(ps, 'dash', ax - e.facing * 3, iy + e.h * 0.5, { count: 1, dirX: -e.facing });
       v.prevGround = e.onGround;
       v.prevVy = e.vy;
     }

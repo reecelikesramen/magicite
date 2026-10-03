@@ -6,7 +6,7 @@ import { Tile } from '../sim/tiles';
 import type { Entity, GameEvent } from '../sim/types';
 import type { Level, World } from '../sim/world';
 import { Background } from './background';
-import { Camera, type Bounds } from './camera';
+import { Camera, type Bounds, type CameraTarget } from './camera';
 import { blue, green, normalizeHue, ramp, red } from './color';
 import { Compositor } from './compositor';
 import { EntityViews } from './entities';
@@ -84,6 +84,19 @@ export class Renderer {
   private flashColor = 0xffffff;
   private gridRef: Level['grid'] | null = null;
   private readonly solidFn = (x: number, y: number): boolean => this.gridRef !== null && this.gridRef.solidAt(x, y);
+  // Per-frame scratch (no allocations in draw()).
+  private readonly view = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly levelBounds: Bounds = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly camTarget: CameraTarget = { x: 0, y: 0, vx: 0, vy: 0, grounded: true };
+  private bubbleDt = 0;
+  private readonly bubbleFn = (tx0: number, tx1: number, ty: number, kind: 'water' | 'lava'): void => {
+    const ps = this.particles;
+    const n = (tx1 - tx0 + 1) * this.bubbleDt * (kind === 'lava' ? 0.6 : 0.25);
+    if (ps.rand() > n) return;
+    const x = (tx0 + ps.rand() * (tx1 - tx0 + 1)) * TILE;
+    if (kind === 'lava') emitPreset(ps, 'embers', x, ty * TILE, { count: 1 });
+    else emitPreset(ps, 'bubble', x, ty * TILE + 3, { count: 1 });
+  };
 
   constructor(private readonly app: Application) {
     registerBuiltinSprites();
@@ -289,7 +302,10 @@ export class Renderer {
     const vh = sh / this.scale;
     const cam = this.camera;
     cam.setView(vw, vh);
-    let bounds: Bounds = { x: 0, y: 0, w: grid.pixelWidth, h: grid.pixelHeight };
+    const lb = this.levelBounds;
+    lb.w = grid.pixelWidth;
+    lb.h = grid.pixelHeight;
+    let bounds: Bounds = lb;
     if (focus) {
       const fx = lerp(focus.px, focus.x, alpha) + focus.w / 2;
       const fy = lerp(focus.py, focus.y, alpha) + focus.h / 2;
@@ -297,7 +313,15 @@ export class Renderer {
       if (a && level.locked && fx >= a.x && fx <= a.x + a.w && fy >= a.y && fy <= a.y + a.h) bounds = a;
       const inp = focus.playerIndex !== undefined ? world.inputs[focus.playerIndex] : undefined;
       const hasAim = !!inp && (inp.aimX !== 0 || inp.aimY !== 0);
-      cam.update(dt, { x: fx, y: fy, vx: focus.vx, vy: focus.vy, grounded: focus.onGround, aimX: hasAim ? inp!.aimX : undefined, aimY: hasAim ? inp!.aimY : undefined }, bounds);
+      const t = this.camTarget;
+      t.x = fx;
+      t.y = fy;
+      t.vx = focus.vx;
+      t.vy = focus.vy;
+      t.grounded = focus.onGround;
+      t.aimX = hasAim ? inp!.aimX : undefined;
+      t.aimY = hasAim ? inp!.aimY : undefined;
+      cam.update(dt, t, bounds);
     } else cam.update(dt, null, bounds);
     this.camX = cam.x;
     this.camY = cam.y;
@@ -305,7 +329,11 @@ export class Renderer {
     const ry = cam.y + cam.shakeY;
     const ix = Math.floor(rx);
     const iy = Math.floor(ry);
-    const view = { x: rx, y: ry, w: vw, h: vh };
+    const view = this.view;
+    view.x = rx;
+    view.y = ry;
+    view.w = vw;
+    view.h = vh;
 
     this.comp.resize(vw, vh);
     this.comp.setCamera(ix, iy);
@@ -386,15 +414,9 @@ export class Renderer {
     }
   }
 
-  /** Occasional bubbles from liquid surfaces in view. */
+  /** Occasional bubbles / embers from liquid surfaces in view. */
   private liquidBubbles(view: { x: number; y: number; w: number; h: number }, dt: number): void {
-    const ps = this.particles;
-    this.chunks.forEachSurface(view, (tx0, tx1, ty, kind) => {
-      const n = (tx1 - tx0 + 1) * dt * (kind === 'lava' ? 0.6 : 0.25);
-      if (ps.rand() > n) return;
-      const x = (tx0 + ps.rand() * (tx1 - tx0 + 1)) * TILE;
-      if (kind === 'lava') emitPreset(ps, 'embers', x, ty * TILE, { count: 1 });
-      else emitPreset(ps, 'bubble', x, ty * TILE + 3, { count: 1 });
-    });
+    this.bubbleDt = dt;
+    this.chunks.forEachSurface(view, this.bubbleFn);
   }
 }
