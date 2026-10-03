@@ -90,6 +90,10 @@ export function statusOf(e: Entity, id: string): number {
   return e.status.find((s) => s.id === id)?.ticks ?? 0;
 }
 
+export function statusPower(e: Entity, id: string): number {
+  return e.status.find((s) => s.id === id)?.power ?? 0;
+}
+
 export function count(world: World, pred: (e: Entity) => boolean): number {
   return world.entities.filter((e) => !e.dead && pred(e)).length;
 }

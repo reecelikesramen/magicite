@@ -44,9 +44,12 @@ skip def `blight_wraith`.** Invulnerable (invuln refreshed every tick, statuses 
 
 ## Statuses applied (combat/status owns their behaviour)
 
-`shield` (iron_skin / arcane_ward power = rank; gizmo_drone power 1) · `haste` (war_cry, smoke_bomb)
-· `weak` · `stun` (ground_slam, chain_lightning, bear_trap hold, smoke_bomb daze) · `freeze`
-(frost_nova) · `bleed` (cleave) · `burn` (meteor) · `slow` (smoke_bomb, power 0.5 = factor).
+Powers follow combat/status semantics (fractions for haste/slow/weak, HP absorbed for shield):
+`shield` (iron_skin / arcane_ward power = rank; gizmo_drone power 1) · `haste` (war_cry 0.3,
+smoke_bomb 0.4) · `weak` (war_cry 0.4) · `stun` (ground_slam, chain_lightning, bear_trap hold,
+smoke_bomb daze) · `freeze` (frost_nova) · `bleed` (cleave) · `burn` (meteor) · `slow` (smoke_bomb 0.5).
+Merge: route `util.addStatus` through combat's `addStatus` so immunities (`burn_immune`, bosses'
+shortened disables) apply.
 
 ## Specials / mods referenced by name (other workstreams implement)
 

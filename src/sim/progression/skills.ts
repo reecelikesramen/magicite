@@ -20,7 +20,8 @@ import { addStatus, isActive, isFoe } from './util';
 export const SKILL_FX = {
   whirlwind: { ticks: secs(0.75), period: 12, radius: 22, knockback: 90 },
   groundSlam: { radius: 36, diveSpeed: 360, maxDive: secs(1.5), stun: secs(1), knockback: 140 },
-  warCry: { radius: 72 },
+  /** Status powers are fractions (combat/status): haste = speed added, weak = damage dealt removed. */
+  warCry: { radius: 72, haste: 0.3, weak: 0.4 },
   charge: { speed: 240, ticks: 14, knockback: 220 },
   cleave: { reach: 30, knockback: 160, bleed: secs(3) },
   fireBurst: { speed: 150 },
@@ -31,7 +32,7 @@ export const SKILL_FX = {
   multishot: { spread: 0.18, speed: 260 },
   arrowRain: { ticks: secs(1.2), width: 56, height: 110, speed: 280 },
   bearTrap: { life: secs(30), max: 2, snapLinger: 30 },
-  smokeBomb: { radius: 48, iframes: secs(0.5) },
+  smokeBomb: { radius: 48, iframes: secs(0.5), slow: 0.5, haste: 0.4 },
   hawk: { life: secs(6), speed: 190, range: 128, rest: 12, accel: 900 },
   volleyStep: { leap: 170, spread: 0.12, speed: 260, iframes: 12 },
 } as const;
@@ -328,9 +329,9 @@ const warCry: EffectFn = (world, _p, e, _input, rank, def) => {
     if (!a) continue;
     const dx = a.x + a.w / 2 - cx;
     const dy = a.y + a.h / 2 - cy;
-    if (dx * dx + dy * dy <= r2) addStatus(a, 'haste', ticks, 1, e.id);
+    if (dx * dx + dy * dy <= r2) addStatus(a, 'haste', ticks, SKILL_FX.warCry.haste, e.id);
   }
-  foesInRadius(world, cx, cy, SKILL_FX.warCry.radius, (f) => addStatus(f, 'weak', ticks, 1, e.id));
+  foesInRadius(world, cx, cy, SKILL_FX.warCry.radius, (f) => addStatus(f, 'weak', ticks, SKILL_FX.warCry.weak, e.id));
   spawnEffect(world, 'war_cry', e, cx, cy, SKILL_FX.warCry.radius * 2, SKILL_FX.warCry.radius * 2, 20, rank);
   world.emit({ type: 'particles', preset: 'war_cry', x: cx, y: cy, count: 20, color: 0xff5040 });
   world.emit({ type: 'shake', amount: 2, ticks: 8 });
@@ -626,9 +627,9 @@ const smokeBomb: EffectFn = (world, _p, e, _input, rank, def) => {
   const cy = e.y + e.h / 2;
   foesInRadius(world, cx, cy, T.radius, (f) => {
     addStatus(f, 'stun', Math.ceil(dur / 2), 1, e.id);
-    addStatus(f, 'slow', dur, 0.5, e.id);
+    addStatus(f, 'slow', dur, T.slow, e.id);
   });
-  addStatus(e, 'haste', dur, 1, e.id);
+  addStatus(e, 'haste', dur, T.haste, e.id);
   e.invuln = Math.max(e.invuln, T.iframes);
   spawnEffect(world, 'smoke_bomb', e, cx, cy, T.radius * 2, T.radius, dur, rank);
   world.emit({ type: 'particles', preset: 'smoke', x: cx, y: cy, count: 30, color: 0x808080 });

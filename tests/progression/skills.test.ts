@@ -5,7 +5,7 @@ import { SKILL_FX } from '../../src/sim/progression/skills';
 import { Tile } from '../../src/sim/tiles';
 import type { Entity } from '../../src/sim/types';
 import type { World } from '../../src/sim/world';
-import { count, dummy, FLOOR_Y, giveSkill, inp, makeWorld, placePlayer, run, statusOf } from './helpers';
+import { count, dummy, FLOOR_Y, giveSkill, inp, makeWorld, placePlayer, run, statusOf, statusPower } from './helpers';
 
 const PX = 200;
 
@@ -118,6 +118,11 @@ describe('warrior effects', () => {
     expect(statusOf(b, 'haste')).toBe(secs(4));
     expect(statusOf(t, 'weak')).toBe(secs(4));
     expect(statusOf(far, 'weak')).toBe(0);
+    // Powers are fractions (combat/status semantics): never a full 100% haste / damage wipe.
+    expect(statusPower(a, 'haste')).toBe(SKILL_FX.warCry.haste);
+    expect(statusPower(t, 'weak')).toBe(SKILL_FX.warCry.weak);
+    expect(SKILL_FX.warCry.haste).toBeLessThan(1);
+    expect(SKILL_FX.warCry.weak).toBeLessThan(1);
   });
 
   it('charge rushes toward the aim, invulnerable, damaging foes in the way', () => {
@@ -287,6 +292,8 @@ describe('ranger effects', () => {
     expect(statusOf(t, 'stun')).toBeGreaterThan(0);
     expect(statusOf(t, 'slow')).toBe(secs(2));
     expect(statusOf(e, 'haste')).toBe(secs(2));
+    expect(statusPower(t, 'slow')).toBe(SKILL_FX.smokeBomb.slow);
+    expect(statusPower(e, 'haste')).toBeLessThan(1);
     expect(e.invuln).toBeGreaterThan(0);
   });
 
