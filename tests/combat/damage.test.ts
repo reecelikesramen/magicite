@@ -114,6 +114,16 @@ describe('damage formula', () => {
     expect(e.hp).toBe(hp - 1);
   });
 
+  it('blocking wears the shield', () => {
+    const { world, p, e } = makeWorld();
+    p.equipment.trinket = { id: 't_shield', count: 1, durability: 2 };
+    p.stamina = 2;
+    e.facing = 1;
+    spawnEnemy(world, 't_biter', 86, FLOOR_Y, { kbResist: 1 });
+    step(world, 1, { alt: true });
+    expect(p.equipment.trinket?.durability).toBe(1);
+  });
+
   it('co-op partners can hit the same enemy on the same tick (no i-frame cancelling)', () => {
     const { world } = makeWorld({ players: 2 });
     const d = spawnEnemy(world, 't_dummy', 200);

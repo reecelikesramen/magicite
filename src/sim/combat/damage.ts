@@ -154,23 +154,32 @@ export function partyDamageScale(world: World): number {
   return n <= 1 ? 1 : 1 / (1 + 0.6 * (n - 1));
 }
 
-/** Any equipped or held item tagged 'shield'. */
-function hasShield(p: PlayerState): boolean {
-  if (maybeItem(p.inventory[p.selected]?.id)?.tags?.includes('shield')) return true;
-  for (const s of Object.values(p.equipment)) if (s && maybeItem(s.id)?.tags?.includes('shield')) return true;
-  return false;
+type EquipKey = keyof PlayerState['equipment'];
+
+/** Where the player's shield is (held item first, then equipment), or null. */
+function findShield(p: PlayerState): { inv?: number; equip?: EquipKey } | null {
+  if (maybeItem(p.inventory[p.selected]?.id)?.tags?.includes('shield')) return { inv: p.selected };
+  for (const k of Object.keys(p.equipment) as EquipKey[]) {
+    const s = p.equipment[k];
+    if (s && maybeItem(s.id)?.tags?.includes('shield')) return { equip: k };
+  }
+  return null;
 }
 
 /**
  * Shield block (GDD §6 extension): holding Secondary with a shield negates a hit coming from the
- * facing side for 1 stamina. Uses this tick's input, so it's deterministic and needs no extra state.
+ * facing side for 1 stamina and wears the shield. Uses this tick's input, so it's deterministic and
+ * needs no extra state.
  */
 function tryBlock(world: World, p: PlayerState, target: Entity, src: Entity | undefined): boolean {
   const input = world.inputs[p.index];
-  if (!input?.alt || !src || isDisabled(target) || !hasShield(p)) return false;
+  if (!input?.alt || !src || isDisabled(target)) return false;
+  const shield = findShield(p);
+  if (!shield) return false;
   const fromX = src.x + src.w / 2 - (target.x + target.w / 2);
   if (fromX * target.facing < 0) return false; // hit from behind
   if (!spendStamina(p, COMBAT.shield.staminaCost)) return false;
+  wearStack(world, p, shield);
   target.invuln = COMBAT.shield.iframes;
   target.vx = -target.facing * COMBAT.shield.knockback;
   const cx = target.x + target.w / 2 + target.facing * 4;
@@ -182,7 +191,7 @@ function tryBlock(world: World, p: PlayerState, target: Entity, src: Entity | un
 }
 
 /** Remove one durability from the stack at inventory index `slot` (or an equipment slot). Breaks at 0. */
-export function wearStack(world: World, p: PlayerState, where: { inv?: number; equip?: keyof PlayerState['equipment'] }, amount = 1): void {
+export function wearStack(world: World, p: PlayerState, where: { inv?: number; equip?: EquipKey }, amount = 1): void {
   const stack = where.inv !== undefined ? p.inventory[where.inv] : where.equip ? p.equipment[where.equip] : null;
   if (!stack || amount <= 0) return;
   const def = Content.items.get(stack.id);
