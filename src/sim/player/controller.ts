@@ -67,11 +67,23 @@ function statusMoveMul(e: Entity): number {
  * dive (Down + Jump in air), one-way drop-through, ladders, swimming, crawling while downed.
  */
 export function playerControlSystem(world: World): void {
-  if (world.freeze > 0) return;
+  if (world.freeze > 0) {
+    // Hit-stop pauses movement, but the input latch still runs: keep presses made during it buffered.
+    for (const p of world.players) bufferPresses(p, world.inputs[p.index]!);
+    return;
+  }
   for (const p of world.players) {
     const e = world.get(p.entityId);
     if (e) controlPlayer(world, p, e, world.inputs[p.index]!);
   }
+}
+
+/** During hit-stop (world.freeze) the controller doesn't run; remember jump/dash presses for afterwards. */
+function bufferPresses(p: PlayerState, input: PlayerInput): void {
+  if (p.downed || p.out) return;
+  if (pressed(p, input, 'jump')) p.ctl.jumpBuffer = PHYS.jumpBufferTicks;
+  const dash = input.dash ?? 0;
+  if (dash !== 0 && dash !== p.prev.dash) p.ctl.dashBuf = dash * PHYS.dashBufferTicks;
 }
 
 function emitAt(world: World, e: Entity, id: string, pitch?: number): void {
@@ -275,20 +287,28 @@ export function controlPlayer(world: World, p: PlayerState, e: Entity, input: Pl
   if (jumpPressed) c.jumpBuffer = PHYS.jumpBufferTicks;
   else if (c.jumpBuffer > 0) c.jumpBuffer--;
 
+  let swimDown = false;
   if (liquid !== 0 && !c.climbing) {
     // Swimming: hold Jump/Up to rise, Down to dive; Jump with the head out of the liquid leaps out.
     const headTile = grid.get(Math.floor(cx / TILE), Math.floor((e.y + 2) / TILE));
     const headOut = !tileProps(headTile).liquid;
     if (headOut && (c.jumpBuffer > 0 || (jumpHeld && e.vy < 0))) {
-      e.vy = -(lava ? PHYS.lavaJumpSpeed : PHYS.swimJumpSpeed);
+      const leap = lava ? PHYS.lavaJumpSpeed : PHYS.swimJumpSpeed;
+      // Held jump keeps re-leaping until the feet are out; only the first tick splashes.
+      if (e.vy > -leap * 0.5) {
+        dust(world, e, 'splash', 6);
+        emitAt(world, e, 'splash', 1.2);
+      }
+      e.vy = -leap;
       c.jumpBuffer = 0;
       c.jumping = true;
-      dust(world, e, 'splash', 6);
-      emitAt(world, e, 'splash', 1.2);
     } else if (jumpHeld || upHeld) {
       e.vy = approach(e.vy, -(lava ? PHYS.lavaUpSpeed : PHYS.swimUpSpeed), PHYS.swimAccel * DT);
-    } else if (downHeld) {
-      e.vy = approach(e.vy, PHYS.swimDownSpeed, PHYS.swimAccel * DT);
+    } else if (downHeld && !lava) {
+      // Dive down: steered here with gravity off (gravity shaping below), since physics caps passive
+      // sinking at swimMaxFall; a fast entry is braked with the same liquid drag.
+      e.vy = approach(e.vy, PHYS.swimDownSpeed, (e.vy > PHYS.swimDownSpeed ? PHYS.liquidDrag : PHYS.swimAccel) * DT);
+      swimDown = true;
     }
   } else if (c.jumpBuffer > 0 && !stunned) {
     if (c.climbing && downHeld) {
@@ -322,9 +342,10 @@ export function controlPlayer(world: World, p: PlayerState, e: Entity, input: Pl
       c.diving = false;
       dust(world, e, 'jump_dust', 3);
       emitAt(world, e, 'jump');
-    } else if (jumpPressed && c.airJumpsUsed < PHYS.baseAirJumps + (mods.airJumps ?? 0)) {
-      // Hold the press for a free ground jump if we're about to land anyway.
-      const reach = e.vy > 0 ? (e.vy * PHYS.airJumpLandGrace) / 60 + 0.5 : 0;
+    } else if (c.airJumpsUsed < PHYS.baseAirJumps + (mods.airJumps ?? 0)) {
+      // Hold the press for a free ground jump if we're about to land anyway. Re-checked every tick
+      // while the press is buffered, so drifting off the ledge edge instead still double-jumps.
+      const reach = e.vy > 0 ? e.vy * PHYS.airJumpLandGrace * DT + 0.5 : 0;
       const drop = reach > 0 ? dropDistance(grid, e, reach + 1) : reach + 1;
       const landingSoon = drop < reach && !spikesAt(world, e, e.y + e.h + drop);
       if (!landingSoon) {
@@ -337,7 +358,7 @@ export function controlPlayer(world: World, p: PlayerState, e: Entity, input: Pl
           c.diving = false;
           world.emit({ type: 'particles', preset: 'airjump', x: cx, y: e.y + e.h, count: 6 });
           emitAt(world, e, 'double_jump', 1.3);
-        } else {
+        } else if (jumpPressed) {
           emitAt(world, e, 'stamina_empty');
         }
       }
@@ -352,7 +373,7 @@ export function controlPlayer(world: World, p: PlayerState, e: Entity, input: Pl
   }
 
   // --- Gravity shaping (variable jump height + apex hang) ---------------------------------
-  if (c.climbing || (c.dashDir !== 0 && c.dashAir)) e.gravityScale = 0;
+  if (c.climbing || swimDown || (c.dashDir !== 0 && c.dashAir)) e.gravityScale = 0;
   else if (c.jumping && e.vy < 0 && !jumpHeld) e.gravityScale = PHYS.jumpCutGravity;
   else if (c.jumping && jumpHeld && Math.abs(e.vy) < PHYS.apexSpeed && liquid === 0) e.gravityScale = PHYS.apexGravity;
   else e.gravityScale = 1;

@@ -267,6 +267,55 @@ describe('controller forgiveness', () => {
     expect(e.vy).toBeLessThan(0);
   });
 
+  it('…and if the player drifts off the ledge instead of landing, the held press still double-jumps', () => {
+    const g = boxGrid(80, 40, 38);
+    g.fill(1, 30, 19, 37, 1); // ledge top at y = 240, right edge at x = 160, pit beyond
+    const w = makeWorld(g, { spawnTx: 15, floor: 30 });
+    settle(w);
+    const e = ent(w);
+    const p = pl(w);
+    // Falling with the hitbox overlapping the ledge corner by 1.5 px.
+    place(w, 0, 20 * TILE - 1.5 + e.w / 2, 30 * TILE - 30);
+    runUntil(w, 120, () => e.y + e.h + (e.vy * 2) / 60 >= 30 * TILE - 0.5);
+    expect(e.onGround).toBe(false);
+    e.vx = 90; // sliding off the corner
+    const s0 = p.stamina;
+    run(w, 1, { moveX: 1, jump: true });
+    expect(p.stamina).toBe(s0); // held for the (expected) ground jump
+    let rose = false;
+    for (let t = 0; t < PHYS.jumpBufferTicks && !rose; t++) {
+      run(w, 1, { moveX: 1, jump: true });
+      rose = e.vy < 0;
+    }
+    expect(rose).toBe(true);
+    expect(p.stamina).toBe(s0 - 1);
+    expect(e.x).toBeGreaterThan(20 * TILE); // over the pit, not on the ledge
+  });
+
+  it('jump and dash presses made during hit-stop are kept for when it ends', () => {
+    const w = flat();
+    const e = ent(w);
+    const p = pl(w);
+    w.freeze = 5;
+    run(w, 1, { jump: true }); // pressed while frozen
+    expect(w.freeze).toBeGreaterThan(0);
+    run(w, 2, { jump: true });
+    expect(e.vy).toBe(0); // still frozen
+    runUntil(w, 10, () => w.freeze === 0, { jump: true });
+    run(w, 1, { jump: true });
+    expect(e.vy).toBeLessThan(-PHYS.jumpSpeed * 0.8);
+    runUntil(w, 120, () => e.onGround && e.vy === 0);
+    run(w, 30);
+    const s0 = p.stamina;
+    w.freeze = 4;
+    run(w, 1, { dash: 1 });
+    expect(p.ctl.dashDir).toBe(0);
+    runUntil(w, 10, () => w.freeze === 0, { dash: 1 });
+    run(w, 1, { dash: 1 });
+    expect(p.ctl.dashDir).toBe(1);
+    expect(p.stamina).toBe(s0 - 1);
+  });
+
   it('corner correction: a jump that clips a ceiling corner by 2 px slides around it', () => {
     const g = boxGrid(80, 40, 30);
     // Ceiling block 3 tiles above the floor covering x ∈ [80, 88); player spans [86, 92).
@@ -364,6 +413,37 @@ describe('platforms, ladders, water', () => {
     place(w, 0, 13 * TILE, 33 * TILE);
     run(w, 30, { moveX: 1 });
     expect(Math.abs(e.vx)).toBeLessThanOrEqual(PHYS.walkSpeed * PHYS.swimSpeedMul + 0.01);
+  });
+
+  it('holding Down underwater dives faster than sinking (and brakes a fast entry); leaping out splashes once', () => {
+    const g = boxGrid(80, 60, 50);
+    g.fill(1, 20, 78, 49, 7);
+    const w = makeWorld(g, { floor: 20 });
+    settle(w, 5);
+    const e = ent(w);
+    place(w, 0, 30 * TILE, 24 * TILE);
+    run(w, 40);
+    const sink = e.vy;
+    expect(sink).toBeLessThanOrEqual(PHYS.swimMaxFall + 0.01);
+    run(w, 40, { moveY: 1 });
+    expect(e.vy).toBeGreaterThan(sink + 10);
+    expect(e.vy).toBeLessThanOrEqual(PHYS.swimDownSpeed + 0.01);
+    // Plunging in from high up while holding Down is still braked to the dive speed.
+    place(w, 0, 30 * TILE, 10 * TILE);
+    runUntil(w, 120, () => e.y > 20 * TILE, { moveY: 1 });
+    expect(e.vy).toBeGreaterThan(PHYS.swimDownSpeed * 2);
+    run(w, 20, { moveY: 1 });
+    expect(e.vy).toBeLessThanOrEqual(PHYS.swimDownSpeed + 0.01);
+    // Swim up from just below the surface and leap out: one splash for the leap.
+    place(w, 0, 30 * TILE, 21 * TILE + 4);
+    let leapSplashes = 0;
+    for (let t = 0; t < 30 && e.inLiquid; t++) {
+      run(w, 1, { jump: true });
+      leapSplashes += w.events.filter((ev) => ev.type === 'sfx' && ev.id === 'splash').length;
+    }
+    expect(e.inLiquid).toBe(false);
+    expect(e.vy).toBeLessThan(0);
+    expect(leapSplashes).toBe(1);
   });
 
   it('dive (Down + Jump in mid-air) falls faster than terminal velocity and slams down', () => {
