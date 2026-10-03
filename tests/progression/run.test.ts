@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { BiomeDef } from '../../src/content/types';
+import { Content } from '../../src/content';
+import type { BiomeDef, BossDef } from '../../src/content/types';
 import { Rng } from '../../src/engine/rng';
 import { createRun } from '../../src/sim';
 import { killEntity } from '../../src/sim/combat/damage';
@@ -15,6 +16,7 @@ import {
   PORTAL_COUNTDOWN,
   startBiome,
   travel,
+  unsealIfBossless,
   voteExit,
 } from '../../src/sim/run';
 import type { GameEvent } from '../../src/sim/types';
@@ -103,7 +105,10 @@ describe('district sequence', () => {
       }
       if (info.isTown) expect(exits).toHaveLength(1);
       else expect(exits.length).toBeGreaterThanOrEqual(1);
-      expect(locked).toBe(info.isBoss);
+      // Boss districts are sealed while a boss can appear (no BossDefs yet on a bare branch → unsealed).
+      expect(info.isBoss).toBe(BOSS_DISTRICTS.includes(info.district) && !info.isTown);
+      expect(locked).toBe(info.isBoss && w.level.spawns.some((s) => s.kind === 'boss' && Content.bosses.has(s.def)));
+      expect(w.level.request?.district).toBe(info.district);
       if (info.district === 20 && !info.isTown) expect(exits.map((e) => e.biome)).toEqual([LAIR_BIOME]);
       const chosen = exits[exits.length - 1]!.biome;
       travel(w, exits.length - 1);
@@ -217,6 +222,36 @@ describe('portals', () => {
   });
 });
 
+describe('boss seal guard', () => {
+  it('a sealed level whose boss can never appear is unsealed instead of soft-locking the run', () => {
+    const w = portalWorld(1, true, { district: 3, isBoss: true });
+    unsealIfBossless(w);
+    expect(w.level.locked).toBe(false);
+    // An unknown boss def in the spawn specs can't spawn either.
+    const w2 = portalWorld(1, true, { district: 3, isBoss: true });
+    w2.level.spawns.push({ kind: 'boss', def: 'no_such_boss', x: 300, y: FLOOR_Y });
+    unsealIfBossless(w2);
+    expect(w2.level.locked).toBe(false);
+  });
+
+  it('stays sealed while a boss is present or still to spawn', () => {
+    const w = portalWorld(1, true, { district: 3, isBoss: true });
+    dummy(w, 300, FLOOR_Y - 20, 100, 'boss', 'test_boss');
+    unsealIfBossless(w);
+    expect(w.level.locked).toBe(true);
+    const bosses = Content.bosses as Map<string, BossDef>;
+    bosses.set('test_boss', { id: 'test_boss' } as BossDef);
+    try {
+      const w2 = portalWorld(1, true, { district: 3, isBoss: true });
+      w2.level.spawns.push({ kind: 'boss', def: 'test_boss', x: 300, y: FLOOR_Y });
+      unsealIfBossless(w2);
+      expect(w2.level.locked).toBe(true);
+    } finally {
+      bosses.delete('test_boss');
+    }
+  });
+});
+
 describe('transitions', () => {
   it('downed / out players come back at 1 HP; skill cooldowns reset; per-level state resets', () => {
     const w = portalWorld(3);
@@ -255,6 +290,28 @@ describe('run end', () => {
     expect(evs.filter((e) => e.type === 'runOver')).toEqual([{ type: 'runOver', victory: true }]);
     // No further run-over events.
     expect(stepTicks(w, 3).some((e) => e.type === 'runOver')).toBe(false);
+  });
+
+  it('a boss-kind minion dying in the lair does not win while the Blightwall lives', () => {
+    const w = makeWorld({ systems: FLOW_SYSTEMS, level: arenaLevel({ district: FINAL_DISTRICT, biome: 'lair', isBoss: true }, [], true) });
+    const wall = dummy(w, 300, FLOOR_Y - 30, 400, 'boss', 'blightwall');
+    const head = dummy(w, 340, FLOOR_Y - 60, 20, 'boss', 'blight_head');
+    stepTicks(w, 1);
+    killEntity(w, head, 0);
+    stepTicks(w, 2);
+    expect(w.run.over).toBe(false);
+    killEntity(w, wall, 0);
+    stepTicks(w, 1);
+    expect(w.run.victory).toBe(true);
+  });
+
+  it('in the lair, every boss gone (once seen) also wins (final boss under another id)', () => {
+    const w = makeWorld({ systems: FLOW_SYSTEMS, level: arenaLevel({ district: FINAL_DISTRICT, biome: 'lair' }) });
+    const b = dummy(w, 300, FLOOR_Y - 30, 400, 'boss', 'heart_of_blight');
+    stepTicks(w, 1);
+    killEntity(w, b, 0);
+    stepTicks(w, 2);
+    expect(w.run.victory).toBe(true);
   });
 
   it('other bosses dying outside the lair do not end the run', () => {

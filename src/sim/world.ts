@@ -1,6 +1,7 @@
 import { Rng, type RngState } from '../engine/rng';
 import type { Rect } from '../engine/math';
 import { MAX_PLAYERS } from './constants';
+import type { LevelRequest } from './gen';
 import type { TileGrid } from './tiles';
 import type { BaseStats, Entity, EntityKind, GameEvent, PlayerInput, PlayerState, Team } from './types';
 import { emptyInput } from './types';
@@ -55,6 +56,8 @@ export interface Level {
   arena?: Rect;
   spawns: SpawnSpec[];
   lights: StaticLight[];
+  /** The request this level was generated from (net clients regenerate the level from it). */
+  request?: LevelRequest;
 }
 
 export interface RunState {

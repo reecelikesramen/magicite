@@ -126,8 +126,21 @@ export function reviveParty(world: World): void {
   }
 }
 
+/**
+ * A locked level with no boss that can ever appear (no boss entity spawned and no boss SpawnSpec
+ * with a known BossDef) would seal its portals forever: unseal it instead of soft-locking the run.
+ */
+export function unsealIfBossless(world: World): void {
+  const lvl = world.level;
+  if (!lvl.locked) return;
+  for (const e of world.entities) if (e.kind === 'boss' && !e.dead) return;
+  for (const s of lvl.spawns) if (s.kind === 'boss' && Content.bosses.has(s.def)) return;
+  lvl.locked = false;
+}
+
 function onLevelLoaded(world: World): void {
   spawnLevelEntities(world);
+  unsealIfBossless(world);
   applyDifficultyToLevel(world);
   reviveParty(world);
   resetSkillCooldowns(world);
@@ -146,7 +159,9 @@ export function enterLevel(world: World, req: LevelRequest): void {
   run.portalFirst = -1;
   run.bossSeen = false;
   if (req.kind !== 'town') for (const p of world.players) p.runStats.district = Math.max(p.runStats.district ?? 0, req.district);
-  world.loadLevel(generateLevel(req), onLevelLoaded);
+  const level = generateLevel(req);
+  level.request = req; // lets net clients regenerate this level locally (same line as ws/net)
+  world.loadLevel(level, onLevelLoaded);
   if (first) startRun(world);
 }
 
@@ -199,9 +214,10 @@ export function declareDefeat(world: World): void {
 
 /**
  * Boss bookkeeping: bosses killed this tick are still in the entity list with `dead` set (cleanup
- * runs after all systems), so no event reading is needed. The final boss (or any boss in the lair)
- * dying wins the run; in a boss district the exits unlock once a boss was seen and none remain.
- * Returns true if the run just ended.
+ * runs after all systems), so no event reading is needed. The final boss dying wins the run (in the
+ * lair, so does every boss there being gone once one was seen — but a boss-kind minion dying while
+ * the Blightwall lives does not); in a boss district the exits unlock once a boss was seen and none
+ * remain. Returns true if the run just ended.
  */
 function watchBosses(world: World): boolean {
   const lvl = world.level;
@@ -212,7 +228,7 @@ function watchBosses(world: World): boolean {
   for (const e of world.entities) {
     if (e.kind !== 'boss') continue;
     if (!e.dead) alive++;
-    else if (e.def === FINAL_BOSS || lair) finalDown = true;
+    else if (e.def === FINAL_BOSS) finalDown = true;
   }
   if (alive > 0) run.bossSeen = true;
   if (finalDown || (lair && run.bossSeen && alive === 0)) {
