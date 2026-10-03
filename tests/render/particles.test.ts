@@ -71,6 +71,8 @@ describe('presets', () => {
       'lava_burn', 'poof', 'revive', 'spike', 'arcane_ward', 'blink', 'dash', 'ember_trail', 'feathers', 'fire_burst',
       'frost_nova', 'heal', 'iron_skin', 'level_up', 'lightning', 'shield', 'skill_learn', 'slam', 'slash', 'smoke',
       'trap_snap', 'war_cry', 'whirlwind', 'wraith', 'wraith_spawn', 'zap', 'wood_chips', 'rock_chips',
+      'axe', 'chest_open', 'craft', 'discover', 'drink', 'eat', 'hit', 'hit_crit', 'pot_break',
+      'trail_arcane', 'trail_fire', 'trail_fuse', 'trail_ice', 'trail_magic', 'trail_slime', 'trail_spark', 'trail_web',
     ];
     for (const name of emitted) expect(resolvePreset(name), name).not.toBe(GENERIC);
   });

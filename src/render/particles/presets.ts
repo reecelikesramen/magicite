@@ -87,6 +87,11 @@ const ALIASES: Record<string, string> = {
   arcane_ward: 'magic', war_cry: 'magic', blessing: 'levelup', skill_learn: 'levelup', whirlwind: 'dash',
   frost_nova: 'frost', ice: 'frost', freeze: 'frost', lightning: 'zap', thunder: 'zap', shock: 'zap',
   wraith: 'smoke', wraith_spawn: 'smoke', feathers: 'poof', vapor: 'steam',
+  hit_crit: 'hit_spark', axe: 'wood_chips', pot_break: 'tile_chips', chest_open: 'coin_sparkle', craft: 'magic',
+  discover: 'levelup', drink: 'heal', eat: 'dust_puff',
+  // Projectile trails (ProjectileDef.trail); the renderer tints them with the projectile's light colour.
+  trail_arcane: 'trail_magic', trail_spark: 'trail_magic', trail_ice: 'trail_magic', trail_fuse: 'trail_fire',
+  trail_slime: 'slime_splat', trail_web: 'trail_dots',
 };
 
 export function resolvePreset(name: string): Preset {
