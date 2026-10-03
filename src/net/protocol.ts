@@ -449,6 +449,8 @@ export interface LevelChangeMsg {
   request: LevelRequest | null;
   /** … or receive it whole when the run flow did not record a request. */
   level: Level | null;
+  /** `gridHash` of the grid the client must regenerate from `request` (0 = don't check). */
+  baseHash: number;
   /** Edits on top of the generated level (late join: compacted log of every changed tile). */
   edits: TileEdits;
 }
@@ -456,6 +458,7 @@ export interface LevelChangeMsg {
 export function writeLevelChange(w: ByteWriter, m: LevelChangeMsg, sink: StringSink): void {
   w.uvar(m.epoch);
   w.uvar(m.tick);
+  w.u32(m.baseHash);
   if (m.request) {
     w.u8(0);
     writeValue(w, m.request, sink);
@@ -469,6 +472,7 @@ export function writeLevelChange(w: ByteWriter, m: LevelChangeMsg, sink: StringS
 export function readLevelChange(r: ByteReader, table: StringTable): LevelChangeMsg {
   const epoch = r.uvar();
   const tick = r.uvar();
+  const baseHash = r.u32();
   const mode = r.u8();
   let request: LevelRequest | null = null;
   let level: Level | null = null;
@@ -476,7 +480,7 @@ export function readLevelChange(r: ByteReader, table: StringTable): LevelChangeM
   else if (mode === 1) level = readLevelFull(r, table);
   else throw new RangeError('LevelChange: bad mode');
   const edits = readEdits(r);
-  return { epoch, tick, request, level, edits };
+  return { epoch, tick, request, level, baseHash, edits };
 }
 
 /** A LevelRequest from the wire (unknown extra fields are kept for forward compatibility). */

@@ -73,7 +73,7 @@ Notes for integrators:
 | Message | Channel | Content |
 |---|---|---|
 | Hello / Welcome / Reject | reliable | protocol version + content-table hash, PlayerSetup, reconnect token; player index, host tick, seed, owner-state layout |
-| LevelChange | reliable | level epoch + `LevelRequest` (clients regenerate the level — `generateLevel` is pure) + compacted tile edit log; full RLE level only if the run flow recorded no request |
+| LevelChange | reliable | level epoch + `LevelRequest` (clients regenerate the level — `generateLevel` is pure) + hash of the pristine grid (a client whose generator differs leaves with "level mismatch" instead of desyncing) + compacted tile edit log; full RLE level only if the run flow recorded no request |
 | TileEdits | reliable | tiles changed since last tick (host diffs chunks whose `chunkVersion` changed — catches mining, bombs, placement, anything) |
 | Snapshot | unreliable (full ones reliable) | header (tick, epoch, baseline, input timing feedback) · public player views (versioned) · the owner's exact prediction state · entity delta vs the client's last acked snapshot, interest-filtered (≈2 screens + players/bosses) · nearby cosmetic events |
 | Input | unreliable | ack + last 8 inputs (delta-coded, ~15–30 B) |

@@ -292,6 +292,22 @@ describe('net sessions over a lossy loopback', () => {
     expect(back.epoch).toBe(rig.host.epoch);
   });
 
+  it('(c2) a client whose generator builds a different map refuses to play instead of desyncing', () => {
+    const rig = makeRig({ clients: 1, conditions: { latencyMs: 30 }, netSeed: 47 });
+    run(rig, 120);
+    const hw = rig.host.world;
+    // Stand-in for a stale build: the request no longer regenerates the host's pristine grid.
+    hw.level.request = { ...hw.level.request!, seed: hw.level.request!.seed + 1 };
+    const left: string[] = [];
+    rig.host.onPlayerLeave = (_i, name, reason) => left.push(`${name}:${reason}`);
+    const odd = addClient(rig, 'ODD');
+    run(rig, 120);
+    expect(odd.state).toBe('disconnected');
+    expect(odd.reason).toMatch(/level mismatch/);
+    expect(left).toEqual(['ODD:left']);
+    expect(rig.clients[0]!.state).toBe('joined');
+  });
+
   it('own predicted events are not duplicated by the host echo', () => {
     const rig = makeRig({ clients: 1, conditions: { latencyMs: 50, jitterMs: 10 }, netSeed: 17 });
     removeEnemies(rig.host.world);

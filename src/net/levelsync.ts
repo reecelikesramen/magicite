@@ -20,6 +20,8 @@ import { type ByteReader, type ByteWriter, type StringSink, type StringTable, re
 export type TileEdits = number[];
 
 export class TileTracker {
+  /** `gridHash` of the base grid (clients check their regenerated level against it). */
+  readonly baseHash: number;
   private shadowFg: Uint8Array;
   private shadowBg: Uint8Array;
   private readonly pristineFg: Uint8Array;
@@ -29,6 +31,7 @@ export class TileTracker {
   /** `base` is the grid clients start from (regenerated pristine level, or the transferred copy). */
   constructor(live: TileGrid, base: TileGrid) {
     if (base.w !== live.w || base.h !== live.h) throw new Error('TileTracker: grid size mismatch');
+    this.baseHash = gridHash(base);
     this.pristineFg = base.fg.slice();
     this.pristineBg = base.bg.slice();
     this.shadowFg = base.fg.slice();
@@ -75,6 +78,24 @@ export class TileTracker {
     }
     return out;
   }
+}
+
+/**
+ * FNV-1a over the size and both tile layers (never 0). A client compares the level it regenerated
+ * from the LevelRequest with the host's: a peer whose generator differs (stale cached build with the
+ * same content ids) would otherwise apply the edit log to a different map and silently desync.
+ */
+export function gridHash(g: TileGrid): number {
+  let h = 0x811c9dc5;
+  h = Math.imul(h ^ g.w, 0x01000193);
+  h = Math.imul(h ^ g.h, 0x01000193);
+  const fg = g.fg;
+  const bg = g.bg;
+  for (let i = 0; i < fg.length; i++) {
+    h = Math.imul(h ^ fg[i]!, 0x01000193);
+    h = Math.imul(h ^ bg[i]!, 0x01000193);
+  }
+  return h >>> 0 || 1;
 }
 
 /** Sorted, delta-coded edit list. */

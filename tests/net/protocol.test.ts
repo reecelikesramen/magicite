@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ByteReader, ByteWriter } from '../../src/net/codec';
-import { TileTracker, applyEdits, regenerateLevel } from '../../src/net/levelsync';
+import { TileTracker, applyEdits, gridHash, regenerateLevel } from '../../src/net/levelsync';
 import { OwnerAccess, buildOwnerLayout, readOwnerDelta, writeOwnerDelta } from '../../src/net/predict';
 import {
   HostEncoder, Msg, decodeHello, decodeInputPacket, encodeHello, encodeInputPacket, openHostPacket, quantizeInput,
@@ -74,7 +74,7 @@ describe('protocol', () => {
     const host = createStringTable();
     const enc = new HostEncoder(host);
     const w = enc.begin();
-    writeLevelChange(w, { epoch: 3, tick: 99, request: level.request!, level: null, edits: tracker.compactLog(level.grid) }, enc.sink);
+    writeLevelChange(w, { epoch: 3, tick: 99, request: level.request!, level: null, baseHash: tracker.baseHash, edits: tracker.compactLog(level.grid) }, enc.sink);
     const pkt = enc.finish(Msg.LevelChange, new Set(), true);
     const client = createStringTable();
     const r = new ByteReader();
@@ -83,6 +83,7 @@ describe('protocol', () => {
     expect(m.epoch).toBe(3);
     expect(m.request).toEqual(level.request);
     const rebuilt = regenerateLevel(m.request!);
+    expect(m.baseHash).toBe(gridHash(rebuilt.grid));
     applyEdits(rebuilt.grid, m.edits);
     expect(rebuilt.grid.fg).toEqual(level.grid.fg);
     expect(rebuilt.grid.bg).toEqual(level.grid.bg);
@@ -94,7 +95,7 @@ describe('protocol', () => {
     const level = { ...world.level, request: undefined };
     const host = createStringTable();
     const enc = new HostEncoder(host);
-    writeLevelChange(enc.begin(), { epoch: 1, tick: 0, request: null, level, edits: [] }, enc.sink);
+    writeLevelChange(enc.begin(), { epoch: 1, tick: 0, request: null, level, baseHash: 0, edits: [] }, enc.sink);
     const pkt = enc.finish(Msg.LevelChange, new Set(), true);
     console.log(`[net] full level transfer: ${pkt.length} B for ${level.grid.w}×${level.grid.h} tiles`);
     const client = createStringTable();

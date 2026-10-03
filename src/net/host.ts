@@ -552,7 +552,10 @@ export class HostSession implements Session {
 
   private levelChangeMsg(edits: TileEdits) {
     const level = this.world.level;
-    return { epoch: this.epoch, tick: this.levelTick, request: level.request ?? null, level: level.request ? null : level, edits };
+    return {
+      epoch: this.epoch, tick: this.levelTick, request: level.request ?? null, level: level.request ? null : level,
+      baseHash: level.request ? this.tracker.baseHash : 0, edits,
+    };
   }
 
   private onLevelChanged(): void {

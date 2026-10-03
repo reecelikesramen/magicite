@@ -6,7 +6,7 @@ import type { Entity, GameEvent, PlayerInput, PlayerState } from '../sim/types';
 import { emptyInput } from '../sim/types';
 import type { Level, PlayerSetup } from '../sim/world';
 import { ByteReader, ByteWriter } from './codec';
-import { applyEdits, regenerateLevel } from './levelsync';
+import { applyEdits, gridHash, regenerateLevel } from './levelsync';
 import { blankEntity, connectingLevel, mirrorAdd, mirrorClear, mirrorRemoveWhere } from './mirror';
 import { type PublicPlayerView, applyPublicView, makePlayerTemplate } from './players';
 import { OwnerAccess, PREDICTED_ENTITY_KEYS, PredictionHistory, copyInput, predictStep, readOwnerDelta } from './predict';
@@ -413,8 +413,16 @@ export class ClientSession implements Session {
     const m = readLevelChange(r, this.strings);
     if (m.epoch <= this.epoch) return;
     let level: Level;
-    if (m.request) level = regenerateLevel(m.request);
-    else level = m.level!;
+    if (m.request) {
+      level = regenerateLevel(m.request);
+      if (m.baseHash !== 0 && gridHash(level.grid) !== m.baseHash) {
+        // Our generator built a different map: the edit log, collisions and prediction would all be
+        // wrong. Leave cleanly with a reason the menu can show instead of playing a desynced game.
+        this.transport.send(this.hostPeer, 'reliable', encodeReason(Msg.Leave, 'level mismatch', false));
+        this.setState('disconnected', 'level mismatch: the host runs a different game version');
+        return;
+      }
+    } else level = m.level!;
     applyEdits(level.grid, m.edits);
     const world = this.world;
     world.level = level;
