@@ -6,16 +6,21 @@ import { regenStamina } from './meters';
 
 /**
  * Client-side prediction step for the local player: exactly the movement-relevant subset of
- * `World.step` in the same order (controller → physics → hurt/i-frame timers → stamina regen → input latch). With no
- * other influences (enemies, hazards, hit-stop) it reproduces the authoritative movement bit-for-bit
- * (tested in tests/player/determinism.test.ts), so reconciliation only has to fix real divergence.
- * Events emitted while replaying should be discarded by the caller.
+ * `World.step` in the same order (controller → physics → swing countdown → hurt/i-frame timers →
+ * stamina regen → input latch). With no other influences (enemies, hazards, hit-stop) it reproduces
+ * the authoritative movement bit-for-bit (tested in tests/player/determinism.test.ts), so
+ * reconciliation only has to fix real divergence. Events emitted while replaying should be
+ * discarded by the caller. (src/net/predict.ts#predictStep must stay equivalent, including the
+ * stamina regen: `p.stamina` / `ctl.staminaT` gate double jumps and dashes.)
  */
 export function predictPlayer(world: World, p: PlayerState, e: Entity, input: PlayerInput): void {
   e.px = e.x;
   e.py = e.y;
   controlPlayer(world, p, e, input);
   stepBody(world, e);
+  // meleeSystem's countdown: facing follows the aim while `e.swing` exists.
+  const s = e.swing;
+  if (s && --s.ticks <= 0) e.swing = undefined;
   // Mirrors statusSystem's timers that movement reads (hurt = knockback stagger).
   if (e.invuln > 0) e.invuln--;
   if (e.hurt > 0) e.hurt--;

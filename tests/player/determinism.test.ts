@@ -73,12 +73,16 @@ describe('determinism', () => {
     for (let t = 0; t < 2000; t++) {
       const input = script(t, 3);
       input.attack = false; // item use isn't part of movement prediction
+      if (t % 150 === 0) {
+        // A swing the host started (snapshotted to the client): facing follows the aim until it ends.
+        for (const w of [auth, pred]) ent(w).swing = { ticks: 20, total: 20, angle: 0, hit: [], item: 'none' };
+      }
       auth.step([input]);
       predictPlayer(pred, pp, ent(pred), input);
       const a = ent(auth);
       const b = ent(pred);
-      if (a.x !== b.x || a.y !== b.y || pa.stamina !== pp.stamina) {
-        throw new Error(`diverged at tick ${t}: auth (${a.x}, ${a.y}, st ${pa.stamina}) vs pred (${b.x}, ${b.y}, st ${pp.stamina})`);
+      if (a.x !== b.x || a.y !== b.y || a.facing !== b.facing || pa.stamina !== pp.stamina || !!a.swing !== !!b.swing) {
+        throw new Error(`diverged at tick ${t}: auth (${a.x}, ${a.y}, f ${a.facing}, st ${pa.stamina}) vs pred (${b.x}, ${b.y}, f ${b.facing}, st ${pp.stamina})`);
       }
     }
     expect(ent(auth).x).toBe(ent(pred).x);
