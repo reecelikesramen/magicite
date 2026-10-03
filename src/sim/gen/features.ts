@@ -273,12 +273,13 @@ export function backWalls(ctx: GenCtx): void {
   const { w, h, grid, style } = ctx;
   if (style.wallWindows <= 0) return;
   const noise = makeNoise(ctx.rng);
+  // Large, smooth windows only (speckled single-tile holes read as noise).
   const thr = 1 - style.wallWindows * 4;
-  for (let y = 2; y < h - 2; y++) {
-    for (let x = 2; x < w - 2; x++) {
+  for (let y = 3; y < h - 3; y++) {
+    for (let x = 3; x < w - 3; x++) {
       const i = y * w + x;
       if (grid.fg[i] !== Tile.AIR) continue;
-      if (fbm(noise, x / 16, y / 10, 2) > thr && airAt(grid, x, y - 2) && airAt(grid, x, y + 2) && airAt(grid, x - 2, y) && airAt(grid, x + 2, y)) {
+      if (fbm(noise, x / 26, y / 15, 2) > thr && airAt(grid, x, y - 3) && airAt(grid, x, y + 3) && airAt(grid, x - 3, y) && airAt(grid, x + 3, y)) {
         grid.bg[i] = Wall.NONE;
       }
     }

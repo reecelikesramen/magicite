@@ -2,6 +2,7 @@
  * Render generated levels to PNG (no canvas, no browser) for eyeballing the level generator.
  * Usage: bun scripts/gen-preview.ts <outDir> [seed=42] [biomes=all] [kinds=normal,boss,town] [district=auto] [scale=3]
  * Example: bun scripts/gen-preview.ts /tmp/shots 7 woods,fen normal
+ * Env: CROP=x0,x1 renders only tile columns [x0, x1) (zoomed detail views).
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -57,13 +58,19 @@ function png(w: number, h: number, rgb: Uint8Array): Uint8Array {
   return res;
 }
 
+const crop = process.env.CROP ? process.env.CROP.split(',').map(Number) : null;
+
 function render(level: GeneratedLevel): { w: number; h: number; rgb: Uint8Array } {
   const g = level.grid;
   const pal = Content.biomes.get(level.info.biome)!.palette;
-  const W = g.w * S;
+  const cx0 = crop ? Math.max(0, crop[0]!) : 0;
+  const cx1 = crop ? Math.min(g.w, crop[1]!) : g.w;
+  const W = (cx1 - cx0) * S;
   const H = g.h * S;
+  const ox = cx0 * S;
   const rgb = new Uint8Array(W * H * 3);
   const rect = (x0: number, y0: number, w: number, h: number, c: number): void => {
+    x0 -= ox;
     for (let y = Math.max(0, Math.floor(y0)); y < Math.min(H, Math.floor(y0 + h)); y++) {
       for (let x = Math.max(0, Math.floor(x0)); x < Math.min(W, Math.floor(x0 + w)); x++) {
         const i = (y * W + x) * 3;
@@ -74,7 +81,7 @@ function render(level: GeneratedLevel): { w: number; h: number; rgb: Uint8Array 
     }
   };
   for (let ty = 0; ty < g.h; ty++) {
-    for (let tx = 0; tx < g.w; tx++) {
+    for (let tx = cx0; tx < cx1; tx++) {
       const t = g.get(tx, ty);
       const exposed = g.get(tx, ty - 1) === Tile.AIR || g.get(tx, ty - 1) === Tile.PLATFORM;
       let c: number;
@@ -178,7 +185,7 @@ for (const b of [...biomes, ...(process.argv[4] ? [] : ['lair'])]) {
     const ms = performance.now() - t0;
     const rep = checkLevel(level);
     const img = render(level);
-    const file = `${out}/${b}-${kind}-${seed}.png`;
+    const file = `${out}/${b}-${kind}-${seed}${crop ? `-x${crop[0]}` : ''}.png`;
     writeFileSync(file, png(img.w, img.h, img.rgb));
     console.log(`${file} ${level.grid.w}x${level.grid.h} ${ms.toFixed(1)}ms spawns=${level.spawns.length} points=${level.spawnPoints.length} lights=${level.lights.length} softlocks=${rep.softLocks} ${rep.problems.length ? 'PROBLEMS ' + rep.problems.join('; ') : 'ok'}`);
   }

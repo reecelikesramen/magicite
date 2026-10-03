@@ -7,7 +7,10 @@ import type { BiomeDef } from '../../content/types';
 export interface GenStyle {
   /** Route: zone width range and big between-zone floor shift range. */
   zoneW: [number, number];
+  /** Route: smallest "real" height change between zones, and the max rise of one transition. */
   shift: [number, number];
+  /** Route: columns per macro hill/valley of the floor curve. */
+  macroLen: number;
   /** Route: terrace segment width range, max step (≤ 3 so a single jump climbs it), chance per segment. */
   segW: [number, number];
   stepMax: number;
@@ -49,6 +52,7 @@ export interface GenStyle {
 const BASE: GenStyle = {
   zoneW: [26, 40],
   shift: [5, 10],
+  macroLen: 70,
   segW: [3, 8],
   stepMax: 2,
   stepChance: 0.35,
@@ -56,7 +60,7 @@ const BASE: GenStyle = {
   climb: { stairs: 2, platforms: 2, ladder: 1 },
   cavernScale: 13,
   cavernStretch: 1.6,
-  corridors: [1, 2],
+  corridors: [2, 3],
   corridorClearance: [4, 7],
   corridorLen: [30, 70],
   basins: 0.8,
@@ -77,37 +81,37 @@ export const STYLES: Record<string, Partial<GenStyle>> = {
   // Rolling, surface-like terraces with tall headroom for tall trees.
   woods: {
     zoneW: [28, 44], shift: [4, 9], segW: [4, 10], stepMax: 3, stepChance: 0.45, clearance: [12, 17],
-    climb: { stairs: 3, platforms: 2, ladder: 1 }, cavernScale: 14, corridors: [1, 2], basins: 0.6,
+    climb: { stairs: 3, platforms: 2, ladder: 1 }, cavernScale: 14, corridors: [2, 3], basins: 0.6,
     wallWindows: 0.12, decor: 20,
   },
   // Low, flat and soggy: shallow pools everywhere, mud floors, little vertical movement.
   fen: {
     zoneW: [30, 48], shift: [3, 5], segW: [5, 12], stepMax: 1, stepChance: 0.25, clearance: [8, 12],
-    climb: { stairs: 3, platforms: 2, ladder: 0 }, cavernScale: 12, cavernStretch: 2.2, corridors: [0, 1],
+    climb: { stairs: 3, platforms: 2, ladder: 0 }, cavernScale: 12, cavernStretch: 2.2, corridors: [1, 2],
     basins: 3.2, basinW: [5, 12], basinDepth: [2, 3], special: 'floor', decor: 22,
   },
   // Mine tunnels and shafts: narrow corridors stacked on several levels joined by ladders.
   hollow: {
     zoneW: [22, 34], shift: [6, 12], segW: [4, 9], stepMax: 1, stepChance: 0.3, clearance: [5, 7],
-    climb: { stairs: 1, platforms: 2, ladder: 3 }, cavernScale: 9, cavernStretch: 2.4, corridors: [3, 5],
+    climb: { stairs: 1, platforms: 2, ladder: 3 }, cavernScale: 9, cavernStretch: 2.4, corridors: [4, 6],
     corridorClearance: [4, 6], corridorLen: [40, 90], basins: 0.3, lanterns: 5, chests: 1.3, pots: 2, decor: 16,
   },
   // Icy ledges: frequent 2–3 tile steps, ice shelves to hop across.
   rime: {
     zoneW: [24, 38], shift: [5, 10], segW: [3, 6], stepMax: 3, stepChance: 0.55, clearance: [9, 14],
-    climb: { stairs: 3, platforms: 2, ladder: 0 }, cavernScale: 12, corridors: [1, 2], basins: 0.5,
+    climb: { stairs: 3, platforms: 2, ladder: 0 }, cavernScale: 12, corridors: [2, 3], basins: 0.5,
     specialLedges: 4, special: 'floor', decor: 16,
   },
   // Huge open caverns studded with glowing crystal clusters.
   amethyst: {
     zoneW: [30, 46], shift: [5, 11], segW: [3, 7], stepMax: 2, stepChance: 0.4, clearance: [13, 20],
-    climb: { stairs: 2, platforms: 3, ladder: 0 }, cavernScale: 17, cavernStretch: 1.3, corridors: [1, 2],
+    climb: { stairs: 2, platforms: 3, ladder: 0 }, cavernScale: 17, cavernStretch: 1.3, corridors: [2, 3],
     basins: 0.4, special: 'cluster', specialLight: { color: 0xe274ee, radius: 30 }, wallWindows: 0.08, decor: 16,
   },
   // Lava lakes with basalt pillars, wide open halls.
   cinder: {
     zoneW: [28, 42], shift: [4, 8], segW: [4, 9], stepMax: 2, stepChance: 0.35, clearance: [11, 16],
-    climb: { stairs: 2, platforms: 3, ladder: 0 }, cavernScale: 13, corridors: [0, 1], basins: 1.6,
+    climb: { stairs: 2, platforms: 3, ladder: 0 }, cavernScale: 13, corridors: [1, 2], basins: 1.6,
     basinW: [6, 15], basinDepth: [2, 4], pillars: true, special: 'cluster', specialLight: { color: 0xff6010, radius: 20 },
     chests: 0.8, decor: 14,
   },

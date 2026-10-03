@@ -68,6 +68,10 @@ export function buildProfile(ctx: GenCtx, x1: number, endFlat: number, endFloor?
   for (let x = 1; x < ENTRANCE_W; x++) floor[x] = cur;
   const zEnd = x1 - endFlat;
   const vert = ctx.biome.gen.verticality;
+  const macro = makeNoise(rng);
+  const mPhase = rng.range(0, 1000);
+  const mid = (lo + hi) / 2;
+  const half = (hi - lo) / 2;
   let x = ENTRANCE_W;
   const climbKinds = (['stairs', 'platforms', 'ladder'] as const).filter((k) => style.climb[k] > 0);
   while (x < zEnd) {
@@ -76,13 +80,14 @@ export function buildProfile(ctx: GenCtx, x1: number, endFlat: number, endFloor?
     const last = x + zw >= zEnd;
     let target = cur;
     if (endFloor !== undefined && (last || zEnd - x < style.zoneW[1] * 1.5)) target = endFloor;
-    else if (rng.chance(0.2 + 0.65 * vert)) {
-      let mag = rng.int(style.shift[0], style.shift[1]);
-      let dir = rng.sign();
-      if (cur + dir * mag < lo || cur + dir * mag > hi) dir = -dir as 1 | -1;
-      mag = Math.min(mag, dir < 0 ? cur - lo : hi - cur);
-      target = cur + dir * Math.max(0, mag);
-    } else target = clamp(cur + rng.int(-2, 2), lo, hi);
+    else {
+      // Macro curve: the route sweeps through the floor band in long hills/valleys (how much of the
+      // band depends on verticality), plus a little jitter; one transition rises ≤ shift[1].
+      const m = clamp((noise01(macro, mPhase + x / style.macroLen, 0) - 0.5) * 3.2, -1, 1);
+      const want = mid + m * half * (0.3 + 0.7 * vert);
+      target = clamp(Math.round(want) + rng.int(-2, 2), Math.max(lo, cur - style.shift[1]), Math.min(hi, cur + style.shift[1] + 4));
+      if (Math.abs(target - cur) < style.shift[0] && rng.chance(0.5)) target = clamp(cur + rng.int(-2, 2), lo, hi);
+    }
     const xe = x + zw;
     // --- transition into the zone ---
     if (target < cur - 3) {
@@ -268,10 +273,14 @@ export function carveCorridors(ctx: GenCtx, p: RouteProfile, xMin: number, xMax:
       const clr = new Int16Array(len + 1);
       let y = base;
       let ok = true;
+      const [c0, c1] = style.corridorClearance;
+      let c = rng.int(c0, c1);
       for (let k = 0; k <= len; k++) {
         if (k % 6 === 0 && rng.chance(0.35)) y = clamp(y + rng.int(-1, 1), base - 2, base + 2);
+        // Ceiling wanders slowly (a per-column random height reads as a comb of stalactites).
+        if (k % 3 === 0 && rng.chance(0.5)) c = clamp(c + rng.int(-1, 1), c0, c1);
         floor[k] = y;
-        clr[k] = rng.int(style.corridorClearance[0], style.corridorClearance[1]);
+        clr[k] = c;
         const x = cx0 + k;
         const top = y - clr[k]!;
         if (top < 3 || y + 2 >= h - 1) ok = false;
@@ -293,6 +302,10 @@ export function carveCorridors(ctx: GenCtx, p: RouteProfile, xMin: number, xMax:
         const upper = above ? floor[k]! : p.floor[x]!;
         const lower = above ? p.floor[x]! : floor[k]!;
         if (lower - upper < 4) continue;
+        if (style.climb.ladder === 0 || (style.climb.ladder < style.climb.platforms && rng.chance(0.5))) {
+          platformShaft(ctx, x, upper, lower);
+          continue;
+        }
         for (let yy = upper + 2; yy < lower; yy++) for (let dx = -1; dx <= 1; dx++) carve(ctx, x + dx, yy);
         for (let yy = upper; yy < lower; yy++) {
           put(ctx, x, yy, Tile.LADDER);
@@ -305,6 +318,35 @@ export function carveCorridors(ctx: GenCtx, p: RouteProfile, xMin: number, xMax:
       }
       break;
     }
+  }
+}
+
+/**
+ * A 5-wide open shaft from floor row `upper` down to floor row `lower`, climbable with one-way
+ * platforms at most 3 rows apart (zig-zagging, always overlapping the centre column). The upper
+ * floor becomes a platform across the hole so walkers on the upper level can cross it.
+ */
+function platformShaft(ctx: GenCtx, x: number, upper: number, lower: number, half = 2): void {
+  const { w, flags } = ctx;
+  for (let yy = upper; yy < lower; yy++) {
+    for (let dx = -half; dx <= half; dx++) {
+      carve(ctx, x + dx, yy);
+      flags[yy * w + x + dx]! |= F_NOHAZ;
+    }
+  }
+  const lay = (row: number, x0: number, x1: number): void => {
+    for (let xx = x0; xx <= x1; xx++) {
+      if (ctx.grid.get(xx, row) !== Tile.AIR) continue;
+      put(ctx, xx, row, Tile.PLATFORM);
+      flags[row * w + xx]! |= F_CLAIM;
+    }
+  };
+  lay(upper, x - half, x + half);
+  const n = Math.ceil((lower - upper) / 3);
+  for (let k = 1; k < n; k++) {
+    const row = upper + Math.round((k * (lower - upper)) / n);
+    if (k % 2 === 0) lay(row, x - half, x);
+    else lay(row, x, x + half);
   }
 }
 
@@ -407,7 +449,7 @@ export function connectPockets(ctx: GenCtx, minKeep = 30, maxTunnel = 28): void 
     }
     let run: number[] = [];
     const flush = (): void => {
-      if (run.length >= 3) ladderColumn(ctx, run);
+      if (run.length >= 3) ladderColumn(ctx, run, ctx.style.climb.ladder === 0);
       run = [];
     };
     for (let k = 0; k < path.length; k++) {
@@ -423,8 +465,11 @@ export function connectPockets(ctx: GenCtx, minKeep = 30, maxTunnel = 28): void 
   }
 }
 
-/** Ladder along a vertical run of cells, extended down to the floor below the run. */
-function ladderColumn(ctx: GenCtx, run: number[]): void {
+/**
+ * Ladder along a vertical run of cells, extended down to the floor below the run. Biomes without
+ * ladders get a zig-zag of one-way platforms in the (3-wide) tunnel instead.
+ */
+function ladderColumn(ctx: GenCtx, run: number[], platformsInstead = false): void {
   const { w, grid, flags } = ctx;
   const x = run[0]! % w;
   let y0 = Infinity;
@@ -437,6 +482,12 @@ function ladderColumn(ctx: GenCtx, run: number[]): void {
   while (y1 + 1 < ctx.h - 1 && grid.get(x, y1 + 1) === Tile.AIR) y1++;
   // Top rung flush with whatever floor surrounds the top of the shaft.
   if (IS_SOLID[grid.get(x - 1, y0 - 1)] || IS_SOLID[grid.get(x + 1, y0 - 1)]) y0--;
+  if (platformsInstead && y1 + 1 - y0 >= 4) {
+    platformShaft(ctx, x, y0, y1 + 1, 1);
+    carve(ctx, x, y0 - 1);
+    carve(ctx, x, y0 - 2);
+    return;
+  }
   for (let y = y0; y <= y1; y++) {
     const t = grid.get(x, y);
     if (t === Tile.AIR || IS_SOLID[t]) {
