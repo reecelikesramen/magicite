@@ -59,6 +59,28 @@ export interface ChunkMeta {
   /** CHUNK×CHUNK, 1 = open sky (no wall, not solid) → lightmap stays neutral there. */
   sky: Uint8Array;
   skyCount: number;
+  /**
+   * ATTEN_SIZE² light attenuation (255 = open, 0 = deep inside solid ground) for the chunk plus a
+   * 1-tile ring of neighbours (so linear upscaling is seamless across chunk edges). Multiplied
+   * into the lightmap so lit surfaces fade to black a few tiles into the terrain.
+   */
+  atten: Uint8Array;
+}
+
+export const ATTEN_SIZE = CHUNK + 2;
+
+/** Attenuation by Chebyshev depth into solid terrain (index = depth, 0 = not solid). */
+export const ATTEN_BY_DEPTH = [255, 215, 110, 40, 0] as const;
+
+/** Depth (0..4) of tile (tx,ty) into solid terrain: 0 = open, 4 = at least 4 tiles deep. */
+export function solidDepth(grid: GridView, tx: number, ty: number): number {
+  if (!SOLID[grid.get(tx, ty)]) return 0;
+  for (let d = 1; d <= 3; d++) {
+    for (let k = -d; k <= d; k++) {
+      if (!SOLID[grid.get(tx + k, ty - d)] || !SOLID[grid.get(tx + k, ty + d)] || !SOLID[grid.get(tx - d, ty + k)] || !SOLID[grid.get(tx + d, ty + k)]) return d;
+    }
+  }
+  return 4;
 }
 
 const SOLID = new Uint8Array(256);
@@ -557,9 +579,17 @@ export function scanChunk(grid: GridView, st: BiomeStyle, cx: number, cy: number
   const emitters: Emitter[] = [];
   const surfaces: Surface[] = [];
   const sky = new Uint8Array(CHUNK * CHUNK);
+  const atten = new Uint8Array(ATTEN_SIZE * ATTEN_SIZE);
   let skyCount = 0;
   const bx = cx * CHUNK;
   const by = cy * CHUNK;
+  for (let y = 0; y < ATTEN_SIZE; y++) {
+    for (let x = 0; x < ATTEN_SIZE; x++) {
+      const tx = bx - 1 + x;
+      const ty = by - 1 + y;
+      atten[y * ATTEN_SIZE + x] = tx < 0 || ty < 0 || tx >= grid.w || ty >= grid.h ? 0 : ATTEN_BY_DEPTH[solidDepth(grid, tx, ty)]!;
+    }
+  }
   const fringeGlow = st.fringeEmissive ? ramp(st.pal.fringe, 2) : 0;
   const specialGlow = st.special === 'crystal' ? 0xc040ff : st.special === 'obsidian' ? 0xff6020 : st.special === 'blight' ? 0xff40a0 : 0;
   for (let ty = by; ty < by + CHUNK && ty < grid.h; ty++) {
@@ -605,5 +635,5 @@ export function scanChunk(grid: GridView, st: BiomeStyle, cx: number, cy: number
     flush(Math.min(bx + CHUNK, grid.w) - 1);
     if (surfKind) surfaces.push({ tx0: surfStart, tx1: Math.min(bx + CHUNK, grid.w) - 1, ty, kind: surfKind });
   }
-  return { emitters, surfaces, sky, skyCount };
+  return { emitters, surfaces, sky, skyCount, atten };
 }

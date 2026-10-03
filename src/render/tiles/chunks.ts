@@ -1,8 +1,8 @@
-import { Container, Sprite, Texture, TilingSprite } from 'pixi.js';
+import { Container, Rectangle, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { TILE } from '../../sim/constants';
 import { CHUNK, tileProps, type TileGrid } from '../../sim/tiles';
 import type { BiomeStyle } from '../style';
-import { CHUNK_PX, makeChunkBuffers, paintChunk, paintRegion, scanChunk, type ChunkBuffers, type ChunkMeta, type Emitter } from './painter';
+import { ATTEN_SIZE, CHUNK_PX, makeChunkBuffers, paintChunk, paintRegion, scanChunk, type ChunkBuffers, type ChunkMeta, type Emitter } from './painter';
 import { crackTextures, surfaceTextures } from './textures';
 
 const SNAP = CHUNK + 2;
@@ -28,6 +28,8 @@ interface ChunkRec {
   glowSprite: Sprite | null;
   skyCanvas: HTMLCanvasElement | null;
   skySprite: Sprite | null;
+  attenCanvas: HTMLCanvasElement;
+  attenSprite: Sprite;
   snapFg: Uint8Array;
   snapBg: Uint8Array;
   meta: ChunkMeta;
@@ -57,6 +59,8 @@ export class ChunkLayer {
   readonly emissive = new Container();
   /** Sky masks rendered into the lightmap (neutral light where the sky shows). */
   readonly skyMasks = new Container();
+  /** Depth-attenuation masks multiplied into the lightmap (surfaces lit, deep ground black). */
+  readonly attenMasks = new Container();
 
   private grid: TileGrid | null = null;
   private style: BiomeStyle | null = null;
@@ -84,6 +88,7 @@ export class ChunkLayer {
     c.sprite.destroy({ texture: true, textureSource: true });
     c.glowSprite?.destroy({ texture: true, textureSource: true });
     c.skySprite?.destroy({ texture: true, textureSource: true });
+    c.attenSprite.destroy({ texture: true, textureSource: true });
     for (const s of c.surfaces) {
       s.a.destroy();
       s.b.destroy();
@@ -116,6 +121,7 @@ export class ChunkLayer {
       c.sprite.visible = vis;
       if (c.glowSprite) c.glowSprite.visible = vis;
       if (c.skySprite) c.skySprite.visible = vis;
+      c.attenSprite.visible = vis;
       for (const s of c.surfaces) {
         s.a.visible = s.b.visible = vis;
         if (!vis) continue;
@@ -162,10 +168,22 @@ export class ChunkLayer {
     const snapFg = new Uint8Array(SNAP * SNAP);
     const snapBg = new Uint8Array(SNAP * SNAP);
     this.snapshot(cx, cy, snapFg, snapBg);
+    const attenCanvas = document.createElement('canvas');
+    attenCanvas.width = attenCanvas.height = ATTEN_SIZE;
+    const attenBase = Texture.from(attenCanvas);
+    attenBase.source.scaleMode = 'linear';
+    // Show only the chunk's own 32×32 texels; bilinear sampling still reads the 1-texel ring of
+    // neighbour values, so the gradient is continuous across chunk edges (no overlap → no double multiply).
+    const attenTex = new Texture({ source: attenBase.source, frame: new Rectangle(1, 1, CHUNK, CHUNK) });
+    const attenSprite = new Sprite(attenTex);
+    attenSprite.position.set(cx * CHUNK_PX, cy * CHUNK_PX);
+    attenSprite.scale.set(TILE);
+    attenSprite.blendMode = 'multiply';
+    this.attenMasks.addChild(attenSprite);
     const rec: ChunkRec = {
       cx, cy, version, buf, canvas, ctx, img, sprite,
       glowCanvas: null, glowCtx: null, glowImg: null, glowSprite: null,
-      skyCanvas: null, skySprite: null,
+      skyCanvas: null, skySprite: null, attenCanvas, attenSprite,
       snapFg, snapBg,
       meta: scanChunk(g, st, cx, cy),
       surfaces: [],
@@ -247,6 +265,18 @@ export class ChunkLayer {
   }
 
   private syncMeta(c: ChunkRec): void {
+    {
+      const ctx = c.attenCanvas.getContext('2d')!;
+      const img = ctx.createImageData(ATTEN_SIZE, ATTEN_SIZE);
+      const a = c.meta.atten;
+      for (let i = 0; i < ATTEN_SIZE * ATTEN_SIZE; i++) {
+        const v = a[i]!;
+        img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+        img.data[i * 4 + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      c.attenSprite.texture.source.update();
+    }
     // Sky mask (1 px per tile, upscaled with linear filtering into the lightmap).
     if (c.meta.skyCount > 0) {
       if (!c.skyCanvas) {
