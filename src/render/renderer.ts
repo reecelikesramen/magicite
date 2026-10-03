@@ -22,6 +22,9 @@ import { ChunkLayer } from './tiles/chunks';
 import type { Emitter } from './tiles/painter';
 import { haloTexture, lightTexture } from './tiles/textures';
 
+/** Ticks a teammate holds interact to revive (GDD: 2 s); `PlayerState.reviveProgress` counts up to it. */
+const REVIVE_TICKS = 120;
+
 /** Target native view; the scale is the largest integer that still shows at least this much. */
 export const VIEW_W = 320;
 export const VIEW_H = 180;
@@ -379,10 +382,11 @@ export class Renderer {
     for (const p of world.players) {
       const e = world.get(p.entityId);
       if (!e || p.out) continue;
+      // The tag stays at standing height while downed (with a red '!' and the revive bar).
       const v = this.entities.viewOf(e.id);
-      const x = v ? v.x : lerp(e.px, e.x, alpha) + e.w / 2;
-      const top = v ? v.y - (p.downed ? 6 : v.h - 1) : e.y;
-      this.overlay.tag(e.id, p.name.toUpperCase(), x, top, p.downed ? 0xff8070 : 0xffffff, e === focus ? 0.85 : 1, p.downed ? p.reviveProgress / 120 : -1);
+      const x = v ? v.ax : lerp(e.px, e.x, alpha) + e.w / 2;
+      const top = v ? v.ay - (v.set.h - 1) : lerp(e.py, e.y, alpha);
+      this.overlay.tag(e.id, p.name, x, top, 0xffffff, e === focus ? 0.85 : 1, p.downed ? p.reviveProgress / REVIVE_TICKS : -1);
     }
     this.overlay.endTags();
     this.overlay.update(dt);

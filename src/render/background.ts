@@ -135,18 +135,17 @@ export class Background {
     this.haze.position.set(0, 0);
     this.haze.width = w;
     this.haze.height = h;
-    const layers: [TilingSprite | null, number][] = [
-      [this.far, 0.2],
-      [this.near, 0.4],
-    ];
-    for (const [s, k] of layers) {
-      if (!s) continue;
-      s.width = w;
-      s.tilePosition.x = -Math.round(cx * k);
-      // Vertically: the strip sits around the level's middle, drifting with parallax.
-      const mid = levelH * 0.5;
-      s.position.set(0, Math.round(h * 0.55 - STRIP_H * 0.5 - (cy + h / 2 - mid) * k));
-    }
+    this.place(this.far, 0.2, w, h, cx, cy, levelH);
+    this.place(this.near, 0.4, w, h, cx, cy, levelH);
+  }
+
+  private place(s: TilingSprite | null, k: number, w: number, h: number, cx: number, cy: number, levelH: number): void {
+    if (!s) return;
+    s.width = w;
+    s.tilePosition.x = -Math.round(cx * k);
+    // Vertically: the strip sits around the level's middle, drifting with parallax.
+    const mid = levelH * 0.5;
+    s.position.set(0, Math.round(h * 0.55 - STRIP_H * 0.5 - (cy + h / 2 - mid) * k));
   }
 
   private destroyStrips(): void {

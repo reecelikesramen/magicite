@@ -97,6 +97,7 @@ export class Compositor {
   private ambient = new Float32Array([0, 0, 0, 1]);
   private clearBlack = new Float32Array([0, 0, 0, 1]);
   private clearClear = new Float32Array([0, 0, 0, 0]);
+  private readonly scenes: readonly LayerScene[] = [this.terrain, this.entities, this.light, this.emissive, this.bloom];
 
   constructor() {
     this.terrainRT = rt(8, 8, false);
@@ -175,7 +176,8 @@ export class Compositor {
 
   /** Place every layer's world container for an integer camera position (native px). */
   setCamera(ix: number, iy: number): void {
-    for (const s of [this.terrain, this.entities, this.light, this.emissive, this.bloom]) s.world.position.set(MARGIN - ix, MARGIN - iy);
+    const scenes = this.scenes;
+    for (let i = 0; i < scenes.length; i++) scenes[i]!.world.position.set(MARGIN - ix, MARGIN - iy);
   }
 
   /** Render all layers; then place the output quad: `fx,fy` = sub-pixel camera remainder (0..1). */

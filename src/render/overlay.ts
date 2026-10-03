@@ -16,6 +16,20 @@ interface Floater {
   big: boolean;
 }
 
+interface TagView {
+  text: PixelText;
+  seen: number;
+  /** Downed marker + revive bar, drawn in local coords and redrawn only when its look changes. */
+  bar: Graphics;
+  /** Upper-case name cache (no per-frame string allocation). */
+  name: string;
+  upper: string;
+  barKey: number;
+}
+
+/** Downed marker ('!') colour, as in the original's co-op downed state. */
+export const DOWNED_MARK = 0xe01020;
+
 /** Damage number colours. */
 export const DAMAGE_COLORS = {
   toPlayer: 0xff4a3a,
@@ -41,7 +55,7 @@ export class WorldOverlay {
   private world = new Container();
   private floaters: Floater[] = [];
   private freeTexts: PixelText[] = [];
-  private tags = new Map<number, { text: PixelText; seen: number; bar: Graphics }>();
+  private tags = new Map<number, TagView>();
   private frame = 0;
   private scale = 4;
   /** Text scale relative to native pixels (0.5 = half-size glyph pixels). */
@@ -103,35 +117,52 @@ export class WorldOverlay {
     this.frame++;
   }
 
-  /** Name tag above a player at world (x = centre, y = top of sprite). `revive` 0..1 shows a bar. */
+  /**
+   * Name tag above a player at world (x = centre, y = top of the standing sprite). `revive` ≥ 0 marks
+   * the player as downed: a red '!' above the name and a revive bar (0..1) below it.
+   */
   tag(id: number, name: string, x: number, y: number, color: number, alpha: number, revive = -1): void {
     let t = this.tags.get(id);
     if (!t) {
       const text = this.takeText();
       const bar = new Graphics();
       this.world.addChild(text, bar);
-      t = { text, seen: 0, bar };
+      t = { text, seen: 0, bar, name: '', upper: '', barKey: -2 };
       this.tags.set(id, t);
     }
     t.seen = this.frame;
+    if (t.name !== name) {
+      t.name = name;
+      t.upper = name.toUpperCase();
+    }
+    const ts = this.textScale;
     const tx = t.text;
-    tx.text = name;
+    tx.text = t.upper;
     tx.color = color;
     tx.alpha = alpha;
-    tx.scale.set(this.textScale);
-    const w = tx.textWidth * this.textScale;
-    const h = 7 * this.textScale;
-    tx.position.set(this.snap(x - w / 2), this.snap(y - h - 2));
+    tx.scale.set(ts);
+    const w = tx.textWidth * ts;
+    const h = 7 * ts;
+    const nameY = this.snap(y - h - 2);
+    tx.position.set(this.snap(x - w / 2), nameY);
     tx.visible = true;
     const bar = t.bar;
-    bar.clear();
-    if (revive >= 0) {
-      const bw = 10;
-      const bx = Math.round(x - bw / 2);
-      const by = Math.round(y - h - 5);
-      bar.rect(bx - 1, by - 1, bw + 2, 3).fill({ color: 0x101010, alpha: 0.85 });
-      bar.rect(bx, by, Math.round(bw * Math.min(1, revive)), 1).fill(0x70ff70);
+    const bw = 10;
+    const fill = revive >= 0 ? Math.round(bw * Math.min(1, revive)) : -1;
+    const key = fill < 0 ? -1 : fill * 64 + Math.round(ts * 16);
+    if (key !== t.barKey) {
+      t.barKey = key;
+      bar.clear();
+      if (fill >= 0) {
+        // Revive bar (native px) under the name, red '!' (font pixels) above it.
+        bar.rect(-1, h + 1, bw + 2, 3).fill({ color: 0x101010, alpha: 0.85 });
+        if (fill > 0) bar.rect(0, h + 2, fill, 1).fill(0x70ff70);
+        bar.rect(bw / 2 - ts / 2, -7 * ts - 1, ts, 5 * ts).fill(DOWNED_MARK);
+        bar.rect(bw / 2 - ts / 2, -ts - 1, ts, ts).fill(DOWNED_MARK);
+      }
     }
+    bar.visible = fill >= 0;
+    if (fill >= 0) bar.position.set(Math.round(x - bw / 2), nameY);
   }
 
   /** Hide tags not refreshed this frame. */

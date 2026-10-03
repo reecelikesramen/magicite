@@ -86,9 +86,9 @@ export class EntityViews {
     if (v) v.shake = 0.18;
   }
 
-  viewOf(id: number): { x: number; y: number; h: number } | null {
-    const v = this.views.get(id);
-    return v ? { x: v.ax, y: v.ay, h: v.set.h } : null;
+  /** The view of an entity (render anchor `ax,ay` and frame set) if it has one; read-only use. */
+  viewOf(id: number): Readonly<Pick<View, 'ax' | 'ay' | 'set'>> | undefined {
+    return this.views.get(id);
   }
 
   clear(): void {
