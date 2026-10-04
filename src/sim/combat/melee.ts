@@ -235,6 +235,29 @@ function resolveSwing(world: World, e: Entity, s: MeleeSwing): void {
   }
 }
 
+/**
+ * Enemies/bosses `e`'s swing touches this tick, with no side effects (no damage, no `s.hit`
+ * bookkeeping). Net clients use it to play hit feedback at once instead of waiting a round trip.
+ */
+export function swingContacts(world: World, e: Entity, s: MeleeSwing, out: Entity[]): Entity[] {
+  out.length = 0;
+  const def = maybeItem(s.item);
+  const elapsed = s.total - s.ticks;
+  const w = swingWindup(def, s.total);
+  const a = swingActive(def, s.total);
+  if (elapsed <= w || elapsed > w + a) return out;
+  const thrust = isThrust(def);
+  const a0 = thrust ? s.angle : bladeAngle(s, def, e.facing, elapsed - 1);
+  const a1 = thrust ? s.angle : bladeAngle(s, def, e.facing, elapsed);
+  const ext = thrust ? thrustExtent(def, s, elapsed) : 1;
+  const pad = (thrust ? COMBAT.melee.thrustThickness : COMBAT.melee.arc[swingWeight(def)].thickness) / 2;
+  for (const t of world.entities) {
+    if (t === e || t.dead || (t.kind !== 'enemy' && t.kind !== 'boss') || !isMeleeTarget(world, e, t)) continue;
+    if (bladeSweepHits(e, def, ext, a0, a1, t, pad)) out.push(t);
+  }
+  return out;
+}
+
 /** Advances active swings (windup → active → recovery) and resolves hits during active frames. */
 export function meleeSystem(world: World): void {
   if (world.freeze > 0) return;

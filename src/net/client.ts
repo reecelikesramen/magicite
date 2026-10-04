@@ -1,6 +1,7 @@
 import { maybeItem } from '../content';
 import type { Session } from '../game/session';
 import { World } from '../sim';
+import { swingContacts } from '../sim/combat/melee';
 import { MAX_PLAYERS, TICK_RATE } from '../sim/constants';
 import type { Entity, GameEvent, PlayerInput, PlayerState } from '../sim/types';
 import { emptyInput } from '../sim/types';
@@ -69,6 +70,9 @@ const RING = 64;
 const HISTORY = 256;
 const MAX_REPLAY = 120;
 const PING_MS = 1000;
+/** Input slack floor (ticks inputs reach the host early). Inputs are sent 8× redundantly, so a clean link
+ * runs on 1; every miss raises it (up to 6) and it decays back after 10 s without misses. */
+const MIN_SLACK = 1;
 const HELLO_RETRY_MS = 1000;
 const SNAP_LIMIT_PX = 48;
 const OFFSET_DECAY = 0.82;
@@ -161,7 +165,7 @@ export class ClientSession implements Session {
   private interpDelay = 6;
   private readonly lateness = new Float32Array(32);
   private lateIdx = 0;
-  private targetSlack = 2;
+  private targetSlack = MIN_SLACK;
   private adjust = 0;
   private adjustPhase = 0;
   private adjustCooldown = 0;
@@ -184,6 +188,10 @@ export class ClientSession implements Session {
   private readonly predicted: Predicted[] = [];
   private readonly events: QueuedEvent[] = [];
   private disposed = false;
+  /** Enemies the current predicted swing already gave hit feedback for (see predictHits). */
+  private readonly swingHitIds: number[] = [];
+  private readonly contactScratch: Entity[] = [];
+  private lastSwingTicks = 0;
 
   constructor(opts: ClientOptions) {
     this.transport = opts.transport;
@@ -195,7 +203,15 @@ export class ClientSession implements Session {
     this.world.level = connectingLevel();
     for (let i = 0; i < RING; i++) this.ring.push({ tick: -1, epoch: 0, frame: new EntityFrame(64), owner: new Float64Array(0), hasOwner: false });
     this.unsubs.push(
-      this.transport.onMessage((peer, channel, data) => this.queue.push({ peer, channel, data })),
+      this.transport.onMessage((peer, channel, data) => {
+        // Time pongs on arrival (host packet: type, empty string defs, f64 echo, …) so RTT is the link's.
+        if (data.length >= 10 && data[0] === Msg.Pong && data[1] === 0) {
+          const echo = new DataView(data.buffer, data.byteOffset + 2, 8).getFloat64(0, true);
+          this.onRtt(Math.max(0, this.clock() - echo));
+          return;
+        }
+        this.queue.push({ peer, channel, data });
+      }),
       this.transport.onPeerJoin((peer) => this.sendHello(peer)),
       this.transport.onPeerLeave((peer) => {
         if (peer === this.hostPeer && this.state !== 'rejected') this.setState('disconnected', 'host left');
@@ -338,12 +354,9 @@ export class ClientSession implements Session {
       case Msg.Leave:
         if (peer === this.hostPeer) this.setState('disconnected', r.str());
         return;
-      case Msg.Pong: {
-        const echo = r.f64();
-        const rtt = Math.max(0, this.clock() - echo);
-        this.stats.rttMs = this.stats.rttMs === 0 ? rtt : this.stats.rttMs * 0.8 + rtt * 0.2;
+      case Msg.Pong:
+        this.onRtt(Math.max(0, this.clock() - r.f64()));
         return;
-      }
       default:
     }
     if (this.state !== 'joined') return;
@@ -378,6 +391,10 @@ export class ClientSession implements Session {
         return;
       default:
     }
+  }
+
+  private onRtt(rtt: number): void {
+    this.stats.rttMs = this.stats.rttMs === 0 ? rtt : this.stats.rttMs * 0.8 + rtt * 0.2;
   }
 
   private onWelcome(peer: PeerId, r: ByteReader): void {
@@ -522,7 +539,7 @@ export class ClientSession implements Session {
       this.lastMisses = h.misses;
       this.lastMissTick = T;
       if (this.targetSlack < 6) this.targetSlack++;
-    } else if (T - this.lastMissTick > 600 && this.targetSlack > 2) {
+    } else if (T - this.lastMissTick > 600 && this.targetSlack > MIN_SLACK) {
       this.targetSlack--;
       this.lastMissTick = T;
     }
@@ -540,7 +557,7 @@ export class ClientSession implements Session {
     if (this.adjust !== 0) return;
     let d = 0;
     if (h.slack < this.targetSlack) d = this.targetSlack - h.slack;
-    else if (h.slack > this.targetSlack + 3) d = this.targetSlack + 1 - h.slack;
+    else if (h.slack > this.targetSlack + 2) d = this.targetSlack + 1 - h.slack;
     if (d === 0) return;
     this.adjust = Math.max(-30, Math.min(30, d));
     this.adjustCooldown = T + 2 * Math.abs(this.adjust) + rttTicks + 40;
@@ -678,6 +695,7 @@ export class ClientSession implements Session {
     if (replay) this.stats.replayedTicks++;
     else {
       this.stats.predictedTicks++;
+      this.predictHits(e);
       for (const ev of world.events) {
         this.pending.push(ev);
         const rec = ev as unknown as Record<string, unknown>;
@@ -687,6 +705,29 @@ export class ClientSession implements Session {
       }
     }
     world.events.length = 0;
+  }
+
+  /**
+   * Hit feedback without the round trip: when the predicted swing touches an enemy as this client
+   * sees it, emit the host's hit spark + sound now (once per enemy per swing). The host's own copies
+   * of those events are then suppressed; damage numbers and HP stay authoritative.
+   */
+  private predictHits(e: Entity): void {
+    const s = e.swing;
+    if (!s) {
+      this.swingHitIds.length = 0;
+      return;
+    }
+    if (s.ticks > this.lastSwingTicks) this.swingHitIds.length = 0; // a new swing started
+    this.lastSwingTicks = s.ticks;
+    for (const t of swingContacts(this.world, e, s, this.contactScratch)) {
+      if (this.swingHitIds.includes(t.id)) continue;
+      this.swingHitIds.push(t.id);
+      const cx = t.x + t.w / 2;
+      const dir = Math.sign(cx - (e.x + e.w / 2)) || e.facing;
+      this.world.emit({ type: 'particles', preset: 'hit', x: cx, y: t.y + t.h / 2, count: 4, dirX: dir });
+      this.world.emit({ type: 'sfx', id: 'hit', x: cx, y: t.y });
+    }
   }
 
   /** Create / update / remove the local player entity from the newest frame (non-predicted fields). */

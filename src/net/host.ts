@@ -39,7 +39,7 @@ export interface HostOptions {
   setups: PlayerSetup[];
   /** Use an existing world instead of `createRun(seed, setups)`. */
   world?: World;
-  /** Snapshots per second (default 30). Must divide 60. */
+  /** Snapshots per second (default 60: lowest interpolation delay; deltas keep it small). Must divide 60. */
   snapshotRate?: number;
   interest?: Partial<InterestArea>;
   /** Milliseconds clock (default performance.now). Tests pass the loopback network clock. */
@@ -225,7 +225,7 @@ export class HostSession implements Session {
     this.clock = opts.clock ?? (() => performance.now());
     this.timeoutMs = opts.timeoutMs ?? 10_000;
     this.maxPlayers = Math.min(MAX_PLAYERS, opts.maxPlayers ?? MAX_PLAYERS);
-    const rate = opts.snapshotRate ?? 30;
+    const rate = opts.snapshotRate ?? 60;
     this.snapshotInterval = Math.max(1, Math.round(60 / rate));
     this.interest = { ...DEFAULT_INTEREST, ...opts.interest };
     this.world = opts.world ?? createRun(opts.seed, opts.setups);
@@ -237,7 +237,14 @@ export class HostSession implements Session {
     this.levelTick = this.world.tick;
     this.resetTracker();
     this.unsubs.push(
-      this.transport.onMessage((peer, channel, data) => this.queue.push({ peer, channel, data })),
+      this.transport.onMessage((peer, channel, data) => {
+        // Pings are answered on arrival (not at the next tick) so clients measure the link, not our frame rate.
+        if (data.length === 9 && data[0] === Msg.Ping && !this.disposed) {
+          this.transport.send(peer, 'unreliable', encodePong(new DataView(data.buffer, data.byteOffset + 1, 8).getFloat64(0, true), this.world.tick));
+          return;
+        }
+        this.queue.push({ peer, channel, data });
+      }),
       this.transport.onPeerLeave((peer) => this.queue.push({ peer, channel: 'reliable', data: LEAVE_MARK })),
     );
   }
