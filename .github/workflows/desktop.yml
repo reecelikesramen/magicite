@@ -1,15 +1,25 @@
 # Desktop builds (Electrobun) for macOS (Apple Silicon), Windows and Linux.
-# - Manual run (Actions tab -> Desktop builds -> Run workflow): artifacts attached to the run.
-# - Push to a claude/** branch touching desktop/**: build check.
-# - Tag push `v*`: also publishes them to a GitHub Release, which the in-app updater reads.
-# Unsigned for now: macOS users right-click -> Open the first time; Windows SmartScreen says
-# "More info -> Run anyway". See desktop/README.md for signing.
+# - main: release.yml calls this on every app change and publishes a GitHub Release v0.2.<run>.
+# - Tag push `v*`: builds and publishes that version.
+# - Push to a claude/** branch touching desktop/**: build check (artifacts on the run).
+# - Manual run (Actions tab -> Desktop builds -> Run workflow): artifacts on the run.
+# The in-app updater reads releases/latest. Unsigned for now: macOS users right-click -> Open the
+# first time; Windows SmartScreen says "More info -> Run anyway". See desktop/README.md.
 name: Desktop builds
 on:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: App version (semver, no leading v)
+        type: string
+        required: true
+      release:
+        description: Publish a GitHub Release
+        type: boolean
+        default: false
   push:
     tags: ['v*']
-    # Dev branches: only when the desktop shell itself changes.
     branches: ['claude/**']
     paths: ['desktop/**', '.github/workflows/desktop.yml']
 
@@ -17,7 +27,27 @@ permissions:
   contents: write
 
 jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - id: v
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "version=${{ inputs.version }}" >>"$GITHUB_OUTPUT"
+            echo "release=${{ inputs.release }}" >>"$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >>"$GITHUB_OUTPUT"
+            echo "release=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "version=0.2.0-dev.${{ github.run_number }}" >>"$GITHUB_OUTPUT"
+            echo "release=false" >>"$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: meta
     strategy:
       fail-fast: false
       matrix:
@@ -29,9 +59,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       SHARDFALL_LITE: ${{ matrix.lite || '0' }}
+      APP_VERSION: ${{ needs.meta.outputs.version }}
+      VITE_APP_VERSION: ${{ needs.meta.outputs.version }}
       RELEASE_BASE_URL: https://github.com/${{ github.repository }}/releases/latest/download
       VITE_NOSTR_RELAYS: ${{ vars.NOSTR_RELAYS }}
       VITE_ICE_ENDPOINT: ${{ vars.ICE_ENDPOINT }}
+      VITE_DEDICATED_URL: ${{ vars.DEDICATED_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -48,8 +81,8 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    if: needs.meta.outputs.release == 'true'
+    needs: [meta, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -58,5 +91,9 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.meta.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Shardfall ${{ needs.meta.outputs.version }}
           files: dist-desktop/*
           generate_release_notes: true
+          make_latest: true

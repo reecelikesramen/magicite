@@ -1,0 +1,31 @@
+name: Release
+
+# Every change to the game on main ships desktop builds as a GitHub Release (v0.2.<run>).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'desktop/**'
+      - 'index.html'
+      - 'package.json'
+      - 'bun.lock'
+      - 'vite.config.ts'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  desktop:
+    uses: ./.github/workflows/desktop.yml
+    with:
+      version: 0.2.${{ github.run_number }}
+      release: true
+    secrets: inherit

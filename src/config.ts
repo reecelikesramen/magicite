@@ -2,7 +2,7 @@ import type { TrysteroOptions } from './net/trysteroTransport';
 
 /** Working title — the project is an original recreation/extension, rename freely. */
 export const GAME_TITLE = 'Shardfall';
-export const VERSION = '0.2.0';
+
 
 /**
  * Network configuration, overridable at build time with Vite env vars (see docs/HOSTING.md):
@@ -15,6 +15,9 @@ export const VERSION = '0.2.0';
  * - VITE_ROOM_PASSWORD: optional shared password namespacing your rooms
  */
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+
+/** Build version (CI release builds set VITE_APP_VERSION, e.g. 0.2.42). */
+export const VERSION = env.VITE_APP_VERSION || '0.2.0';
 
 /**
  * Page-level overrides for testing and self-hosting without a rebuild:

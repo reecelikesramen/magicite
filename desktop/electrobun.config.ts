@@ -15,7 +15,8 @@ export default {
   app: {
     name: lite ? 'Shardfall Lite' : 'Shardfall',
     identifier: 'dev.shardfall.game',
-    version: '0.2.0',
+    // CI stamps the release version (APP_VERSION) so the updater sees each build as new.
+    version: process.env.APP_VERSION || '0.2.0',
     description: 'Roguelike crafting platformer with online co-op',
   },
   build: {

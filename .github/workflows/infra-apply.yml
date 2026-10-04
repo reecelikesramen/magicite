@@ -1,0 +1,98 @@
+name: Infra apply
+
+# Applies infra/ to Cloudflare, then deploys the signal Worker and hands it the TURN key from
+# Terraform's outputs (the key never lives in a repo secret).
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform
+  cancel-in-progress: false # never cancel mid-apply
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_IN_AUTOMATION: "true"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Main branch only
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Infra apply only runs on main"
+          exit 1
+
+      - uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.16.4
+          terraform_wrapper: false
+
+      - working-directory: infra
+        run: terraform init -input=false
+
+      - working-directory: infra
+        run: terraform apply -input=false -auto-approve -no-color -lock-timeout=300s
+
+      - name: Verify converged (plan must be empty)
+        working-directory: infra
+        run: terraform plan -input=false -no-color -detailed-exitcode -lock-timeout=120s
+
+      - name: Read outputs
+        id: tf
+        working-directory: infra
+        run: |
+          echo "account_id=$(terraform output -raw account_id)" >>"$GITHUB_OUTPUT"
+          echo "worker=$(terraform output -raw signal_worker_name)" >>"$GITHUB_OUTPUT"
+          echo "pages_url=$(terraform output -raw pages_url)" >>"$GITHUB_OUTPUT"
+          key_id="$(terraform output -raw turn_key_id)"
+          token="$(terraform output -raw turn_key_token)"
+          echo "::add-mask::$token"
+          echo "turn_key_id=$key_id" >>"$GITHUB_OUTPUT"
+          echo "turn_key_token=$token" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Deploy signal Worker (code + Durable Object)
+        id: deploy
+        working-directory: server/cloudflare
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.tf.outputs.account_id }}
+        run: |
+          npx --yes wrangler@4 deploy --name "${{ steps.tf.outputs.worker }}" 2>&1 | tee deploy.log
+          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          echo "url=$url" >>"$GITHUB_OUTPUT"
+
+      - name: TURN secrets from Terraform
+        working-directory: server/cloudflare
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.tf.outputs.account_id }}
+        run: |
+          printf '%s' "${{ steps.tf.outputs.turn_key_id }}" | npx --yes wrangler@4 secret put TURN_KEY_ID --name "${{ steps.tf.outputs.worker }}"
+          printf '%s' "${{ steps.tf.outputs.turn_key_token }}" | npx --yes wrangler@4 secret put TURN_KEY_TOKEN --name "${{ steps.tf.outputs.worker }}"
+
+      - name: Smoke test + summary
+        run: |
+          url='${{ steps.deploy.outputs.url }}'
+          curl -fsS "$url/health"
+          curl -fsS "$url/ice" | grep -q iceServers
+          {
+            echo "### Shardfall infra"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Signal relay | \`${url/https:/wss:}\` |"
+            echo "| ICE endpoint | \`$url/ice\` |"
+            echo "| Web (Pages) | ${{ steps.tf.outputs.pages_url }} |"
+            echo
+            echo "Set repo **variables** \`NOSTR_RELAYS=${url/https:/wss:}\` and \`ICE_ENDPOINT=$url/ice\` so web and desktop builds use them."
+          } >>"$GITHUB_STEP_SUMMARY"

@@ -1,13 +1,14 @@
 # Shardfall signaling relay + TURN credential minting on Cloudflare's free tier.
+# Normally deployed from GitHub (infra/README.md): Terraform creates the TURN app and this
+# Worker's name; the Infra apply / Deploy signal workflows run `wrangler deploy` and set the
+# TURN_KEY_ID / TURN_KEY_TOKEN secrets from Terraform outputs. By hand:
 #   cd server/cloudflare && npx wrangler deploy
-# Optional TURN (Cloudflare Realtime, 1,000 GB/month free):
-#   npx wrangler secret put TURN_KEY_ID
-#   npx wrangler secret put TURN_KEY_TOKEN
 # Then build the game with VITE_NOSTR_RELAYS=wss://<worker>.workers.dev and
 # VITE_ICE_ENDPOINT=https://<worker>.workers.dev/ice — see docs/HOSTING.md.
 name = "shardfall-signal"
 main = "worker.ts"
 compatibility_date = "2026-09-01"
+workers_dev = true
 
 [vars]
 # Comma-separated origins allowed to fetch /ice ("*" = any). Lock this to your game's origin.

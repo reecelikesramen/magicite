@@ -12,3 +12,11 @@ dist-artifact/
 server/cloudflare/.wrangler/
 desktop/artifacts*/
 desktop/build*/
+# Terraform (state lives in R2; local secrets never committed)
+infra/.terraform/
+infra/*.tfvars
+!infra/infra.auto.tfvars
+infra/backend.secrets
+infra/plan.txt
+*.tfstate
+*.tfstate.*
