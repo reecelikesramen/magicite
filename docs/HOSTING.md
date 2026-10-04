@@ -35,6 +35,13 @@ Your own relay is tiny and stateless:
 
 ### Cloudflare Worker (free, no server to run)
 
+**Recommended: Terraform from GitHub.** `infra/` holds the relay Worker, the Cloudflare TURN app and a
+Cloudflare Pages project for the web build. Set it up once (state bucket, token, repo secrets and
+variables; see [`infra/README.md`](../infra/README.md)), then run **Actions → Infra apply**. It
+deploys everything, wires the TURN key into the Worker, and prints the relay and ICE URLs to use.
+
+By hand instead:
+
 ```sh
 cd server/cloudflare
 npx wrangler login
