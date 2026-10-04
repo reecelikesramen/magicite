@@ -85,8 +85,9 @@ describe('place', () => {
   it('aiming beyond reach places the nearest open tile toward the aim (facing aim)', () => {
     const { world, p } = makeWorld();
     give(p, 't_block', 5);
+    const before = [...Array(30).keys()].map((x) => world.level.grid.get(x, FLOOR - 1));
     step(world, 10, tap(30 * TILE + 4, (FLOOR - 1) * TILE + 4));
-    const placed = [...Array(30).keys()].filter((x) => world.level.grid.get(x, FLOOR - 1) !== Tile.AIR);
+    const placed = [...Array(30).keys()].filter((x) => world.level.grid.get(x, FLOOR - 1) !== before[x]);
     expect(placed.length).toBeGreaterThan(0);
     expect(p.inventory[0]?.count).toBe(5 - placed.length);
     for (const x of placed) expect(x).toBeLessThanOrEqual(14); // within reach, never at the far aim
