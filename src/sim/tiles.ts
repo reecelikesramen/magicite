@@ -91,6 +91,8 @@ export const Wall = {
   /** Man-made wall (towns, ruins). */
   BRICK: 2,
   WOOD: 3,
+  /** Dark room behind a doorway or window (towns): unlike NONE it is not open sky. */
+  INTERIOR: 4,
 } as const;
 export type WallId = (typeof Wall)[keyof typeof Wall];
 

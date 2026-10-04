@@ -125,6 +125,9 @@ export class Game {
     }
     const menu = !!this.overlay?.active;
     this.ui.root.visible = !menu;
+    // No cursor in play (aim follows facing); the pointer only shows where the UI needs it.
+    const cursor = menu || this.ui.inventoryOpen || this.ui.bookOpen ? 'default' : 'none';
+    if (this.app.canvas.style.cursor !== cursor) this.app.canvas.style.cursor = cursor;
     if (!menu) {
       this.ui.handleEvents(events, world, me);
       this.ui.update(world, me, this.input);

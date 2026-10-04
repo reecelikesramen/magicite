@@ -119,6 +119,43 @@ function propLight(id: string): Entity['light'] {
   return undefined;
 }
 
+const placeOpen = (id: number): boolean => id === Tile.AIR || tileProps(id).liquid;
+
+/**
+ * Where a placement lands: the aimed tile when it is open and in reach (pointer aim); otherwise the
+ * nearest open tile walking from the user toward the aim (facing aim points 48 px out) — "in front of
+ * me", or ahead-and-below with S held (bridging). Cells the user stands in are skipped.
+ */
+export function placeTarget(world: World, e: Entity, aimX: number, aimY: number): { tx: number; ty: number } | null {
+  const grid = world.level.grid;
+  const cx = e.x + e.w / 2;
+  const cy = e.y + e.h / 2;
+  const reach = COMBAT.place.reach;
+  const inReach = (tx: number, ty: number) => Math.hypot(tx * TILE + TILE / 2 - cx, ty * TILE + TILE / 2 - cy) <= reach;
+  const ax = Math.floor(aimX / TILE);
+  const ay = Math.floor(aimY / TILE);
+  if (grid.inBounds(ax, ay) && placeOpen(grid.get(ax, ay)) && inReach(ax, ay)) return { tx: ax, ty: ay };
+  const dx = aimX - cx;
+  const dy = aimY - cy;
+  const d = Math.hypot(dx, dy);
+  if (d < 1e-3) return null;
+  // Tilted aim means "below my feet" / "above my head": skip open cells within the user's own rows.
+  const tilt = Math.abs(dy) > Math.abs(dx) * 0.3 ? Math.sign(dy) : 0;
+  const feetRow = Math.floor((e.y + e.h - 1) / TILE);
+  const headRow = Math.floor(e.y / TILE);
+  for (let s = 0; s <= reach + TILE; s += 2) {
+    const tx = Math.floor((cx + (dx / d) * s) / TILE);
+    const ty = Math.floor((cy + (dy / d) * s) / TILE);
+    if (!grid.inBounds(tx, ty) || !inReach(tx, ty)) return null;
+    const self = e.x < (tx + 1) * TILE && e.x + e.w > tx * TILE && e.y < (ty + 1) * TILE && e.y + e.h > ty * TILE;
+    if (self) continue;
+    const open = placeOpen(grid.get(tx, ty));
+    if (open && ((tilt > 0 && ty <= feetRow) || (tilt < 0 && ty >= headRow))) continue;
+    return open ? { tx, ty } : null;
+  }
+  return null;
+}
+
 /**
  * Place the held item's tile (`places`) or prop (`placesProp`) at the aimed tile: must be in reach, the
  * cell empty (air or liquid), and a solid tile may not entomb any entity. Consumes one on success.
@@ -130,14 +167,11 @@ export function placeFromSlot(world: World, p: PlayerState, e: Entity, slot: num
   if (!def || (def.places === undefined && !def.placesProp)) return false;
   if (def.places !== undefined && world.level.info.isTown) return false;
   const grid = world.level.grid;
-  const tx = Math.floor(aimX / TILE);
-  const ty = Math.floor(aimY / TILE);
-  if (!grid.inBounds(tx, ty)) return false;
+  const t = placeTarget(world, e, aimX, aimY);
+  if (!t) return false;
+  const { tx, ty } = t;
   const x = tx * TILE;
   const y = ty * TILE;
-  if (Math.hypot(x + TILE / 2 - (e.x + e.w / 2), y + TILE / 2 - (e.y + e.h / 2)) > COMBAT.place.reach) return false;
-  const cur = grid.get(tx, ty);
-  if (cur !== Tile.AIR && !tileProps(cur).liquid) return false;
   if (def.places !== undefined) {
     if (tileProps(def.places).solid) {
       for (const o of world.entities) {

@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { Content } from '../src/content';
 import { registerBestiarySprites } from '../src/render/sprites/builtin/bestiary';
 import { registerCreatureSprites } from '../src/render/sprites/builtin/creatures';
+import { registerDecorSprites } from '../src/render/sprites/builtin/decor';
 import { registerHatSprites } from '../src/render/sprites/builtin/hats';
 import { registerItemSprites } from '../src/render/sprites/builtin/items';
 import { registerMiscSprites } from '../src/render/sprites/builtin/misc';
@@ -21,6 +22,7 @@ registerPlayerSprites();
 registerCreatureSprites();
 registerBestiarySprites();
 registerHatSprites();
+registerDecorSprites();
 registerNatureSprites();
 
 const [out = 'sheet.png', ...prefixes] = process.argv.slice(2);
@@ -30,6 +32,7 @@ for (const b of Content.bosses.values()) keys.add(b.sprite);
 for (const n of Content.npcs.values()) keys.add((n as { sprite: string }).sprite);
 for (const c of Content.companions.values()) keys.add((c as { sprite: string }).sprite);
 for (const h of Content.hats.values()) keys.add((h as { sprite: string }).sprite);
+for (const k of ['decor_town_gate','decor_chimney_smoke','decor_lantern','decor_altar','decor_lamp_post','decor_stall','decor_vines','decor_flowers','decor_roots','decor_mushrooms','decor_grass_tuft','decor_blight_pustule','decor_bones','decor_stalks','decor_reeds','decor_stalactite','decor_rails','decor_cart','decor_timber','decor_icicles','decor_frozen_shrub','decor_snow_rock','decor_ice_shards','decor_crystal_spire','decor_glow_moss','decor_crystals','decor_ember_rock','decor_ash_pile','decor_charred_stump','decor_blight_tendril','res_vine_hanging']) keys.add(k);
 const wanted = [...keys].filter((k) => !prefixes.length || prefixes.some((p) => k.startsWith(p)));
 
 const SCALE = 3;

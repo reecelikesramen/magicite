@@ -3,7 +3,7 @@ import { InputManager } from './engine/input';
 import { Game } from './game/game';
 import { App } from './game/app';
 import { LocalSession } from './game/session';
-import { enterLevel, requestFor } from './sim/run';
+import { enterLevel, isTownLevel, requestFor, townRequest } from './sim/run';
 import { GAME_TITLE } from './config';
 import { getIcon } from './render/sprites';
 import { resolveSpriteDef } from './render/sprites/registry';
@@ -34,7 +34,8 @@ async function boot(): Promise<void> {
   const jumpLevel = Number(params.get('level') ?? 0);
   const solo = () =>
     new LocalSession(Number(fixedSeed), [{ name: 'RALVAND', race: 'drifter', hat: '', companion: '' }], (w) => {
-      if (jumpLevel > 1) enterLevel(w, requestFor(w, jumpLevel, params.get('biome') ?? undefined));
+      const biome = params.get('biome') ?? undefined;
+      if (jumpLevel > 1) enterLevel(w, isTownLevel(jumpLevel) ? townRequest(w, jumpLevel, biome ?? 'woods') : requestFor(w, jumpLevel, biome));
     });
   const game = new Game(app, input, fixedSeed ? solo() : new LocalSession(1, [{ name: 'DEMO', race: 'drifter', hat: '', companion: '' }]), fixedSeed ? solo : undefined);
   if (!fixedSeed) (window as unknown as { app: App }).app = new App(app, game);

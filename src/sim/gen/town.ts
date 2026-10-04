@@ -84,10 +84,11 @@ export function buildTown(ctx: GenCtx): void {
     ctx.spawns.push({ kind: 'prop', def: 'decor_chimney_smoke', x: cx * TILE + 4, y: (roofY - 3) * TILE, data: { decor: 1 } });
     // Door (dark doorway) and windows.
     const dx = x + (bw >> 1) - 1;
-    for (let y = floor - 3; y < floor; y++) for (let xx = dx; xx < dx + 2; xx++) grid.bg[y * w + xx] = brick ? Wall.WOOD : Wall.NONE;
+    // Openings show a dark interior (Wall.NONE would read as open sky and let the backdrop through).
+    for (let y = floor - 3; y < floor; y++) for (let xx = dx; xx < dx + 2; xx++) grid.bg[y * w + xx] = Wall.INTERIOR;
     for (const wx of [x + 1, x + bw - 3]) {
       if (Math.abs(wx - dx) < 3) continue;
-      for (let y = floor - 4; y < floor - 2; y++) for (let xx = wx; xx < wx + 2; xx++) grid.bg[y * w + xx] = Wall.NONE;
+      for (let y = floor - 4; y < floor - 2; y++) for (let xx = wx; xx < wx + 2; xx++) grid.bg[y * w + xx] = Wall.INTERIOR;
       ctx.lights.push({ x: (wx + 1) * TILE, y: (floor - 3) * TILE, radius: 14, color: 0xffb040, intensity: 0.5 });
     }
     // Lantern hanging under the eave next to the door.

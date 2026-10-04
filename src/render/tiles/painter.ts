@@ -164,6 +164,11 @@ function bladeColor(st: BiomeStyle, gx: number, k: number, h: number): number {
 /** Back-wall colour (or -1 = none) with ambient occlusion near solid tiles. */
 function wallColor(st: BiomeStyle, pat: PatternSet, wall: number, gx: number, gy: number, ao: number): number {
   if (wall === Wall.NONE) return -1;
+  if (wall === Wall.INTERIOR) {
+    // Warm, dark room (lit by the window/door lights placed by the town generator).
+    const c = (gy & 7) === 0 ? 0x1a120c : hash01(gx >> 1, gy >> 1, 63) < 0.15 ? 0x2a1c12 : 0x22170f;
+    return ao ? shade(c, 0.6) : c;
+  }
   const w = st.pal.wall;
   if (wall === Wall.BRICK) {
     const row = gy >> 2;

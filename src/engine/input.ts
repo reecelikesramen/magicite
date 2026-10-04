@@ -31,6 +31,9 @@ export const DEFAULT_KEYS: Record<Action, string[]> = {
   skill3: ['KeyC'],
 };
 
+/** Keyboard/facing aim distance (px). */
+const AIM_DIST = 48;
+
 function dashDir(left: boolean, right: boolean): -1 | 0 | 1 {
   return left === right ? 0 : left ? -1 : 1;
 }
@@ -57,6 +60,14 @@ export class InputManager {
   screenToWorld: (sx: number, sy: number) => { x: number; y: number } = (x, y) => ({ x, y });
   /** True while the UI wants pointer input (inventory open) so clicks don't attack. */
   pointerCaptured = false;
+  /**
+   * Aim with the mouse pointer instead of the facing direction. Off by default: there is no cursor
+   * in play (like the original) — attacks, shots, digging and placing go where the hero faces,
+   * tilted with W/S (straight up/down when only W/S is held). The gamepad right stick still aims.
+   */
+  mouseAim = false;
+  /** Last horizontal direction pressed (keyboard aim). */
+  private facing: -1 | 1 = 1;
   private queuedCommands: PlayerInput['commands'] = [];
   private keys = DEFAULT_KEYS;
   /**
@@ -169,9 +180,12 @@ export class InputManager {
     inp.attack = this.held('attack') || ((this.mouseLeft || attackTap) && !this.pointerCaptured);
     inp.alt = this.held('alt') || ((this.mouseRight || altTap) && !this.pointerCaptured);
     inp.interact = this.held('interact') || interactTap;
-    const w = this.screenToWorld(this.mouseX, this.mouseY);
-    inp.aimX = w.x;
-    inp.aimY = w.y;
+    if (inp.moveX !== 0) this.facing = inp.moveX > 0 ? 1 : -1;
+    if (this.mouseAim) {
+      const w = this.screenToWorld(this.mouseX, this.mouseY);
+      inp.aimX = w.x;
+      inp.aimY = w.y;
+    } else this.keyboardAim(inp, playerCenter);
     const pad = this.gamepad();
     if (pad) {
       const ax = pad.axes[0] ?? 0;
@@ -190,9 +204,9 @@ export class InputManager {
       if (Math.hypot(rx, ry) > 0.4) {
         inp.aimX = playerCenter.x + rx * 40;
         inp.aimY = playerCenter.y + ry * 40;
-      } else if (!this.mouseLeft) {
-        inp.aimX = playerCenter.x + (inp.moveX || 1) * 40;
-        inp.aimY = playerCenter.y + inp.moveY * 20;
+      } else if (Math.abs(ax) > 0.3) {
+        this.facing = ax > 0 ? 1 : -1;
+        this.keyboardAim(inp, playerCenter);
       }
     }
     // Both dash buttons = no dash (LB+RB is the hotbar-cycle chord). Stay latched until both are
@@ -212,6 +226,13 @@ export class InputManager {
     inp.commands = this.queuedCommands;
     this.queuedCommands = [];
     return inp;
+  }
+
+  /** Aim point from facing + vertical tilt (48 px out: far enough for shots, mining rays clamp to reach). */
+  private keyboardAim(inp: PlayerInput, c: { x: number; y: number }): void {
+    const vertical = inp.moveY !== 0 && inp.moveX === 0;
+    inp.aimX = c.x + (vertical ? 0 : this.facing * AIM_DIST);
+    inp.aimY = c.y + inp.moveY * (vertical ? AIM_DIST : AIM_DIST * 0.6);
   }
 
   /**

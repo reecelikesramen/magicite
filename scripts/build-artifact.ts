@@ -23,7 +23,7 @@ const pageFor = (pixiUrl: string) => `<title>Shardfall</title>
   :root { --ground: #050403; --ink: #f2e6c8; --muted: #a8977a; --ember: #ffb060; --panel: rgba(20, 15, 10, 0.86); color-scheme: dark; }
   html, body { height: 100%; }
   body { margin: 0; background: var(--ground); color: var(--ink); overflow: hidden; font: 13px/1.4 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
-  #app, #app canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; cursor: crosshair; }
+  #app, #app canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; cursor: none; }
   #help { position: fixed; left: 16px; right: 16px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center;
     padding: 8px 12px; background: var(--panel); border: 1px solid #3a2c1c; color: var(--muted); max-width: 760px; margin: 0 auto; pointer-events: none; transition: opacity 0.6s; }
   #help b { color: var(--ember); font-weight: 600; }
